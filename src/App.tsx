@@ -23,7 +23,7 @@ export default function App() {
           // horizontal; anything past it tilts the view below the horizon to see
           // undersides. Capping just shy of π/2 keeps the camera at or above
           // ground level, always. Raise the epsilon to forbid grazing angles too.
-          maxPolarAngle={Math.PI / 2 - 0.02}
+          maxPolarAngle={Math.PI / 2 - 0.1}
         />
       </Canvas>
     </div>
