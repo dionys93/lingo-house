@@ -1,4 +1,4 @@
-// src/core/grid.test.ts
+// src/tests/grid.test.ts
 //
 // Slice 1's guardrail: the grid → geometry contract as a table of
 // (grid) → (rooms + walls) or (errors). `compileGrid` is the innermost pure
@@ -26,7 +26,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { defineRoom, EMPTY } from '../core/blocks';
-import { compileGrid } from '../core/grid';
+import { compileGrid, consecutiveRanges, CELL, WALL_HEIGHT } from '../core/grid';
 import type { HouseError } from '../core/errors';
 import type { Result } from '../core/result';
 
@@ -53,6 +53,16 @@ const exterior = (walls: readonly WallLike[]) =>
   walls.filter((w) => w.sides.includes('outside')).length;
 const interior = (walls: readonly WallLike[]) =>
   walls.filter((w) => !w.sides.includes('outside')).length;
+
+// Canonical string for a wall. a/b are left in emitted order (not sorted), so a
+// swapped-endpoint bug changes the string; the whole set is compared unordered.
+const wallKey = (w: {
+  readonly axis: string;
+  readonly a: readonly number[];
+  readonly b: readonly number[];
+  readonly height: number;
+  readonly sides: readonly string[];
+}) => JSON.stringify([w.axis, w.a, w.b, w.height, w.sides]);
 
 describe('compileGrid — rooms & merging', () => {
   it('a single cell is one room', () => {
@@ -132,6 +142,26 @@ describe('compileGrid — walls (merged runs, two-sided)', () => {
     const { walls } = unwrap(compileGrid([[K, L]]));
     expect(exterior(walls)).toBe(6);
   });
+
+  it('a lone cell places its four walls at ±CELL/2, spanning the cell, height WALL_HEIGHT', () => {
+    const q = 0.25; // CELL / 2 at CELL = 0.5
+    const h = 1.2; // WALL_HEIGHT
+    const expected = [
+      { axis: 'z', a: [-q, 0, -q], b: [-q, 0, q], height: h, sides: ['outside', 'kitchen'] }, // west
+      { axis: 'z', a: [q, 0, -q], b: [q, 0, q], height: h, sides: ['kitchen', 'outside'] }, // east
+      { axis: 'x', a: [-q, 0, -q], b: [q, 0, -q], height: h, sides: ['outside', 'kitchen'] }, // back
+      { axis: 'x', a: [-q, 0, q], b: [q, 0, q], height: h, sides: ['kitchen', 'outside'] }, // front
+    ];
+    const { walls } = unwrap(compileGrid([[K]]));
+    expect(walls.map(wallKey).sort()).toEqual(expected.map(wallKey).sort());
+  });
+
+  it('coordinate oracle assumes CELL=0.5 and WALL_HEIGHT=1.2', () => {
+    // Tripwire: if either constant is retuned, the ± values in the test above
+    // must be updated. This fails first, loudly, to point you there.
+    expect(CELL).toBe(0.5);
+    expect(WALL_HEIGHT).toBe(1.2);
+  });
 });
 
 describe('compileGrid — grid errors', () => {
@@ -170,5 +200,30 @@ describe('compileGrid — grid errors', () => {
   it("a room keyed 'outside' is a reserved-key error", () => {
     const O = defineRoom({ key: 'outside', name: 'Nope' });
     expect(errorsOf(compileGrid([[O]]))).toContainEqual({ tag: 'ReservedRoomKey', key: 'outside' });
+  });
+});
+
+describe('consecutiveRanges', () => {
+  it('merges a fully consecutive run', () => {
+    expect(consecutiveRanges([0, 1, 2])).toEqual([[0, 2]]);
+  });
+  it('splits at a gap', () => {
+    expect(consecutiveRanges([0, 2])).toEqual([
+      [0, 0],
+      [2, 2],
+    ]);
+  });
+  it('handles multiple runs', () => {
+    expect(consecutiveRanges([0, 1, 3, 4, 7])).toEqual([
+      [0, 1],
+      [3, 4],
+      [7, 7],
+    ]);
+  });
+  it('is empty for empty input', () => {
+    expect(consecutiveRanges([])).toEqual([]);
+  });
+  it('handles a singleton', () => {
+    expect(consecutiveRanges([5])).toEqual([[5, 5]]);
   });
 });
