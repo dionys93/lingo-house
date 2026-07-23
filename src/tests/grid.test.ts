@@ -25,10 +25,10 @@
 // kind, between which rooms.
 
 import { describe, it, expect } from 'vitest';
-import { defineRoom, EMPTY } from './blocks';
-import { compileGrid } from './grid';
-import type { HouseError } from './errors';
-import type { Result } from './result';
+import { defineRoom, EMPTY } from '../core/blocks';
+import { compileGrid } from '../core/grid';
+import type { HouseError } from '../core/errors';
+import type { Result } from '../core/result';
 
 const K = defineRoom({ key: 'kitchen', name: 'Kitchen', color: '#d4d4d4' });
 const L = defineRoom({ key: 'livingRoom', name: 'Living Room' });
