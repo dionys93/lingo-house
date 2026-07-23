@@ -1,8 +1,4 @@
 // src/App.tsx
-//
-// Minimal scene host — just enough to see Ground render. Walls, rooms, and the
-// compiled house come later; this exists to de-risk the core→shell seam and the
-// grass/camera work in isolation.
 
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
@@ -19,10 +15,6 @@ export default function App() {
           enablePan={false}
           minDistance={2}
           maxDistance={30}
-          // THE camera constraint you asked for: polar angle π/2 is dead
-          // horizontal; anything past it tilts the view below the horizon to see
-          // undersides. Capping just shy of π/2 keeps the camera at or above
-          // ground level, always. Raise the epsilon to forbid grazing angles too.
           maxPolarAngle={Math.PI / 2 - 0.1}
         />
       </Canvas>
