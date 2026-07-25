@@ -1,25 +1,18 @@
 // src/App.tsx
 //
-// Now renders the FIRST core→scene join: compile a grid, and on success stand
-// its walls up over the grass. On failure we show the errors in a panel — no
-// silent failure even in the host, even though [[K]] can't actually fail.
-//
-// The grid lives here inline for now; it moves to an authoring module (rooms.ts)
-// once there's more than one cell to author.
+// The scene host. It no longer owns any house data — it compiles the plan the
+// human authored in authoring/rooms.ts and renders it. On success the walls
+// stand up over the grass; on failure the errors show in a panel (no silent
+// failure even here).
 
 import { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { compileGrid } from './core/grid';
 import type { HouseError } from './core/errors';
+import { GROUND_FLOOR } from './authoring/rooms';
 import { Ground } from './scene/Ground';
 import { Walls } from './scene/Walls';
-import { defineRoom, EMPTY } from './core/blocks';
-import type { Grid } from './core/blocks';
-const _ = EMPTY;
-
-const K = defineRoom({ key: 'kitchen', name: 'Kitchen', color: '#d4d4d4' });
-const GRID: Grid = [[K, K]];
 
 function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
   return (
@@ -47,11 +40,11 @@ function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
 }
 
 export default function App() {
-  const result = useMemo(() => compileGrid(GRID), []);
+  const result = useMemo(() => compileGrid(GROUND_FLOOR), []);
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
-      <Canvas camera={{ position: [3, 2.5, 4], fov: 50 }}>
+      <Canvas camera={{ position: [4, 3.5, 5], fov: 50 }}>
         <color attach="background" args={['#dce8f5']} />
         <fog attach="fog" args={['#dce8f5', 18, 38]} />
         <ambientLight intensity={0.6} />
