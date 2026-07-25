@@ -38,6 +38,7 @@ export interface CompiledRoom {
   readonly color?: string; // opaque to the core; the factory interprets it
   readonly cells: readonly Cell[];
   readonly bounds: AABB;
+  readonly floor: readonly Vec3[]; // world centre of each cell, at y=0 — one floor tile each
 }
 
 export interface CompiledWall {
@@ -144,7 +145,8 @@ export function compileGrid(grid: Grid): Result<CompiledGrid, readonly HouseErro
       min: vec3(xAt(Math.min(...colsOf)), 0, zAt(Math.min(...rowsOf))),
       max: vec3(xAt(Math.max(...colsOf) + 1), WALL_HEIGHT, zAt(Math.max(...rowsOf) + 1)),
     };
-    const base = { key, name: def.name, cells, bounds };
+    const floor: Vec3[] = cells.map(([r, c]) => vec3(xAt(c) + CELL / 2, 0, zAt(r) + CELL / 2));
+    const base = { key, name: def.name, cells, bounds, floor };
     compiledRooms.push(def.color === undefined ? base : { ...base, color: def.color });
   }
 

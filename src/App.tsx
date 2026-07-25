@@ -12,6 +12,7 @@ import { compileGrid } from './core/grid';
 import type { HouseError } from './core/errors';
 import { GROUND_FLOOR } from './authoring/rooms';
 import { Ground } from './scene/Ground';
+import { Floor } from './scene/Floor';
 import { Walls } from './scene/Walls';
 
 function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
@@ -50,7 +51,12 @@ export default function App() {
         <ambientLight intensity={0.6} />
         <directionalLight position={[5, 8, 5]} intensity={1} />
         <Ground />
-        {result.ok && <Walls grid={result.value} />}
+        {result.ok && (
+          <>
+            <Floor grid={result.value} />
+            <Walls grid={result.value} />
+          </>
+        )}
         <OrbitControls
           enablePan={false}
           minDistance={2}

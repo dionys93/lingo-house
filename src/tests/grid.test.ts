@@ -1,4 +1,4 @@
-// src/tests/grid.test.ts
+// src/core/grid.test.ts
 //
 // Slice 1's guardrail: the grid → geometry contract as a table of
 // (grid) → (rooms + walls) or (errors). `compileGrid` is the innermost pure
@@ -91,6 +91,16 @@ describe('compileGrid — rooms & merging', () => {
     const K2 = defineRoom({ key: 'kitchen', name: 'Kitchen' });
     const g = unwrap(compileGrid([[K, K2]]));
     expect(g.rooms.map((r) => r.key)).toEqual(['kitchen']);
+  });
+
+  it('a room floor has one world-space tile centre per cell', () => {
+    const g = unwrap(compileGrid([[K, K]]));
+    const kitchen = assertDefined(
+      g.rooms.find((r) => r.key === 'kitchen'),
+      'expected a kitchen room',
+    );
+    const asKey = (v: readonly number[]) => v.join(',');
+    expect(kitchen.floor.map(asKey).sort()).toEqual(['-0.25,0,0', '0.25,0,0'].sort());
   });
 });
 
