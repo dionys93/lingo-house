@@ -24,7 +24,7 @@
 // (Doors, stairs, and items are placed by naming the cells they touch. Those
 // lists will join this file as each of those features lands.)
 
-import { defineRoom, EMPTY, type Grid } from '../core/blocks';
+import { defineRoom, EMPTY, type Grid, type Opening } from '../core/blocks';
 
 // ── The rooms: a key, a display name, and the colour seen from inside. ──
 const K = defineRoom({ key: 'kitchen', name: 'Kitchen', color: '#d4d4d4' });
@@ -40,4 +40,14 @@ export const GROUND_FLOOR: Grid = [
   [L, L, L, K, K],
   [L, L, L, K, K],
   [L, L, L, K, K],
+];
+
+// ── Doors. Placed ON a wall: name a cell and which of its sides the wall is on.
+// `between` is an optional safety check — the compiler confirms the edge really
+// connects those two rooms, so a miscounted cell fails loudly instead of putting
+// a door in the wrong wall. `swing` is which way the panel opens.
+export const DOORS: readonly Opening[] = [
+  { kind: 'door', cell: [3, 1], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] },
+  { kind: 'door', cell: [1, 2], side: 'right', swing: 'in',  between: ['livingRoom', 'kitchen'] },
+  { kind: 'door', cell: [1, 0], side: 'back',  swing: 'in',  between: ['livingRoom', 'bathroom'] },
 ];

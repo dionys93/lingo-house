@@ -16,8 +16,8 @@
 // `footprint` on top of this; compileGrid itself stays scoped to one grid.
 
 import { ok, err, type Result } from './result';
-import type { Cell, HouseError, RoomKey } from './errors';
-import { isRoom, type Grid, type RoomDef } from './blocks';
+import { assertNever, type Cell, type HouseError, type RoomKey, type Side } from './errors';
+import { isRoom, type Grid, type Opening, type RoomDef } from './blocks';
 
 // ── World-scale knobs. One cell is CELL units on a side; walls rise WALL_HEIGHT.
 // Tunable and cosmetic — the roof will read wall-top height from here later. ────
@@ -52,14 +52,32 @@ export interface CompiledWall {
   readonly sides: readonly [WallSide, WallSide];
 }
 
+interface OpeningBase {
+  readonly id: string; // stable per edge: `${orient}:${fixed}:${varying}`
+  readonly a: Vec3;
+  readonly b: Vec3;
+  readonly axis: 'x' | 'z';
+  readonly height: number; // full wall height; the renderer fills sill/head/lintel
+  readonly sides: readonly [WallSide, WallSide];
+}
+
+// Discriminated on `kind`: a door can't carry a sill, a window can't swing.
+export type CompiledOpening =
+  | (OpeningBase & { readonly kind: 'door'; readonly swing: 'in' | 'out' })
+  | (OpeningBase & { readonly kind: 'window'; readonly sill: number; readonly head: number });
+
 export interface CompiledGrid {
   readonly rooms: readonly CompiledRoom[];
   readonly walls: readonly CompiledWall[];
+  readonly openings: readonly CompiledOpening[];
 }
 
 const vec3 = (x: number, y: number, z: number): Vec3 => [x, y, z];
 
-export function compileGrid(grid: Grid): Result<CompiledGrid, readonly HouseError[]> {
+export function compileGrid(
+  grid: Grid,
+  openings: readonly Opening[] = [],
+): Result<CompiledGrid, readonly HouseError[]> {
   const R = grid.length;
   const C = grid.reduce((max, row) => Math.max(max, row.length), 0);
 
@@ -103,22 +121,87 @@ export function compileGrid(grid: Grid): Result<CompiledGrid, readonly HouseErro
   const xAt = (col: number) => col * CELL - (C * CELL) / 2;
   const zAt = (row: number) => row * CELL - (R * CELL) / 2;
 
-  // Vertical boundaries (fixed X, varying row): a wall where left key ≠ right key.
+  // The two sides of a resolved edge, in the same [neg, pos] convention the wall
+  // loops use — so an opening carries exactly the sides its wall would have.
+  const edgeSides = (e: ResolvedEdge): { neg: WallSide; pos: WallSide } =>
+    e.orient === 'v'
+      ? { neg: keyAt(e.varying, e.fixed - 1), pos: keyAt(e.varying, e.fixed) }
+      : { neg: keyAt(e.fixed - 1, e.varying), pos: keyAt(e.fixed, e.varying) };
+
+  // ── Openings. Validate each; a bad one fails the whole compile (no silent
+  // drop). A valid opening CLAIMS its edge — excluded from the solid walls below
+  // and emitted as a CompiledOpening. Openings gate on a sound grid (above). ──
+  const openingErrors: HouseError[] = [];
+  const claimed = new Map<
+    string,
+    { readonly op: Opening; readonly edge: ResolvedEdge; readonly neg: WallSide; readonly pos: WallSide }
+  >();
+  for (const op of openings) {
+    const [r, c] = op.cell;
+    if (keyAt(r, c) === 'outside') {
+      openingErrors.push(
+        r < 0 || r >= R || c < 0
+          ? { tag: 'OpeningCellOutOfBounds', cell: op.cell }
+          : { tag: 'OpeningCellEmpty', cell: op.cell },
+      );
+      continue;
+    }
+    const edge = resolveEdge(op.cell, op.side);
+    const { neg, pos } = edgeSides(edge);
+    if (neg === pos) {
+      openingErrors.push({ tag: 'OpeningNotOnWall', cell: op.cell, side: op.side });
+      continue;
+    }
+    if (op.between !== undefined) {
+      const want = new Set<WallSide>(op.between);
+      const have = new Set<WallSide>([neg, pos]);
+      const matches = want.size === have.size && [...want].every((k) => have.has(k));
+      if (!matches) {
+        openingErrors.push({
+          tag: 'OpeningConnectsWrongRooms',
+          cell: op.cell,
+          side: op.side,
+          expected: op.between,
+          actual: [neg, pos],
+        });
+        continue;
+      }
+    }
+    if (op.kind === 'window') {
+      if (op.sill >= op.head) {
+        openingErrors.push({ tag: 'WindowSillAboveHead', cell: op.cell, side: op.side, sill: op.sill, head: op.head });
+        continue;
+      }
+      if (op.head > WALL_HEIGHT || op.sill < 0) {
+        openingErrors.push({ tag: 'WindowExceedsWall', cell: op.cell, side: op.side, head: op.head, wallHeight: WALL_HEIGHT });
+        continue;
+      }
+    }
+    const id = `${edge.orient}:${edge.fixed}:${edge.varying}`;
+    if (claimed.has(id)) {
+      openingErrors.push({ tag: 'OpeningsOverlap', cell: op.cell, side: op.side });
+      continue;
+    }
+    claimed.set(id, { op, edge, neg, pos });
+  }
+  if (openingErrors.length > 0) return err(openingErrors);
+
+  // Wall boundaries, MINUS any edge a valid opening claimed. Removing the edge
+  // splits its run for free — consecutiveRanges reads the gap as a break.
   const vSegs: Seg[] = [];
   for (let c = 0; c <= C; c++) {
     for (let r = 0; r < R; r++) {
       const neg = keyAt(r, c - 1);
       const pos = keyAt(r, c);
-      if (neg !== pos) vSegs.push({ fixed: c, varying: r, neg, pos });
+      if (neg !== pos && !claimed.has(`v:${c}:${r}`)) vSegs.push({ fixed: c, varying: r, neg, pos });
     }
   }
-  // Horizontal boundaries (fixed Z, varying col): a wall where north key ≠ south key.
   const hSegs: Seg[] = [];
   for (let r = 0; r <= R; r++) {
     for (let c = 0; c < C; c++) {
       const neg = keyAt(r - 1, c);
       const pos = keyAt(r, c);
-      if (neg !== pos) hSegs.push({ fixed: r, varying: c, neg, pos });
+      if (neg !== pos && !claimed.has(`h:${r}:${c}`)) hSegs.push({ fixed: r, varying: c, neg, pos });
     }
   }
 
@@ -137,6 +220,22 @@ export function compileGrid(grid: Grid): Result<CompiledGrid, readonly HouseErro
     sides: [run.neg, run.pos],
   }));
 
+  // Each claimed edge becomes an opening — the same geometry that one-cell wall
+  // run would have, plus the kind-specific fields.
+  const compiledOpenings: CompiledOpening[] = [];
+  for (const [id, { op, edge, neg, pos }] of claimed) {
+    const geom =
+      edge.orient === 'v'
+        ? { a: vec3(xAt(edge.fixed), 0, zAt(edge.varying)), b: vec3(xAt(edge.fixed), 0, zAt(edge.varying + 1)), axis: 'z' as const }
+        : { a: vec3(xAt(edge.varying), 0, zAt(edge.fixed)), b: vec3(xAt(edge.varying + 1), 0, zAt(edge.fixed)), axis: 'x' as const };
+    const common = { id, ...geom, height: WALL_HEIGHT, sides: [neg, pos] as const };
+    compiledOpenings.push(
+      op.kind === 'door'
+        ? { ...common, kind: 'door', swing: op.swing }
+        : { ...common, kind: 'window', sill: op.sill, head: op.head },
+    );
+  }
+
   const compiledRooms: CompiledRoom[] = [];
   for (const [key, { def, cells }] of rooms) {
     const rowsOf = cells.map(([r]) => r);
@@ -150,10 +249,36 @@ export function compileGrid(grid: Grid): Result<CompiledGrid, readonly HouseErro
     compiledRooms.push(def.color === undefined ? base : { ...base, color: def.color });
   }
 
-  return ok({ rooms: compiledRooms, walls: [...vWalls, ...hWalls] });
+  return ok({ rooms: compiledRooms, walls: [...vWalls, ...hWalls], openings: compiledOpenings });
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+// A grid boundary edge an opening resolves to. `orient` 'v' = vertical boundary
+// (a run along Z), 'h' = horizontal (along X). `fixed` is the boundary line index,
+// `varying` the cell index along it — matching the wall-segment loops exactly.
+interface ResolvedEdge {
+  readonly orient: 'v' | 'h';
+  readonly fixed: number;
+  readonly varying: number;
+}
+
+// cell + side → the single boundary edge that side names.
+function resolveEdge(cell: Cell, side: Side): ResolvedEdge {
+  const [r, c] = cell;
+  switch (side) {
+    case 'back':
+      return { orient: 'h', fixed: r, varying: c };
+    case 'front':
+      return { orient: 'h', fixed: r + 1, varying: c };
+    case 'left':
+      return { orient: 'v', fixed: c, varying: r };
+    case 'right':
+      return { orient: 'v', fixed: c + 1, varying: r };
+    default:
+      return assertNever(side);
+  }
+}
 
 // Count 4-connected regions of a room's cells. >1 means the same key appears as
 // two touching-only-diagonally (or fully separate) blobs → DisconnectedRoom.

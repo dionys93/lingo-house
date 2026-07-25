@@ -1,4 +1,4 @@
-// src/core/grid.test.ts
+// src/tests/grid.test.ts
 //
 // Slice 1's guardrail: the grid → geometry contract as a table of
 // (grid) → (rooms + walls) or (errors). `compileGrid` is the innermost pure
@@ -210,6 +210,89 @@ describe('compileGrid — grid errors', () => {
   it("a room keyed 'outside' is a reserved-key error", () => {
     const O = defineRoom({ key: 'outside', name: 'Nope' });
     expect(errorsOf(compileGrid([[O]]))).toContainEqual({ tag: 'ReservedRoomKey', key: 'outside' });
+  });
+});
+
+describe('compileGrid — openings', () => {
+  it('a door claims its edge and splits the wall run around it', () => {
+    const plain = unwrap(compileGrid([[K, K, K]]));
+    const withDoor = unwrap(
+      compileGrid([[K, K, K]], [{ kind: 'door', cell: [0, 1], side: 'front', swing: 'out' }]),
+    );
+    expect(withDoor.openings).toHaveLength(1);
+    expect(withDoor.openings[0]?.kind).toBe('door');
+    // the 3-cell front wall (one run) becomes two runs around the gap → +1 wall
+    expect(withDoor.walls.length).toBe(plain.walls.length + 1);
+  });
+
+  it('an interior door carries both room keys', () => {
+    const g = unwrap(
+      compileGrid([[K, L]], [{ kind: 'door', cell: [0, 0], side: 'right', swing: 'in' }]),
+    );
+    const door = assertDefined(g.openings[0], 'expected a door');
+    expect(new Set(door.sides)).toEqual(new Set(['kitchen', 'livingRoom']));
+  });
+
+  it('rejects a door on a same-room seam (no wall there)', () => {
+    const errs = errorsOf(
+      compileGrid([[K, K]], [{ kind: 'door', cell: [0, 0], side: 'right', swing: 'in' }]),
+    );
+    expect(errs).toContainEqual({ tag: 'OpeningNotOnWall', cell: [0, 0], side: 'right' });
+  });
+
+  it('rejects a door on an empty cell', () => {
+    const errs = errorsOf(
+      compileGrid([[K, EMPTY]], [{ kind: 'door', cell: [0, 1], side: 'front', swing: 'out' }]),
+    );
+    expect(errs).toContainEqual({ tag: 'OpeningCellEmpty', cell: [0, 1] });
+  });
+
+  it('rejects a `between` that does not match the edge', () => {
+    const errs = errorsOf(
+      compileGrid(
+        [[K, L]],
+        [{ kind: 'door', cell: [0, 0], side: 'right', swing: 'in', between: ['kitchen', 'bathroom'] }],
+      ),
+    );
+    expect(errs.some((e) => e.tag === 'OpeningConnectsWrongRooms')).toBe(true);
+  });
+
+  it('rejects two openings on the same edge', () => {
+    const errs = errorsOf(
+      compileGrid(
+        [[K, L]],
+        [
+          { kind: 'door', cell: [0, 0], side: 'right', swing: 'in' },
+          { kind: 'window', cell: [0, 1], side: 'left', sill: 0.3, head: 0.9 },
+        ],
+      ),
+    );
+    expect(errs.some((e) => e.tag === 'OpeningsOverlap')).toBe(true);
+  });
+
+  it('rejects a window whose sill is above its head', () => {
+    const errs = errorsOf(
+      compileGrid([[K]], [{ kind: 'window', cell: [0, 0], side: 'front', sill: 0.9, head: 0.3 }]),
+    );
+    expect(errs).toContainEqual({
+      tag: 'WindowSillAboveHead',
+      cell: [0, 0],
+      side: 'front',
+      sill: 0.9,
+      head: 0.3,
+    });
+  });
+
+  it('accepts a valid window and emits its sill and head', () => {
+    const g = unwrap(
+      compileGrid([[K]], [{ kind: 'window', cell: [0, 0], side: 'front', sill: 0.3, head: 0.9 }]),
+    );
+    const win = assertDefined(g.openings[0], 'expected a window');
+    expect(win.kind).toBe('window');
+    if (win.kind === 'window') {
+      expect(win.sill).toBe(0.3);
+      expect(win.head).toBe(0.9);
+    }
   });
 });
 

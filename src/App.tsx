@@ -1,19 +1,20 @@
 // src/App.tsx
 //
-// The scene host. It no longer owns any house data — it compiles the plan the
-// human authored in authoring/rooms.ts and renders it. On success the walls
-// stand up over the grass; on failure the errors show in a panel (no silent
-// failure even here).
+// The scene host. It compiles the plan the human authored in authoring/rooms.ts
+// — the grid AND its doors — and renders it. On success the walls stand up, the
+// floors fill, and the doors swing on click; on failure the errors show in a
+// panel (no silent failure even here).
 
 import { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { compileGrid } from './core/grid';
-import type { HouseError } from './core/errors';
-import { GROUND_FLOOR } from './authoring/rooms';
+import { describeError, type HouseError } from './core/errors';
+import { GROUND_FLOOR, DOORS } from './authoring/rooms';
 import { Ground } from './scene/Ground';
 import { Floor } from './scene/Floor';
 import { Walls } from './scene/Walls';
+import { Doors } from './scene/Doors';
 
 function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
   return (
@@ -22,18 +23,20 @@ function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
         position: 'absolute',
         top: 12,
         left: 12,
-        maxWidth: 360,
+        maxWidth: 440,
         padding: '12px 16px',
         borderRadius: 8,
         background: 'rgba(120, 20, 20, 0.92)',
         color: '#fff',
-        font: '13px/1.5 ui-monospace, monospace',
+        font: '13px/1.55 ui-monospace, monospace',
       }}
     >
       <strong>Plan did not compile</strong>
       <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
         {errors.map((e, i) => (
-          <li key={i}>{e.tag}</li>
+          <li key={i} style={{ marginBottom: 6 }}>
+            {describeError(e)}
+          </li>
         ))}
       </ul>
     </div>
@@ -41,7 +44,7 @@ function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
 }
 
 export default function App() {
-  const result = useMemo(() => compileGrid(GROUND_FLOOR), []);
+  const result = useMemo(() => compileGrid(GROUND_FLOOR, DOORS), []);
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -55,6 +58,7 @@ export default function App() {
           <>
             <Floor grid={result.value} />
             <Walls grid={result.value} />
+            <Doors grid={result.value} />
           </>
         )}
         <OrbitControls

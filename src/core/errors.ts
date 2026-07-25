@@ -28,18 +28,20 @@ export type HouseError =
   //   ↑ pending open question (A): may become legal (multiple buildings) or an
   //     alias for "two rooms sharing a name". Until decided, it's an error.
 
-  // ── Doors ─────────────────────────────  (placed by cell + side)
-  | { readonly tag: 'DoorCellOutOfBounds'; readonly cell: Cell }
-  | { readonly tag: 'DoorCellEmpty'; readonly cell: Cell }
-  | { readonly tag: 'DoorNotOnWall'; readonly cell: Cell; readonly side: Side } // both sides same room → no wall to cut
-  | { readonly tag: 'DoorRoomUnknown'; readonly room: RoomKey } // optional `between` names a nonexistent room
+  // ── Openings (doors + windows; placed by cell + side) ──
+  | { readonly tag: 'OpeningCellOutOfBounds'; readonly cell: Cell }
+  | { readonly tag: 'OpeningCellEmpty'; readonly cell: Cell }
+  | { readonly tag: 'OpeningNotOnWall'; readonly cell: Cell; readonly side: Side } // side faces the same room → no wall
   | {
-      readonly tag: 'DoorConnectsWrongRooms'; // `between` given, but the named edge connects other rooms
+      readonly tag: 'OpeningConnectsWrongRooms'; // `between` given, but the edge connects other rooms
       readonly cell: Cell;
       readonly side: Side;
       readonly expected: readonly [RoomKey, RoomKey];
       readonly actual: readonly [RoomKey | 'outside', RoomKey | 'outside'];
     }
+  | { readonly tag: 'OpeningsOverlap'; readonly cell: Cell; readonly side: Side } // two openings on one edge
+  | { readonly tag: 'WindowSillAboveHead'; readonly cell: Cell; readonly side: Side; readonly sill: number; readonly head: number }
+  | { readonly tag: 'WindowExceedsWall'; readonly cell: Cell; readonly side: Side; readonly head: number; readonly wallHeight: number }
 
   // ── Stairs ────────────────────────────  (placed by starts/ends; hole derived; land on ends+1)
   | { readonly tag: 'StairEndpointOutOfBounds'; readonly endpoint: Cell }
@@ -62,3 +64,47 @@ export type HouseError =
 export const assertNever = (x: never): never => {
   throw new Error(`Unhandled variant: ${JSON.stringify(x)}`);
 };
+
+// A human-readable, diagnostic message for each error — cell, side, room, and so
+// on, not just the tag. Exhaustive on purpose: adding a HouseError variant won't
+// compile until it has a message here, so the panel can never under-report.
+const fmtCell = (c: Cell): string => `[${c[0]}, ${c[1]}]`;
+
+export function describeError(e: HouseError): string {
+  switch (e.tag) {
+    case 'EmptyGrid':
+      return 'The grid is empty — there are no rooms to build.';
+    case 'ReservedRoomKey':
+      return `Room key '${e.key}' is reserved (it names the exterior). Rename that room.`;
+    case 'DisconnectedRoom':
+      return `Room '${e.room}' appears in ${e.regions} separate places — each room must be one connected blob.`;
+    case 'OpeningCellOutOfBounds':
+      return `Opening at cell ${fmtCell(e.cell)} is off the grid.`;
+    case 'OpeningCellEmpty':
+      return `Opening at cell ${fmtCell(e.cell)} sits on an empty cell — put it on a room.`;
+    case 'OpeningNotOnWall':
+      return `Opening at ${fmtCell(e.cell)} side '${e.side}' isn't on a wall — that side faces the same room.`;
+    case 'OpeningConnectsWrongRooms':
+      return `Opening at ${fmtCell(e.cell)} side '${e.side}': you said ${e.expected.join(' ↔ ')}, but that wall connects ${e.actual.join(' ↔ ')}.`;
+    case 'OpeningsOverlap':
+      return `Two openings share one edge (at ${fmtCell(e.cell)} side '${e.side}') — only one opening per edge.`;
+    case 'WindowSillAboveHead':
+      return `Window at ${fmtCell(e.cell)} side '${e.side}': sill (${e.sill}) is at or above head (${e.head}).`;
+    case 'WindowExceedsWall':
+      return `Window at ${fmtCell(e.cell)} side '${e.side}': head (${e.head}) exceeds the wall height (${e.wallHeight}).`;
+    case 'StairEndpointOutOfBounds':
+      return `Stair endpoint ${fmtCell(e.endpoint)} is off the grid.`;
+    case 'StairsNotStraight':
+      return `Stair from ${fmtCell(e.starts)} to ${fmtCell(e.ends)} isn't a straight run.`;
+    case 'StairFootOnEmptyCell':
+      return `Stair foot ${fmtCell(e.starts)} sits on an empty cell.`;
+    case 'StairLandsInEmptySpace':
+      return `Stair lands at ${fmtCell(e.landing)}, where there's no room above to step onto.`;
+    case 'StairConnectsWrongRooms':
+      return `Stair: you said ${e.expected.join(' ↔ ')}, but it connects ${e.actual.join(' ↔ ')}.`;
+    case 'UnknownTextureKey':
+      return `Unknown texture key '${e.key}'.`;
+    default:
+      return assertNever(e);
+  }
+}
