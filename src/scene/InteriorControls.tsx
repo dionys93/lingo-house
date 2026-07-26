@@ -1,10 +1,12 @@
 // src/scene/InteriorControls.tsx
 //
-// Interior camera: a TURNTABLE. You orbit the room's centre at eye height, level
-// (no pitch — you move around the room, you don't fly). Drag right → orbit right.
-// You enter facing INTO the room (CameraRig leaves the camera on the doorway side
-// looking at the centre), and this picks that facing up so there's no snap.
-// OrbitControls still handles the exterior.
+// Interior camera: a TURNTABLE with head-tilt. Your POSITION stays on an
+// eye-height circle around the room centre — horizontal drag orbits you around
+// the room (you move, you don't fly). Vertical drag only TILTS your gaze up/down
+// (toward the ceiling/windows or the floor), it doesn't lift the camera — so you
+// can look up and down without it becoming a free-flying helicopter. You enter
+// facing into the room (CameraRig leaves you on the doorway side looking at the
+// centre) and this picks that facing up, so there's no snap.
 
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -12,8 +14,12 @@ import type { CompiledRoom } from '../core/grid';
 import { boundsAt, type Location, type NavState } from '../core/nav';
 import { roomCenter, orbitRadius } from './vantage';
 
-// Drag sensitivity. If drag-right orbits the WRONG way, flip this sign.
+// Drag sensitivity. If drag-right orbits the WRONG way, flip the azimuth sign;
+// if up/down is inverted, flip the pitch sign. Each is one character.
 const DRAG = 0.006;
+const PITCH_LIMIT = 1.0; // radians of look up/down (~57°)
+
+const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, x));
 
 export function InteriorControls({
   nav,
@@ -24,8 +30,9 @@ export function InteriorControls({
 }) {
   const { camera, gl } = useThree();
   const azimuth = useRef(0);
+  const pitch = useRef(0);
   const dragging = useRef(false);
-  const lastX = useRef(0);
+  const last = useRef<[number, number]>([0, 0]);
   const initializedAt = useRef<Location | null>(null);
 
   const location = nav.tag === 'in' ? nav.location : null;
@@ -33,24 +40,24 @@ export function InteriorControls({
   const activeRef = useRef(active);
   activeRef.current = active;
 
-  // Re-derive the entry facing next time we come into a room.
   useEffect(() => {
     if (!active) initializedAt.current = null;
   }, [active]);
 
-  // Horizontal drag → orbit. Vertical is ignored (level turntable, not a heli).
   useEffect(() => {
     const el = gl.domElement;
     const down = (e: PointerEvent) => {
       if (!activeRef.current) return;
       dragging.current = true;
-      lastX.current = e.clientX;
+      last.current = [e.clientX, e.clientY];
     };
     const move = (e: PointerEvent) => {
       if (!dragging.current) return;
-      const dx = e.clientX - lastX.current;
-      lastX.current = e.clientX;
+      const dx = e.clientX - last.current[0];
+      const dy = e.clientY - last.current[1];
+      last.current = [e.clientX, e.clientY];
       azimuth.current += dx * DRAG; // drag right → orbit right
+      pitch.current = clamp(pitch.current - dy * DRAG, -PITCH_LIMIT, PITCH_LIMIT); // drag up → look up
     };
     const up = () => {
       dragging.current = false;
@@ -75,15 +82,18 @@ export function InteriorControls({
     // Pick up the facing the transition left us at (looking into the room).
     if (initializedAt.current !== location) {
       azimuth.current = Math.atan2(camera.position.x - center[0], camera.position.z - center[2]);
+      pitch.current = 0;
       initializedAt.current = location;
     }
 
+    // Position: on the eye-height circle (never leaves it — no flying).
     camera.position.set(
       center[0] + r * Math.sin(azimuth.current),
       center[1],
       center[2] + r * Math.cos(azimuth.current),
     );
-    camera.lookAt(center[0], center[1], center[2]);
+    // Gaze: at the centre, raised/lowered by the pitch (head-tilt).
+    camera.lookAt(center[0], center[1] + r * Math.tan(pitch.current), center[2]);
   });
 
   return null;
