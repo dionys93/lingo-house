@@ -10,11 +10,12 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { compileGrid } from './core/grid';
 import { describeError, type HouseError } from './core/errors';
-import { GROUND_FLOOR, DOORS } from './authoring/rooms';
+import { GROUND_FLOOR, DOORS, WINDOWS } from './authoring/rooms';
 import { Ground } from './scene/Ground';
 import { Floor } from './scene/Floor';
 import { Walls } from './scene/Walls';
 import { Doors } from './scene/Doors';
+import { Windows } from './scene/Windows';
 
 function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
   return (
@@ -44,7 +45,7 @@ function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
 }
 
 export default function App() {
-  const result = useMemo(() => compileGrid(GROUND_FLOOR, DOORS), []);
+  const result = useMemo(() => compileGrid(GROUND_FLOOR, [...DOORS, ...WINDOWS]), []);
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -59,6 +60,7 @@ export default function App() {
             <Floor grid={result.value} />
             <Walls grid={result.value} />
             <Doors grid={result.value} />
+            <Windows grid={result.value} />
           </>
         )}
         <OrbitControls

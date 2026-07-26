@@ -13,16 +13,12 @@
 //
 // Reading the grid: the FIRST row is the BACK of the house, the LAST row is the
 // FRONT (nearest the camera). Left-to-right in a row is left-to-right as you
-// face the house. Rows may be different lengths — a short row just leaves the
-// missing columns empty.
+// face the house. Rows may be different lengths.
 //
-// Two rules the compiler enforces, so you can't draw a broken house silently:
-//   • the same room may not appear in two separate blobs (that's ambiguous) —
-//     it shows up as a DisconnectedRoom error, not a broken render;
-//   • a room may not be keyed 'outside' (that word is reserved for exterior).
-//
-// (Doors, stairs, and items are placed by naming the cells they touch. Those
-// lists will join this file as each of those features lands.)
+// Doors and windows are placed ON a wall: name a cell and which of its sides the
+// wall is on. `between` is an optional safety check — the compiler confirms the
+// edge really connects those two rooms, so a miscounted cell fails loudly (in the
+// red panel) instead of putting an opening in the wrong wall.
 
 import { defineRoom, EMPTY, type Grid, type Opening } from '../core/blocks';
 
@@ -33,8 +29,8 @@ const B = defineRoom({ key: 'bathroom', name: 'Bathroom', color: '#c8d5c8' });
 const _ = EMPTY;
 
 // ── The floor plan. Edit this. ──
-// A living room (2×2, merged), a kitchen running down the right, and a small
-// bathroom at the front-left, with an empty notch beside it.
+// A bathroom across the back, a kitchen down the right two columns, and a big
+// living room filling the rest.
 export const GROUND_FLOOR: Grid = [
   [B, B, B, K, K],
   [L, L, L, K, K],
@@ -42,12 +38,21 @@ export const GROUND_FLOOR: Grid = [
   [L, L, L, K, K],
 ];
 
-// ── Doors. Placed ON a wall: name a cell and which of its sides the wall is on.
-// `between` is an optional safety check — the compiler confirms the edge really
-// connects those two rooms, so a miscounted cell fails loudly instead of putting
-// a door in the wrong wall. `swing` is which way the panel opens.
+// ── Doors. `swing` is which way the panel opens. ──
 export const DOORS: readonly Opening[] = [
-  { kind: 'door', cell: [3, 1], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] },
-  { kind: 'door', cell: [1, 2], side: 'right', swing: 'in',  between: ['livingRoom', 'kitchen'] },
-  { kind: 'door', cell: [1, 0], side: 'back',  swing: 'in',  between: ['livingRoom', 'bathroom'] },
+  { kind: 'door', cell: [3, 1], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] }, // front door
+  { kind: 'door', cell: [1, 2], side: 'right', swing: 'in', between: ['livingRoom', 'kitchen'] }, // to the kitchen
+  { kind: 'door', cell: [1, 0], side: 'back', swing: 'in', between: ['livingRoom', 'bathroom'] }, // to the bathroom
+];
+
+// ── Windows. `sill`/`head` are the bottom/top heights (0 = floor, wall is 1.2
+// tall). The window's LOOK follows its room automatically — bathroom windows are
+// frosted, the kitchen gets a horizontal bar, the living room a picture window. ──
+export const WINDOWS: readonly Opening[] = [
+  { kind: 'window', cell: [0, 1], side: 'back', sill: 0.6, head: 1.0, between: ['bathroom', 'outside'] },
+  { kind: 'window', cell: [1, 4], side: 'right', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
+  { kind: 'window', cell: [3, 3], side: 'front', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
+  { kind: 'window', cell: [2, 0], side: 'left', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
+  { kind: 'window', cell: [3, 0], side: 'left', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
+  { kind: 'window', cell: [3, 0], side: 'front', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] }
 ];
