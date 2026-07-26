@@ -1,38 +1,37 @@
 // src/scene/Doors.tsx
 //
-// Renders each kind:'door' opening the core emitted: a lintel filling the wall
-// above the door, and a panel hinged at one edge that swings on click. Nothing
-// here is authored — hinge end, span, and orientation all come from the opening's
-// a/b/axis; swing direction comes from `swing`. This is the first real
-// interaction, and the click machinery interactive items will reuse later.
+// Renders each kind:'door' opening, and is now the navigation trigger. Clicking a
+// door dispatches `traverse` — the reducer decides if the move is legal and, if
+// so, the CameraRig walks you through. A door swings open when it's the one being
+// traversed (nav.doorId), so open/close is DERIVED from nav state, not a local
+// toggle — one source of truth for "which door is open".
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { CompiledGrid, CompiledOpening, WallSide } from '../core/grid';
-import {
-  WALL_THICKNESS,
-  buildColorOf,
-  faceColors,
-  type Triple,
-} from './wallMaterials';
+import type { CompiledGrid, CompiledOpening } from '../core/grid';
+import type { NavEvent, NavState } from '../core/nav';
+import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
 
 type DoorOpening = Extract<CompiledOpening, { kind: 'door' }>;
 
 const DOOR_THICKNESS = 0.04;
-const DOOR_HEIGHT_FRAC = 0.82; // door is this fraction of the wall; the rest is lintel
-const DOOR_GAP = 0.02; // panel slightly narrower than the opening, so it doesn't bind
-const OPEN_ANGLE = (Math.PI / 2) * 0.9; // ~81° when open
-const PANEL_COLOR = '#8a6f52'; // wood
+const DOOR_HEIGHT_FRAC = 0.82;
+const DOOR_GAP = 0.02;
+const OPEN_ANGLE = (Math.PI / 2) * 0.9;
+const PANEL_COLOR = '#8a6f52';
 
 function DoorInstance({
   opening,
   colorOf,
+  open,
+  onTraverse,
 }: {
   opening: DoorOpening;
-  colorOf: (side: WallSide) => string;
+  colorOf: (side: string) => string;
+  open: boolean;
+  onTraverse: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   const hinge = useRef<THREE.Group>(null);
 
   const { a, b, axis, height, sides, swing } = opening;
@@ -41,7 +40,6 @@ function DoorInstance({
   const midX = (a[0] + b[0]) / 2;
   const midZ = (a[2] + b[2]) / 2;
 
-  // Lintel: the wall piece above the door, coloured like the wall it continues.
   const lintelSize: Triple =
     axis === 'z'
       ? [WALL_THICKNESS, height - doorHeight, len]
@@ -53,8 +51,6 @@ function DoorInstance({
   ];
   const lintelColors = faceColors(axis, sides, colorOf);
 
-  // Panel: hinged at `a`, extending toward `b`. Local to the hinge group, so the
-  // group's Y-rotation swings it.
   const panelSize: Triple =
     axis === 'z'
       ? [DOOR_THICKNESS, doorHeight, len - DOOR_GAP]
@@ -62,8 +58,6 @@ function DoorInstance({
   const panelOffset: Triple =
     axis === 'z' ? [0, doorHeight / 2, len / 2] : [len / 2, doorHeight / 2, 0];
 
-  // First-pass swing convention (validate visually; flip the sign if a door
-  // swings the wrong way through its wall).
   const target = open ? (swing === 'in' ? OPEN_ANGLE : -OPEN_ANGLE) : 0;
   useFrame((_, delta) => {
     const g = hinge.current;
@@ -84,7 +78,7 @@ function DoorInstance({
           position={panelOffset}
           onClick={(e) => {
             e.stopPropagation();
-            setOpen((o) => !o);
+            onTraverse();
           }}
           onPointerOver={(e) => {
             e.stopPropagation();
@@ -102,13 +96,29 @@ function DoorInstance({
   );
 }
 
-export function Doors({ grid }: { grid: CompiledGrid }) {
+export function Doors({
+  grid,
+  nav,
+  dispatch,
+}: {
+  grid: CompiledGrid;
+  nav: NavState;
+  dispatch: (event: NavEvent) => void;
+}) {
   const colorOf = useMemo(() => buildColorOf(grid.rooms), [grid.rooms]);
   const doors = grid.openings.filter((o): o is DoorOpening => o.kind === 'door');
   return (
     <>
       {doors.map((o) => (
-        <DoorInstance key={o.id} opening={o} colorOf={colorOf} />
+        <DoorInstance
+          key={o.id}
+          opening={o}
+          colorOf={colorOf}
+          open={nav.tag === 'moving' && nav.doorId === o.id}
+          onTraverse={() => {
+            dispatch({ tag: 'traverse', doorId: o.id });
+          }}
+        />
       ))}
     </>
   );

@@ -1,21 +1,24 @@
 // src/App.tsx
 //
-// The scene host. It compiles the plan the human authored in authoring/rooms.ts
-// — the grid AND its doors — and renders it. On success the walls stand up, the
-// floors fill, and the doors swing on click; on failure the errors show in a
-// panel (no silent failure even here).
+// The scene host. Compiles the authored plan, then wires navigation: a reducer
+// from the door graph, a door click dispatching `traverse`, the CameraRig moving
+// through the doorway, and — once settled — OrbitControls for the exterior or the
+// first-person InteriorControls for a room. Compile failures show in a panel.
 
-import { useMemo } from 'react';
+import { useMemo, useReducer } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { compileGrid } from './core/grid';
 import { describeError, type HouseError } from './core/errors';
+import { buildDoorGraph, makeNavReducer, START_OUTSIDE } from './core/nav';
 import { GROUND_FLOOR, DOORS, WINDOWS } from './authoring/rooms';
 import { Ground } from './scene/Ground';
 import { Floor } from './scene/Floor';
 import { Walls } from './scene/Walls';
 import { Doors } from './scene/Doors';
 import { Windows } from './scene/Windows';
+import { CameraRig } from './scene/CameraRig';
+import { InteriorControls } from './scene/InteriorControls';
 
 function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
   return (
@@ -46,6 +49,13 @@ function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
 
 export default function App() {
   const result = useMemo(() => compileGrid(GROUND_FLOOR, [...DOORS, ...WINDOWS]), []);
+  const compiled = result.ok ? result.value : null;
+
+  const graph = useMemo(() => buildDoorGraph(compiled?.openings ?? []), [compiled]);
+  const reducer = useMemo(() => makeNavReducer(graph), [graph]);
+  const [nav, dispatch] = useReducer(reducer, START_OUTSIDE);
+
+  const outside = nav.tag === 'in' && nav.location === 'outside';
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -55,16 +65,21 @@ export default function App() {
         <ambientLight intensity={0.6} />
         <directionalLight position={[5, 8, 5]} intensity={1} />
         <Ground />
-        {result.ok && (
+        {compiled && (
           <>
-            <Floor grid={result.value} />
-            <Walls grid={result.value} />
-            <Doors grid={result.value} />
-            <Windows grid={result.value} />
+            <Floor grid={compiled} />
+            <Walls grid={compiled} />
+            <Doors grid={compiled} nav={nav} dispatch={dispatch} />
+            <Windows grid={compiled} />
+            <CameraRig nav={nav} dispatch={dispatch} rooms={compiled.rooms} />
+            <InteriorControls nav={nav} rooms={compiled.rooms} />
           </>
         )}
+        {/* Exterior orbit only — inside a room, InteriorControls drives instead. */}
         <OrbitControls
+          enabled={outside}
           enablePan={false}
+          target={[0, 0.4, 0]}
           minDistance={2}
           maxDistance={30}
           maxPolarAngle={Math.PI / 2 - 0.1}

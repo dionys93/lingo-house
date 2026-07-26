@@ -18,7 +18,10 @@
 // Doors and windows are placed ON a wall: name a cell and which of its sides the
 // wall is on. `between` is an optional safety check — the compiler confirms the
 // edge really connects those two rooms, so a miscounted cell fails loudly (in the
-// red panel) instead of putting an opening in the wrong wall.
+// red panel) instead of putting an opening in the wrong wall. NOTE: an opening's
+// side must face OUT of the room — if the neighbouring cell is the same room, the
+// "wall" is an internal seam and you'll get NotOnWall. When you resize the house,
+// re-point openings to the room's true outer edge.
 
 import { defineRoom, EMPTY, type Grid, type Opening } from '../core/blocks';
 
@@ -29,9 +32,10 @@ const B = defineRoom({ key: 'bathroom', name: 'Bathroom', color: '#c8d5c8' });
 const _ = EMPTY;
 
 // ── The floor plan. Edit this. ──
-// A bathroom across the back, a kitchen down the right two columns, and a big
-// living room filling the rest.
+// A bathroom across the back-left (2 rows), a kitchen down the right two columns,
+// and a big living room filling the front-left.
 export const GROUND_FLOOR: Grid = [
+  [B, B, B, K, K],
   [B, B, B, K, K],
   [L, L, L, K, K],
   [L, L, L, K, K],
@@ -40,9 +44,9 @@ export const GROUND_FLOOR: Grid = [
 
 // ── Doors. `swing` is which way the panel opens. ──
 export const DOORS: readonly Opening[] = [
-  { kind: 'door', cell: [3, 1], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] }, // front door
-  { kind: 'door', cell: [1, 2], side: 'right', swing: 'in', between: ['livingRoom', 'kitchen'] }, // to the kitchen
-  { kind: 'door', cell: [1, 0], side: 'back', swing: 'in', between: ['livingRoom', 'bathroom'] }, // to the bathroom
+  { kind: 'door', cell: [4, 1], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] }, // front door (living room's front edge is row 4)
+  { kind: 'door', cell: [2, 2], side: 'right', swing: 'in', between: ['livingRoom', 'kitchen'] }, // to the kitchen (living↔kitchen boundary, rows 2–4)
+  { kind: 'door', cell: [1, 1], side: 'front', swing: 'in', between: ['livingRoom', 'bathroom'] }, // to the bathroom (bathroom's front row is 1)
 ];
 
 // ── Windows. `sill`/`head` are the bottom/top heights (0 = floor, wall is 1.2
@@ -51,8 +55,8 @@ export const DOORS: readonly Opening[] = [
 export const WINDOWS: readonly Opening[] = [
   { kind: 'window', cell: [0, 1], side: 'back', sill: 0.6, head: 1.0, between: ['bathroom', 'outside'] },
   { kind: 'window', cell: [1, 4], side: 'right', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
-  { kind: 'window', cell: [3, 3], side: 'front', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
+  { kind: 'window', cell: [4, 3], side: 'front', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
   { kind: 'window', cell: [2, 0], side: 'left', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
   { kind: 'window', cell: [3, 0], side: 'left', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
-  { kind: 'window', cell: [3, 0], side: 'front', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] }
+  { kind: 'window', cell: [4, 0], side: 'front', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
 ];
