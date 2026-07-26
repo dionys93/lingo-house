@@ -1,21 +1,19 @@
 // src/scene/InteriorControls.tsx
 //
-// First-person look for room interiors. You stand at a fixed spot (near the back
-// wall) and dragging turns your head — drag right, look right — starting faced
-// toward the front of the house every time you enter. This replaces OrbitControls
-// inside a room, where orbiting-around-a-point read as inverted and left you
-// facing a random direction. OrbitControls still handles the exterior.
+// Interior camera: a TURNTABLE. You orbit the room's centre at eye height, level
+// (no pitch — you move around the room, you don't fly). Drag right → orbit right.
+// You enter facing INTO the room (CameraRig leaves the camera on the doorway side
+// looking at the centre), and this picks that facing up so there's no snap.
+// OrbitControls still handles the exterior.
 
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import type { CompiledRoom, Vec3 } from '../core/grid';
-import { boundsAt, type NavState } from '../core/nav';
-import { interiorStand } from './vantage';
+import type { CompiledRoom } from '../core/grid';
+import { boundsAt, type Location, type NavState } from '../core/nav';
+import { roomCenter, orbitRadius } from './vantage';
 
-const SENSITIVITY = 0.005;
-const PITCH_LIMIT = 1.2; // radians up/down from level
-
-const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, x));
+// Drag sensitivity. If drag-right orbits the WRONG way, flip this sign.
+const DRAG = 0.006;
 
 export function InteriorControls({
   nav,
@@ -25,42 +23,34 @@ export function InteriorControls({
   rooms: readonly CompiledRoom[];
 }) {
   const { camera, gl } = useThree();
-  const yaw = useRef(0);
-  const pitch = useRef(0);
+  const azimuth = useRef(0);
   const dragging = useRef(false);
-  const last = useRef<[number, number]>([0, 0]);
+  const lastX = useRef(0);
+  const initializedAt = useRef<Location | null>(null);
 
   const location = nav.tag === 'in' ? nav.location : null;
   const active = location !== null && location !== 'outside';
   const activeRef = useRef(active);
   activeRef.current = active;
 
-  // On entering a room, reset the view to face front.
+  // Re-derive the entry facing next time we come into a room.
   useEffect(() => {
-    if (!active || location === null) return;
-    const box = boundsAt(location, rooms);
-    if (box === null) return;
-    yaw.current = interiorStand(box).yaw;
-    pitch.current = 0;
-  }, [active, location, rooms]);
+    if (!active) initializedAt.current = null;
+  }, [active]);
 
-  // Drag → look. Listeners live for the component's life; they no-op unless we're
-  // inside a room (activeRef), so they never fight OrbitControls on the exterior.
+  // Horizontal drag → orbit. Vertical is ignored (level turntable, not a heli).
   useEffect(() => {
     const el = gl.domElement;
     const down = (e: PointerEvent) => {
       if (!activeRef.current) return;
       dragging.current = true;
-      last.current = [e.clientX, e.clientY];
+      lastX.current = e.clientX;
     };
     const move = (e: PointerEvent) => {
       if (!dragging.current) return;
-      const [lx, ly] = last.current;
-      const dx = e.clientX - lx;
-      const dy = e.clientY - ly;
-      last.current = [e.clientX, e.clientY];
-      yaw.current -= dx * SENSITIVITY; // drag right → turn right
-      pitch.current = clamp(pitch.current - dy * SENSITIVITY, -PITCH_LIMIT, PITCH_LIMIT);
+      const dx = e.clientX - lastX.current;
+      lastX.current = e.clientX;
+      azimuth.current += dx * DRAG; // drag right → orbit right
     };
     const up = () => {
       dragging.current = false;
@@ -79,15 +69,21 @@ export function InteriorControls({
     if (!active || location === null) return;
     const box = boundsAt(location, rooms);
     if (box === null) return;
-    const { position } = interiorStand(box);
-    camera.position.set(position[0], position[1], position[2]);
-    const cp = Math.cos(pitch.current);
-    const dir: Vec3 = [
-      Math.sin(yaw.current) * cp,
-      Math.sin(pitch.current),
-      Math.cos(yaw.current) * cp,
-    ];
-    camera.lookAt(position[0] + dir[0], position[1] + dir[1], position[2] + dir[2]);
+    const center = roomCenter(box);
+    const r = orbitRadius(box);
+
+    // Pick up the facing the transition left us at (looking into the room).
+    if (initializedAt.current !== location) {
+      azimuth.current = Math.atan2(camera.position.x - center[0], camera.position.z - center[2]);
+      initializedAt.current = location;
+    }
+
+    camera.position.set(
+      center[0] + r * Math.sin(azimuth.current),
+      center[1],
+      center[2] + r * Math.cos(azimuth.current),
+    );
+    camera.lookAt(center[0], center[1], center[2]);
   });
 
   return null;
