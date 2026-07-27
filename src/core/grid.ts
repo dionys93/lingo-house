@@ -26,6 +26,7 @@ import { pairs, range } from './seq';
 export const CELL = 0.5;
 export const WALL_HEIGHT = 1.2;
 export const ROOF_PITCH = 0.55; // roof rise per unit of horizontal run (a ratio)
+export const ROOF_OVERHANG = 0.12; // how far the roof hangs past the gable ends
 
 export type Vec3 = readonly [number, number, number];
 export type WallSide = RoomKey | 'outside';
@@ -214,6 +215,7 @@ export function compileGrid(
     },
     WALL_HEIGHT,
     ROOF_PITCH,
+    ROOF_OVERHANG,
   );
 
   return ok({

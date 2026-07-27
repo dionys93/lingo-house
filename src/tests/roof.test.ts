@@ -11,17 +11,18 @@ const allY = (roof: ReturnType<typeof gableRoof>): number[] => [
 describe('gableRoof', () => {
   // A 2.5 × 2.5 square footprint. Tie → ridge along X, so span is the Z depth 2.5.
   const box = { x0: -1.25, x1: 1.25, z0: -1.25, z1: 1.25 };
+  const OH = 0.1;
 
   it('eaves sit at wall-top', () => {
-    expect(Math.min(...allY(gableRoof(box, 1.2, 0.5)))).toBeCloseTo(1.2);
+    expect(Math.min(...allY(gableRoof(box, 1.2, 0.5, OH)))).toBeCloseTo(1.2);
   });
 
   it('the ridge rises above the walls by pitch × halfSpan', () => {
-    expect(Math.max(...allY(gableRoof(box, 1.2, 0.5)))).toBeCloseTo(1.2 + 0.5 * 1.25);
+    expect(Math.max(...allY(gableRoof(box, 1.2, 0.5, OH)))).toBeCloseTo(1.2 + 0.5 * 1.25);
   });
 
   it('has two sloped panels and two gable ends, each apex at the ridge', () => {
-    const roof = gableRoof(box, 1.2, 0.5);
+    const roof = gableRoof(box, 1.2, 0.5, OH);
     expect(roof.slopes.positions).toHaveLength(8); // two quads
     expect(roof.gables).toHaveLength(2);
     const ridgeY = 1.2 + 0.5 * 1.25;
@@ -32,11 +33,21 @@ describe('gableRoof', () => {
     }
   });
 
+  it('slopes hang past the gable ends by the overhang', () => {
+    const roof = gableRoof(box, 1.2, 0.5, OH);
+    const xs = roof.slopes.positions.map((p) => p[0]);
+    expect(Math.min(...xs)).toBeCloseTo(-1.25 - OH); // slope extends past the left gable
+    expect(Math.max(...xs)).toBeCloseTo(1.25 + OH);
+    // the gable ends still sit at the footprint edge
+    expect(roof.gables.some((g) => g.apex[0] === -1.25)).toBe(true);
+    expect(roof.gables.some((g) => g.apex[0] === 1.25)).toBe(true);
+  });
+
   it('the ridge runs along the longer side (span is the shorter one)', () => {
-    const wide = gableRoof({ x0: -2, x1: 2, z0: -0.5, z1: 0.5 }, 1, 0.5);
+    const wide = gableRoof({ x0: -2, x1: 2, z0: -0.5, z1: 0.5 }, 1, 0.5, OH);
     expect(Math.max(...allY(wide))).toBeCloseTo(1 + 0.5 * 0.5);
     expect(wide.gables.every((g) => g.axis === 'x')).toBe(true); // gables face ±X
-    const deep = gableRoof({ x0: -0.5, x1: 0.5, z0: -2, z1: 2 }, 1, 0.5);
+    const deep = gableRoof({ x0: -0.5, x1: 0.5, z0: -2, z1: 2 }, 1, 0.5, OH);
     expect(Math.max(...allY(deep))).toBeCloseTo(1 + 0.5 * 0.5);
     expect(deep.gables.every((g) => g.axis === 'z')).toBe(true); // gables face ±Z
   });

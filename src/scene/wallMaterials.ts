@@ -8,7 +8,7 @@ import type { CompiledRoom, WallSide } from '../core/grid';
 
 export type Triple = [number, number, number];
 
-export const WALL_THICKNESS = 0.08; // shell constant — the core emits centreline + height only
+export const WALL_THICKNESS = 0.08; // wall depth; used by the shell to extrude walls, doors, gables
 export const HOUSE_SIDING = '#dfd3c3'; // exterior default, for any face meeting 'outside'
 export const DEFAULT_INTERIOR = '#d8d2c8'; // rooms authored without a colour
 export const TRIM = '#c4b8a4'; // top / bottom / end faces
