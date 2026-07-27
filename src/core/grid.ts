@@ -18,11 +18,14 @@
 import { ok, err, type Result } from './result';
 import { assertNever, type Cell, type HouseError, type RoomKey, type Side } from './errors';
 import { isRoom, type Grid, type Opening, type RoomDef } from './blocks';
+import { gableRoof, type RoofMesh } from './roof';
+import { pairs, range } from './seq';
 
 // ── World-scale knobs. One cell is CELL units on a side; walls rise WALL_HEIGHT.
 // Tunable and cosmetic — the roof will read wall-top height from here later. ────
 export const CELL = 0.5;
 export const WALL_HEIGHT = 1.2;
+export const ROOF_PITCH = 0.55; // roof rise per unit of horizontal run (a ratio)
 
 export type Vec3 = readonly [number, number, number];
 export type WallSide = RoomKey | 'outside';
@@ -70,6 +73,7 @@ export interface CompiledGrid {
   readonly rooms: readonly CompiledRoom[];
   readonly walls: readonly CompiledWall[];
   readonly openings: readonly CompiledOpening[];
+  readonly roof: RoofMesh;
 }
 
 const vec3 = (x: number, y: number, z: number): Vec3 => [x, y, z];
@@ -121,89 +125,39 @@ export function compileGrid(
   const xAt = (col: number) => col * CELL - (C * CELL) / 2;
   const zAt = (row: number) => row * CELL - (R * CELL) / 2;
 
-  // The two sides of a resolved edge, in the same [neg, pos] convention the wall
-  // loops use — so an opening carries exactly the sides its wall would have.
-  const edgeSides = (e: ResolvedEdge): { neg: WallSide; pos: WallSide } =>
-    e.orient === 'v'
-      ? { neg: keyAt(e.varying, e.fixed - 1), pos: keyAt(e.varying, e.fixed) }
-      : { neg: keyAt(e.fixed - 1, e.varying), pos: keyAt(e.fixed, e.varying) };
-
-  // ── Openings. Validate each; a bad one fails the whole compile (no silent
-  // drop). A valid opening CLAIMS its edge — excluded from the solid walls below
-  // and emitted as a CompiledOpening. Openings gate on a sound grid (above). ──
+  // ── Openings. Validate each (validateOpening, below); a bad one fails the whole
+  // compile — no silent drop. A valid opening CLAIMS its edge, which is excluded
+  // from the solid walls and emitted as a CompiledOpening. The overlap check is
+  // the one stateful part, so it stays here over the accumulating `claimed` map. ──
   const openingErrors: HouseError[] = [];
   const claimed = new Map<
     string,
     { readonly op: Opening; readonly edge: ResolvedEdge; readonly neg: WallSide; readonly pos: WallSide }
   >();
   for (const op of openings) {
-    const [r, c] = op.cell;
-    if (keyAt(r, c) === 'outside') {
-      openingErrors.push(
-        r < 0 || r >= R || c < 0
-          ? { tag: 'OpeningCellOutOfBounds', cell: op.cell }
-          : { tag: 'OpeningCellEmpty', cell: op.cell },
-      );
-      continue;
-    }
-    const edge = resolveEdge(op.cell, op.side);
-    const { neg, pos } = edgeSides(edge);
-    if (neg === pos) {
-      openingErrors.push({ tag: 'OpeningNotOnWall', cell: op.cell, side: op.side });
-      continue;
-    }
-    if (op.between !== undefined) {
-      const want = new Set<WallSide>(op.between);
-      const have = new Set<WallSide>([neg, pos]);
-      const matches = want.size === have.size && [...want].every((k) => have.has(k));
-      if (!matches) {
-        openingErrors.push({
-          tag: 'OpeningConnectsWrongRooms',
-          cell: op.cell,
-          side: op.side,
-          expected: op.between,
-          actual: [neg, pos],
-        });
-        continue;
+    const check = validateOpening(op, keyAt, R, C);
+    if (!check.ok) {
+      openingErrors.push(check.error);
+    } else {
+      const id = `${check.edge.orient}:${check.edge.fixed}:${check.edge.varying}`;
+      if (claimed.has(id)) {
+        openingErrors.push({ tag: 'OpeningsOverlap', cell: op.cell, side: op.side });
+      } else {
+        claimed.set(id, { op, edge: check.edge, neg: check.neg, pos: check.pos });
       }
     }
-    if (op.kind === 'window') {
-      if (op.sill >= op.head) {
-        openingErrors.push({ tag: 'WindowSillAboveHead', cell: op.cell, side: op.side, sill: op.sill, head: op.head });
-        continue;
-      }
-      if (op.head > WALL_HEIGHT || op.sill < 0) {
-        openingErrors.push({ tag: 'WindowExceedsWall', cell: op.cell, side: op.side, head: op.head, wallHeight: WALL_HEIGHT });
-        continue;
-      }
-    }
-    const id = `${edge.orient}:${edge.fixed}:${edge.varying}`;
-    if (claimed.has(id)) {
-      openingErrors.push({ tag: 'OpeningsOverlap', cell: op.cell, side: op.side });
-      continue;
-    }
-    claimed.set(id, { op, edge, neg, pos });
   }
   if (openingErrors.length > 0) return err(openingErrors);
 
-  // Wall boundaries, MINUS any edge a valid opening claimed. Removing the edge
-  // splits its run for free — consecutiveRanges reads the gap as a break.
-  const vSegs: Seg[] = [];
-  for (let c = 0; c <= C; c++) {
-    for (let r = 0; r < R; r++) {
-      const neg = keyAt(r, c - 1);
-      const pos = keyAt(r, c);
-      if (neg !== pos && !claimed.has(`v:${c}:${r}`)) vSegs.push({ fixed: c, varying: r, neg, pos });
-    }
-  }
-  const hSegs: Seg[] = [];
-  for (let r = 0; r <= R; r++) {
-    for (let c = 0; c < C; c++) {
-      const neg = keyAt(r - 1, c);
-      const pos = keyAt(r, c);
-      if (neg !== pos && !claimed.has(`h:${r}:${c}`)) hSegs.push({ fixed: r, varying: c, neg, pos });
-    }
-  }
+  // Wall boundaries, MINUS any edge a valid opening claimed. Each is "every
+  // boundary line × every cell along it, kept where the two sides differ" — a
+  // flat pipeline over the cartesian product, not a nested loop.
+  const vSegs: readonly Seg[] = pairs(range(0, C + 1), range(0, R))
+    .map(([c, r]): Seg => ({ fixed: c, varying: r, neg: keyAt(r, c - 1), pos: keyAt(r, c) }))
+    .filter((s) => s.neg !== s.pos && !claimed.has(`v:${s.fixed}:${s.varying}`));
+  const hSegs: readonly Seg[] = pairs(range(0, R + 1), range(0, C))
+    .map(([r, c]): Seg => ({ fixed: r, varying: c, neg: keyAt(r - 1, c), pos: keyAt(r, c) }))
+    .filter((s) => s.neg !== s.pos && !claimed.has(`h:${s.fixed}:${s.varying}`));
 
   const vWalls: CompiledWall[] = mergeRuns(vSegs).map((run) => ({
     a: vec3(xAt(run.fixed), 0, zAt(run.start)),
@@ -249,7 +203,25 @@ export function compileGrid(
     compiledRooms.push(def.color === undefined ? base : { ...base, color: def.color });
   }
 
-  return ok({ rooms: compiledRooms, walls: [...vWalls, ...hWalls], openings: compiledOpenings });
+  const roofRows = roomCells.map(({ r }) => r);
+  const roofCols = roomCells.map(({ c }) => c);
+  const roof = gableRoof(
+    {
+      x0: xAt(Math.min(...roofCols)),
+      x1: xAt(Math.max(...roofCols) + 1),
+      z0: zAt(Math.min(...roofRows)),
+      z1: zAt(Math.max(...roofRows) + 1),
+    },
+    WALL_HEIGHT,
+    ROOF_PITCH,
+  );
+
+  return ok({
+    rooms: compiledRooms,
+    walls: [...vWalls, ...hWalls],
+    openings: compiledOpenings,
+    roof,
+  });
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -280,6 +252,75 @@ function resolveEdge(cell: Cell, side: Side): ResolvedEdge {
   }
 }
 
+// The outcome of validating one opening: an error, or the resolved edge + sides
+// it claims. Pure and self-contained — each check `return`s, so no `continue` in
+// the caller's loop, and it's independently testable.
+type OpeningCheck =
+  | { readonly ok: false; readonly error: HouseError }
+  | { readonly ok: true; readonly edge: ResolvedEdge; readonly neg: WallSide; readonly pos: WallSide };
+
+function validateOpening(
+  op: Opening,
+  keyAt: (r: number, c: number) => WallSide,
+  R: number,
+  C: number,
+): OpeningCheck {
+  const [r, c] = op.cell;
+  if (keyAt(r, c) === 'outside') {
+    return {
+      ok: false,
+      error:
+        r < 0 || r >= R || c < 0
+          ? { tag: 'OpeningCellOutOfBounds', cell: op.cell }
+          : { tag: 'OpeningCellEmpty', cell: op.cell },
+    };
+  }
+
+  const edge = resolveEdge(op.cell, op.side);
+  const neg =
+    edge.orient === 'v' ? keyAt(edge.varying, edge.fixed - 1) : keyAt(edge.fixed - 1, edge.varying);
+  const pos =
+    edge.orient === 'v' ? keyAt(edge.varying, edge.fixed) : keyAt(edge.fixed, edge.varying);
+  if (neg === pos) {
+    return { ok: false, error: { tag: 'OpeningNotOnWall', cell: op.cell, side: op.side } };
+  }
+
+  if (op.between !== undefined) {
+    const want = new Set<WallSide>(op.between);
+    const have = new Set<WallSide>([neg, pos]);
+    const matches = want.size === have.size && [...want].every((k) => have.has(k));
+    if (!matches) {
+      return {
+        ok: false,
+        error: {
+          tag: 'OpeningConnectsWrongRooms',
+          cell: op.cell,
+          side: op.side,
+          expected: op.between,
+          actual: [neg, pos],
+        },
+      };
+    }
+  }
+
+  if (op.kind === 'window') {
+    if (op.sill >= op.head) {
+      return {
+        ok: false,
+        error: { tag: 'WindowSillAboveHead', cell: op.cell, side: op.side, sill: op.sill, head: op.head },
+      };
+    }
+    if (op.head > WALL_HEIGHT || op.sill < 0) {
+      return {
+        ok: false,
+        error: { tag: 'WindowExceedsWall', cell: op.cell, side: op.side, head: op.head, wallHeight: WALL_HEIGHT },
+      };
+    }
+  }
+
+  return { ok: true, edge, neg, pos };
+}
+
 // Count 4-connected regions of a room's cells. >1 means the same key appears as
 // two touching-only-diagonally (or fully separate) blobs → DisconnectedRoom.
 function countRegions(cells: readonly Cell[]): number {
@@ -287,25 +328,26 @@ function countRegions(cells: readonly Cell[]): number {
   const seen = new Set<string>();
   let regions = 0;
   for (const [r, c] of cells) {
-    if (seen.has(`${r},${c}`)) continue;
-    regions++;
-    const stack: Cell[] = [[r, c]];
-    seen.add(`${r},${c}`);
-    while (stack.length > 0) {
-      const cur = stack.pop();
-      if (cur === undefined) break;
-      const [cr, cc] = cur;
-      const neighbours: readonly Cell[] = [
-        [cr - 1, cc],
-        [cr + 1, cc],
-        [cr, cc - 1],
-        [cr, cc + 1],
-      ];
-      for (const [nr, nc] of neighbours) {
-        const id = `${nr},${nc}`;
-        if (present.has(id) && !seen.has(id)) {
-          seen.add(id);
-          stack.push([nr, nc]);
+    if (!seen.has(`${r},${c}`)) {
+      regions++;
+      const stack: Cell[] = [[r, c]];
+      seen.add(`${r},${c}`);
+      while (stack.length > 0) {
+        const cur = stack.pop();
+        if (cur === undefined) break;
+        const [cr, cc] = cur;
+        const neighbours: readonly Cell[] = [
+          [cr - 1, cc],
+          [cr + 1, cc],
+          [cr, cc - 1],
+          [cr, cc + 1],
+        ];
+        for (const [nr, nc] of neighbours) {
+          const id = `${nr},${nc}`;
+          if (present.has(id) && !seen.has(id)) {
+            seen.add(id);
+            stack.push([nr, nc]);
+          }
         }
       }
     }

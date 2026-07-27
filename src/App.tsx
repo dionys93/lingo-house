@@ -15,6 +15,7 @@ import { GROUND_FLOOR, DOORS, WINDOWS } from './authoring/rooms';
 import { Ground } from './scene/Ground';
 import { Floor } from './scene/Floor';
 import { Walls } from './scene/Walls';
+import { Roof } from './scene/Roof';
 import { Doors } from './scene/Doors';
 import { Windows } from './scene/Windows';
 import { CameraRig } from './scene/CameraRig';
@@ -69,6 +70,7 @@ export default function App() {
           <>
             <Floor grid={compiled} />
             <Walls grid={compiled} />
+            <Roof grid={compiled} />
             <Doors grid={compiled} nav={nav} dispatch={dispatch} />
             <Windows grid={compiled} />
             <CameraRig nav={nav} dispatch={dispatch} rooms={compiled.rooms} />
