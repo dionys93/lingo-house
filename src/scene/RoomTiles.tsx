@@ -4,8 +4,10 @@
 // Shared by Floor (faces up, at the base) and Ceiling (faces down, at wall-top) so
 // the per-cell layout — which follows the room's actual cells, not its bounding
 // box — lives in exactly one place. Reads CompiledRoom.floor (world cell centres);
-// never recomputes the grid→world mapping.
+// never recomputes the grid→world mapping. Double-sided so a ceiling reliably
+// blocks the view up into the roof no matter which way it's turned.
 
+import * as THREE from 'three';
 import { CELL, type CompiledGrid } from '../core/grid';
 
 export function RoomTiles({
@@ -19,7 +21,7 @@ export function RoomTiles({
   faceUp: boolean;
   defaultColor: string;
 }) {
-  const rotX = faceUp ? -Math.PI / 2 : Math.PI / 2; // face up (floor) or down (ceiling)
+  const rotX = faceUp ? -Math.PI / 2 : Math.PI / 2;
   return (
     <>
       {grid.rooms.flatMap((room) =>
@@ -30,7 +32,7 @@ export function RoomTiles({
             rotation={[rotX, 0, 0]}
           >
             <planeGeometry args={[CELL, CELL]} />
-            <meshStandardMaterial color={room.color ?? defaultColor} />
+            <meshStandardMaterial color={room.color ?? defaultColor} side={THREE.DoubleSide} />
           </mesh>
         )),
       )}

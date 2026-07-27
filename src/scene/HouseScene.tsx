@@ -2,8 +2,8 @@
 //
 // The real, explorable house — compiles the authored plan and wires navigation
 // (door graph → reducer, door click → traverse, CameraRig through doorways,
-// OrbitControls outside / InteriorControls in a room). This is the whole scene
-// that used to live in App; App now just toggles between this and the sandbox.
+// OrbitControls outside / InteriorControls in a room). App toggles between this
+// and the sandbox.
 
 import { useMemo, useReducer } from 'react';
 import { Canvas } from '@react-three/fiber';
@@ -14,6 +14,7 @@ import { buildDoorGraph, makeNavReducer, START_OUTSIDE } from '../core/nav';
 import { GROUND_FLOOR, DOORS, WINDOWS } from '../authoring/rooms';
 import { Ground } from './Ground';
 import { Floor } from './Floor';
+import { Ceiling } from './Ceiling';
 import { Walls } from './Walls';
 import { Roof } from './Roof';
 import { Doors } from './Doors';
@@ -69,6 +70,7 @@ export function HouseScene() {
         {compiled && (
           <>
             <Floor grid={compiled} />
+            <Ceiling grid={compiled} />
             <Walls grid={compiled} />
             <Roof grid={compiled} />
             <Doors grid={compiled} nav={nav} dispatch={dispatch} />
