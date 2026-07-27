@@ -42,48 +42,57 @@ export interface RoofBox {
   readonly z1: number;
 }
 
+type Quad = readonly [Vec3, Vec3, Vec3, Vec3];
+
+// Two triangles per quad, built without mutation.
+function slopeMesh(quads: readonly Quad[]): MeshData {
+  return {
+    positions: quads.flatMap((q) => [...q]),
+    indices: quads.flatMap((_, i) => {
+      const n = i * 4;
+      return [n, n + 1, n + 2, n, n + 2, n + 3];
+    }),
+  };
+}
+
 // Pitch as a RATIO (rise per unit of horizontal run). The slopes OVERHANG the
 // gable ends by `overhang` (the rake overhang — roofs hang past the gable wall,
 // which reads more naturally than stopping flush). No z-fight because the gable's
 // top is left open (see the shell) — the roof is the only surface over it.
 export function gableRoof(box: RoofBox, wallTop: number, pitch: number, overhang: number): RoofMesh {
   const { x0, x1, z0, z1 } = box;
-  const width = x1 - x0;
-  const depth = z1 - z0;
-  const ridgeAlongX = width >= depth;
 
-  const sPos: Vec3[] = [];
-  const sIdx: number[] = [];
-  const quad = (a: Vec3, b: Vec3, c: Vec3, d: Vec3): void => {
-    const n = sPos.length;
-    sPos.push(a, b, c, d);
-    sIdx.push(n, n + 1, n + 2, n, n + 2, n + 3);
-  };
-
-  let gables: Gable[];
-  if (ridgeAlongX) {
+  if (x1 - x0 >= z1 - z0) {
+    // ridge along X — slopes face front/back, gable ends face ±X
     const midZ = (z0 + z1) / 2;
-    const ridgeY = wallTop + pitch * (depth / 2);
+    const ridgeY = wallTop + pitch * ((z1 - z0) / 2);
     const xa = x0 - overhang; // slopes hang past the gable ends
     const xb = x1 + overhang;
-    quad([xa, wallTop, z1], [xb, wallTop, z1], [xb, ridgeY, midZ], [xa, ridgeY, midZ]); // front slope
-    quad([xb, wallTop, z0], [xa, wallTop, z0], [xa, ridgeY, midZ], [xb, ridgeY, midZ]); // back slope
-    gables = [
-      { base0: [x0, wallTop, z0], base1: [x0, wallTop, z1], apex: [x0, ridgeY, midZ], axis: 'x' },
-      { base0: [x1, wallTop, z0], base1: [x1, wallTop, z1], apex: [x1, ridgeY, midZ], axis: 'x' },
-    ];
-  } else {
-    const midX = (x0 + x1) / 2;
-    const ridgeY = wallTop + pitch * (width / 2);
-    const za = z0 - overhang;
-    const zb = z1 + overhang;
-    quad([x1, wallTop, za], [x1, wallTop, zb], [midX, ridgeY, zb], [midX, ridgeY, za]); // right slope
-    quad([x0, wallTop, zb], [x0, wallTop, za], [midX, ridgeY, za], [midX, ridgeY, zb]); // left slope
-    gables = [
-      { base0: [x0, wallTop, z0], base1: [x1, wallTop, z0], apex: [midX, ridgeY, z0], axis: 'z' },
-      { base0: [x0, wallTop, z1], base1: [x1, wallTop, z1], apex: [midX, ridgeY, z1], axis: 'z' },
-    ];
+    return {
+      slopes: slopeMesh([
+        [[xa, wallTop, z1], [xb, wallTop, z1], [xb, ridgeY, midZ], [xa, ridgeY, midZ]], // front
+        [[xb, wallTop, z0], [xa, wallTop, z0], [xa, ridgeY, midZ], [xb, ridgeY, midZ]], // back
+      ]),
+      gables: [
+        { base0: [x0, wallTop, z0], base1: [x0, wallTop, z1], apex: [x0, ridgeY, midZ], axis: 'x' },
+        { base0: [x1, wallTop, z0], base1: [x1, wallTop, z1], apex: [x1, ridgeY, midZ], axis: 'x' },
+      ],
+    };
   }
 
-  return { slopes: { positions: sPos, indices: sIdx }, gables };
+  // ridge along Z — slopes face left/right, gable ends face ±Z
+  const midX = (x0 + x1) / 2;
+  const ridgeY = wallTop + pitch * ((x1 - x0) / 2);
+  const za = z0 - overhang;
+  const zb = z1 + overhang;
+  return {
+    slopes: slopeMesh([
+      [[x1, wallTop, za], [x1, wallTop, zb], [midX, ridgeY, zb], [midX, ridgeY, za]], // right
+      [[x0, wallTop, zb], [x0, wallTop, za], [midX, ridgeY, za], [midX, ridgeY, zb]], // left
+    ]),
+    gables: [
+      { base0: [x0, wallTop, z0], base1: [x1, wallTop, z0], apex: [midX, ridgeY, z0], axis: 'z' },
+      { base0: [x0, wallTop, z1], base1: [x1, wallTop, z1], apex: [midX, ridgeY, z1], axis: 'z' },
+    ],
+  };
 }
