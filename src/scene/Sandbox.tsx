@@ -10,7 +10,7 @@ import { useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { compileGrid } from '../core/grid';
+import { compileGrid, roofFor } from '../core/grid';
 import { defineRoom, EMPTY, type Grid } from '../core/blocks';
 import { Ground } from './Ground';
 import { Floor } from './Floor';
@@ -52,10 +52,11 @@ const btn = (active: boolean): CSSProperties => ({
   color: active ? '#111' : '#fff',
 });
 
-export function Sandbox() {
+export function RoofSandbox() {
   const [idx, setIdx] = useState(1); // start at 2×2
   const result = useMemo(() => compileGrid(PRESETS[idx]?.grid ?? [[K]]), [idx]);
   const compiled = result.ok ? result.value : null;
+  const roof = useMemo(() => (compiled ? roofFor(compiled.footprint) : null), [compiled]);
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -68,7 +69,7 @@ export function Sandbox() {
           <>
             <Floor grid={compiled} />
             <Walls grid={compiled} />
-            <Roof grid={compiled} />
+            {roof && <Roof roof={roof} />}
           </>
         )}
         <OrbitControls
