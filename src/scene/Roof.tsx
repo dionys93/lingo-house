@@ -7,8 +7,8 @@
 
 import { useMemo } from 'react';
 import * as THREE from 'three';
-import type { CompiledGrid, Vec3 } from '../core/grid';
-import type { Gable, MeshData } from '../core/roof';
+import type { Vec3 } from '../core/grid';
+import type { Gable, MeshData, RoofMesh } from '../core/roof';
 import { WALL_THICKNESS, HOUSE_SIDING } from './wallMaterials';
 
 const ROOF_COLOR = '#a86b4c'; // terracotta
@@ -55,9 +55,9 @@ function gableGeometry(gables: readonly Gable[], thickness: number): THREE.Buffe
   return geo;
 }
 
-export function Roof({ grid }: { grid: CompiledGrid }) {
-  const slopeGeo = useMemo(() => slopeGeometry(grid.roof.slopes), [grid.roof]);
-  const gableGeo = useMemo(() => gableGeometry(grid.roof.gables, WALL_THICKNESS), [grid.roof]);
+export function Roof({ roof }: { roof: RoofMesh }) {
+  const slopeGeo = useMemo(() => slopeGeometry(roof.slopes), [roof]);
+  const gableGeo = useMemo(() => gableGeometry(roof.gables, WALL_THICKNESS), [roof]);
 
   return (
     <>
