@@ -178,6 +178,38 @@ describe('compileGrid — walls (merged runs, two-sided)', () => {
   });
 });
 
+describe('compileGrid — baseY lifts a whole storey', () => {
+  it('offsets walls, room bounds, floor tiles, and the footprint by baseY', () => {
+    const B = 3; // a storey lifted 3 units (basement would be negative)
+    const { walls, rooms, footprint } = unwrap(compileGrid([[K]], [], B));
+    for (const w of walls) {
+      expect(w.a[1]).toBe(B); // base moves…
+      expect(w.b[1]).toBe(B);
+      expect(w.height).toBe(WALL_HEIGHT); // …height does not
+    }
+    const kitchen = rooms.find((r) => r.key === 'kitchen');
+    expect(kitchen).toBeDefined();
+    if (kitchen) {
+      expect(kitchen.bounds.min[1]).toBe(B);
+      expect(kitchen.bounds.max[1]).toBe(B + WALL_HEIGHT);
+      for (const centre of kitchen.floor) expect(centre[1]).toBe(B);
+    }
+    expect(footprint.wallTopY).toBe(B + WALL_HEIGHT);
+  });
+
+  it('defaults to baseY 0 — on the ground', () => {
+    const { walls, footprint } = unwrap(compileGrid([[K]]));
+    for (const w of walls) expect(w.a[1]).toBe(0);
+    expect(footprint.wallTopY).toBe(WALL_HEIGHT);
+  });
+
+  it('footprint bbox is the world X/Z outline, independent of baseY', () => {
+    const q = 0.25;
+    const { footprint } = unwrap(compileGrid([[K]], [], 9));
+    expect(footprint.bbox).toEqual({ x0: -q, x1: q, z0: -q, z1: q });
+  });
+});
+
 describe('compileGrid — grid errors', () => {
   it('an empty grid is an error', () => {
     expect(errorsOf(compileGrid([]))).toContainEqual({ tag: 'EmptyGrid' });
