@@ -13,7 +13,7 @@ import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMat
 
 function boxFor(wall: CompiledWall): { size: Triple; pos: Triple } {
   const len = Math.hypot(wall.b[0] - wall.a[0], wall.b[2] - wall.a[2]);
-  const pos: Triple = [(wall.a[0] + wall.b[0]) / 2, wall.height / 2, (wall.a[2] + wall.b[2]) / 2];
+  const pos: Triple = [(wall.a[0] + wall.b[0]) / 2, wall.a[1] + wall.height / 2, (wall.a[2] + wall.b[2]) / 2];
   const size: Triple =
     wall.axis === 'z' ? [WALL_THICKNESS, wall.height, len] : [len, wall.height, WALL_THICKNESS];
   return { size, pos };
