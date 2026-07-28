@@ -52,7 +52,7 @@ const btn = (active: boolean): CSSProperties => ({
   color: active ? '#111' : '#fff',
 });
 
-export function RoofSandbox() {
+export function Sandbox() {
   const [idx, setIdx] = useState(1); // start at 2×2
   const result = useMemo(() => compileGrid(PRESETS[idx]?.grid ?? [[K]]), [idx]);
   const compiled = result.ok ? result.value : null;
