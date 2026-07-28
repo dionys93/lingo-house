@@ -18,7 +18,7 @@
 import { ok, err, type Result } from './result';
 import { assertNever, type Cell, type HouseError, type RoomKey, type Side } from './errors';
 import { isRoom, type Grid, type Opening, type RoomDef } from './blocks';
-import { gableRoof, type RoofMesh } from './roof';
+import { gableRoof, type RoofMesh, type RoofBox } from './roof';
 import { pairs, range } from './seq';
 
 // ── World-scale knobs. One cell is CELL units on a side; walls rise WALL_HEIGHT.
@@ -43,7 +43,7 @@ export interface CompiledRoom {
   readonly color?: string; // opaque to the core; the factory interprets it
   readonly cells: readonly Cell[];
   readonly bounds: AABB;
-  readonly floor: readonly Vec3[]; // world centre of each cell, at y=0 — one floor tile each
+  readonly floor: readonly Vec3[]; // world centre of each cell, at the storey's baseY — one tile each
 }
 
 export interface CompiledWall {
@@ -71,11 +71,26 @@ export type CompiledOpening =
   | (OpeningBase & { readonly kind: 'door'; readonly swing: 'in' | 'out' })
   | (OpeningBase & { readonly kind: 'window'; readonly sill: number; readonly head: number });
 
+// A storey's roofable outline: the world bbox its walls enclose, and the height
+// its walls top out at (baseY + WALL_HEIGHT). The roof is a pure function of this —
+// the seam that lets the roof "travel" with whatever storey's blocks it sits on.
+export interface Footprint {
+  readonly bbox: RoofBox;
+  readonly wallTopY: number;
+}
+
 export interface CompiledGrid {
   readonly rooms: readonly CompiledRoom[];
   readonly walls: readonly CompiledWall[];
   readonly openings: readonly CompiledOpening[];
-  readonly roof: RoofMesh;
+  readonly footprint: Footprint; // roof is computed from this, not baked in here
+}
+
+// The roof from a footprint. compileHouse will call this with the TOP storey's
+// footprint; today the shell calls it with the single grid's. Pitch/overhang stay
+// encapsulated here so callers only supply the outline.
+export function roofFor(footprint: Footprint): RoofMesh {
+  return gableRoof(footprint.bbox, footprint.wallTopY, ROOF_PITCH, ROOF_OVERHANG);
 }
 
 const vec3 = (x: number, y: number, z: number): Vec3 => [x, y, z];
@@ -83,6 +98,7 @@ const vec3 = (x: number, y: number, z: number): Vec3 => [x, y, z];
 export function compileGrid(
   grid: Grid,
   openings: readonly Opening[] = [],
+  baseY = 0,
 ): Result<CompiledGrid, readonly HouseError[]> {
   const R = grid.length;
   const C = grid.reduce((max, row) => Math.max(max, row.length), 0);
@@ -186,8 +202,8 @@ export function compileGrid(
     const za = ext && isCorner(run.start, run.fixed) ? zAt(run.start) - HALF_T : zAt(run.start);
     const zb = ext && isCorner(run.end + 1, run.fixed) ? zAt(run.end + 1) + HALF_T : zAt(run.end + 1);
     return {
-      a: vec3(xAt(run.fixed), 0, za),
-      b: vec3(xAt(run.fixed), 0, zb),
+      a: vec3(xAt(run.fixed), baseY, za),
+      b: vec3(xAt(run.fixed), baseY, zb),
       height: WALL_HEIGHT,
       axis: 'z',
       sides: [run.neg, run.pos],
@@ -198,8 +214,8 @@ export function compileGrid(
     const xa = ext && isCorner(run.fixed, run.start) ? xAt(run.start) - HALF_T : xAt(run.start);
     const xb = ext && isCorner(run.fixed, run.end + 1) ? xAt(run.end + 1) + HALF_T : xAt(run.end + 1);
     return {
-      a: vec3(xa, 0, zAt(run.fixed)),
-      b: vec3(xb, 0, zAt(run.fixed)),
+      a: vec3(xa, baseY, zAt(run.fixed)),
+      b: vec3(xb, baseY, zAt(run.fixed)),
       height: WALL_HEIGHT,
       axis: 'x',
       sides: [run.neg, run.pos],
@@ -212,8 +228,8 @@ export function compileGrid(
   for (const [id, { op, edge, neg, pos }] of claimed) {
     const geom =
       edge.orient === 'v'
-        ? { a: vec3(xAt(edge.fixed), 0, zAt(edge.varying)), b: vec3(xAt(edge.fixed), 0, zAt(edge.varying + 1)), axis: 'z' as const }
-        : { a: vec3(xAt(edge.varying), 0, zAt(edge.fixed)), b: vec3(xAt(edge.varying + 1), 0, zAt(edge.fixed)), axis: 'x' as const };
+        ? { a: vec3(xAt(edge.fixed), baseY, zAt(edge.varying)), b: vec3(xAt(edge.fixed), baseY, zAt(edge.varying + 1)), axis: 'z' as const }
+        : { a: vec3(xAt(edge.varying), baseY, zAt(edge.fixed)), b: vec3(xAt(edge.varying + 1), baseY, zAt(edge.fixed)), axis: 'x' as const };
     const common = { id, ...geom, height: WALL_HEIGHT, sides: [neg, pos] as const };
     compiledOpenings.push(
       op.kind === 'door'
@@ -227,33 +243,31 @@ export function compileGrid(
     const rowsOf = cells.map(([r]) => r);
     const colsOf = cells.map(([, c]) => c);
     const bounds: AABB = {
-      min: vec3(xAt(Math.min(...colsOf)), 0, zAt(Math.min(...rowsOf))),
-      max: vec3(xAt(Math.max(...colsOf) + 1), WALL_HEIGHT, zAt(Math.max(...rowsOf) + 1)),
+      min: vec3(xAt(Math.min(...colsOf)), baseY, zAt(Math.min(...rowsOf))),
+      max: vec3(xAt(Math.max(...colsOf) + 1), baseY + WALL_HEIGHT, zAt(Math.max(...rowsOf) + 1)),
     };
-    const floor: Vec3[] = cells.map(([r, c]) => vec3(xAt(c) + CELL / 2, 0, zAt(r) + CELL / 2));
+    const floor: Vec3[] = cells.map(([r, c]) => vec3(xAt(c) + CELL / 2, baseY, zAt(r) + CELL / 2));
     const base = { key, name: def.name, cells, bounds, floor };
     compiledRooms.push(def.color === undefined ? base : { ...base, color: def.color });
   }
 
-  const roofRows = roomCells.map(({ r }) => r);
-  const roofCols = roomCells.map(({ c }) => c);
-  const roof = gableRoof(
-    {
-      x0: xAt(Math.min(...roofCols)),
-      x1: xAt(Math.max(...roofCols) + 1),
-      z0: zAt(Math.min(...roofRows)),
-      z1: zAt(Math.max(...roofRows) + 1),
+  const footRows = roomCells.map(({ r }) => r);
+  const footCols = roomCells.map(({ c }) => c);
+  const footprint: Footprint = {
+    bbox: {
+      x0: xAt(Math.min(...footCols)),
+      x1: xAt(Math.max(...footCols) + 1),
+      z0: zAt(Math.min(...footRows)),
+      z1: zAt(Math.max(...footRows) + 1),
     },
-    WALL_HEIGHT,
-    ROOF_PITCH,
-    ROOF_OVERHANG,
-  );
+    wallTopY: baseY + WALL_HEIGHT,
+  };
 
   return ok({
     rooms: compiledRooms,
     walls: [...vWalls, ...hWalls],
     openings: compiledOpenings,
-    roof,
+    footprint,
   });
 }
 
