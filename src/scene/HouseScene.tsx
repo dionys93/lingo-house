@@ -8,7 +8,7 @@
 import { useMemo, useReducer } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { compileGrid } from '../core/grid';
+import { compileGrid, roofFor } from '../core/grid';
 import { describeError, type HouseError } from '../core/errors';
 import { buildDoorGraph, makeNavReducer, START_OUTSIDE } from '../core/nav';
 import { GROUND_FLOOR, DOORS, WINDOWS } from '../authoring/rooms';
@@ -56,6 +56,7 @@ export function HouseScene() {
   const graph = useMemo(() => buildDoorGraph(compiled?.openings ?? []), [compiled]);
   const reducer = useMemo(() => makeNavReducer(graph), [graph]);
   const [nav, dispatch] = useReducer(reducer, START_OUTSIDE);
+  const roof = useMemo(() => (compiled ? roofFor(compiled.footprint) : null), [compiled]);
 
   const outside = nav.tag === 'in' && nav.location === 'outside';
 
@@ -72,7 +73,7 @@ export function HouseScene() {
             <Floor grid={compiled} />
             <Ceiling grid={compiled} />
             <Walls grid={compiled} />
-            <Roof grid={compiled} />
+            {roof && <Roof roof={roof} />}
             <Doors grid={compiled} nav={nav} dispatch={dispatch} />
             <Windows grid={compiled} />
             <CameraRig nav={nav} dispatch={dispatch} rooms={compiled.rooms} />
