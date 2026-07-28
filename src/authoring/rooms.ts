@@ -55,8 +55,8 @@ export const DOORS: readonly Opening[] = [
 export const WINDOWS: readonly Opening[] = [
   { kind: 'window', cell: [0, 1], side: 'back', sill: 0.6, head: 1.0, between: ['bathroom', 'outside'] },
   { kind: 'window', cell: [1, 4], side: 'right', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
-  { kind: 'window', cell: [4, 4], side: 'front', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
+  { kind: 'window', cell: [3, 4], side: 'right', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
   { kind: 'window', cell: [2, 0], side: 'left', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
   { kind: 'window', cell: [3, 0], side: 'left', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
-  { kind: 'window', cell: [4, 0], side: 'front', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
+  { kind: 'window', cell: [4, 2], side: 'front', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
 ];

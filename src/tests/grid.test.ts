@@ -1,4 +1,4 @@
-// src/tests/grid.test.ts
+// src/core/grid.test.ts
 //
 // Slice 1's guardrail: the grid → geometry contract as a table of
 // (grid) → (rooms + walls) or (errors). `compileGrid` is the innermost pure
@@ -26,7 +26,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { defineRoom, EMPTY } from '../core/blocks';
-import { compileGrid, consecutiveRanges, CELL, WALL_HEIGHT } from '../core/grid';
+import { compileGrid, consecutiveRanges, CELL, WALL_HEIGHT, WALL_THICKNESS } from '../core/grid';
 import type { HouseError } from '../core/errors';
 import type { Result } from '../core/result';
 
@@ -153,24 +153,28 @@ describe('compileGrid — walls (merged runs, two-sided)', () => {
     expect(exterior(walls)).toBe(6);
   });
 
-  it('a lone cell places its four walls at ±CELL/2, spanning the cell, height WALL_HEIGHT', () => {
+  it('a lone cell places its four walls, extended by half-thickness at the corners', () => {
     const q = 0.25; // CELL / 2 at CELL = 0.5
+    const t = WALL_THICKNESS / 2; // corners extend by this so perpendicular walls overlap
     const h = 1.2; // WALL_HEIGHT
+    // Fixed axis stays at ±q; the RUN axis extends ±t at each end, since both ends
+    // of every wall of a lone cell are corners.
     const expected = [
-      { axis: 'z', a: [-q, 0, -q], b: [-q, 0, q], height: h, sides: ['outside', 'kitchen'] }, // west
-      { axis: 'z', a: [q, 0, -q], b: [q, 0, q], height: h, sides: ['kitchen', 'outside'] }, // east
-      { axis: 'x', a: [-q, 0, -q], b: [q, 0, -q], height: h, sides: ['outside', 'kitchen'] }, // back
-      { axis: 'x', a: [-q, 0, q], b: [q, 0, q], height: h, sides: ['kitchen', 'outside'] }, // front
+      { axis: 'z', a: [-q, 0, -q - t], b: [-q, 0, q + t], height: h, sides: ['outside', 'kitchen'] }, // west
+      { axis: 'z', a: [q, 0, -q - t], b: [q, 0, q + t], height: h, sides: ['kitchen', 'outside'] }, // east
+      { axis: 'x', a: [-q - t, 0, -q], b: [q + t, 0, -q], height: h, sides: ['outside', 'kitchen'] }, // back
+      { axis: 'x', a: [-q - t, 0, q], b: [q + t, 0, q], height: h, sides: ['kitchen', 'outside'] }, // front
     ];
     const { walls } = unwrap(compileGrid([[K]]));
     expect(walls.map(wallKey).sort()).toEqual(expected.map(wallKey).sort());
   });
 
-  it('coordinate oracle assumes CELL=0.5 and WALL_HEIGHT=1.2', () => {
-    // Tripwire: if either constant is retuned, the ± values in the test above
-    // must be updated. This fails first, loudly, to point you there.
+  it('coordinate oracle assumes CELL=0.5, WALL_HEIGHT=1.2, WALL_THICKNESS=0.08', () => {
+    // Tripwire: if any of these constants is retuned, the ± values in the test
+    // above must be updated. This fails first, loudly, to point you there.
     expect(CELL).toBe(0.5);
     expect(WALL_HEIGHT).toBe(1.2);
+    expect(WALL_THICKNESS).toBe(0.08);
   });
 });
 

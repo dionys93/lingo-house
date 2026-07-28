@@ -25,6 +25,7 @@ import { pairs, range } from './seq';
 // Tunable and cosmetic — the roof will read wall-top height from here later. ────
 export const CELL = 0.5;
 export const WALL_HEIGHT = 1.2;
+export const WALL_THICKNESS = 0.08; // wall depth; the core extends corners by half this so walls overlap
 export const ROOF_PITCH = 0.55; // roof rise per unit of horizontal run (a ratio)
 export const ROOF_OVERHANG = 0.12; // how far the roof hangs past the gable ends
 
@@ -160,20 +161,50 @@ export function compileGrid(
     .map(([r, c]): Seg => ({ fixed: r, varying: c, neg: keyAt(r - 1, c), pos: keyAt(r, c) }))
     .filter((s) => s.neg !== s.pos && !claimed.has(`h:${s.fixed}:${s.varying}`));
 
-  const vWalls: CompiledWall[] = mergeRuns(vSegs).map((run) => ({
-    a: vec3(xAt(run.fixed), 0, zAt(run.start)),
-    b: vec3(xAt(run.fixed), 0, zAt(run.end + 1)),
-    height: WALL_HEIGHT,
-    axis: 'z',
-    sides: [run.neg, run.pos],
-  }));
-  const hWalls: CompiledWall[] = mergeRuns(hSegs).map((run) => ({
-    a: vec3(xAt(run.start), 0, zAt(run.fixed)),
-    b: vec3(xAt(run.end + 1), 0, zAt(run.fixed)),
-    height: WALL_HEIGHT,
-    axis: 'x',
-    sides: [run.neg, run.pos],
-  }));
+  // Runs first, then walls — so we can find CORNERS (a grid vertex where an
+  // exterior vertical run and an exterior horizontal run both END) and extend
+  // those endpoints outward by half a wall thickness. Extended, the two boxes
+  // overlap and fill the outer corner instead of leaving a notch. Openings split
+  // a run on ONE axis, so a split endpoint never pairs with a perpendicular run's
+  // endpoint — door/window edges are excluded automatically.
+  const vRuns = mergeRuns(vSegs);
+  const hRuns = mergeRuns(hSegs);
+  const isExterior = (run: Run): boolean => run.neg === 'outside' || run.pos === 'outside';
+  const vtx = (row: number, col: number): string => `${row},${col}`;
+  const vCornerEnds = new Set(
+    vRuns.filter(isExterior).flatMap((r) => [vtx(r.start, r.fixed), vtx(r.end + 1, r.fixed)]),
+  );
+  const hCornerEnds = new Set(
+    hRuns.filter(isExterior).flatMap((r) => [vtx(r.fixed, r.start), vtx(r.fixed, r.end + 1)]),
+  );
+  const isCorner = (row: number, col: number): boolean =>
+    vCornerEnds.has(vtx(row, col)) && hCornerEnds.has(vtx(row, col));
+  const HALF_T = WALL_THICKNESS / 2;
+
+  const vWalls: CompiledWall[] = vRuns.map((run) => {
+    const ext = isExterior(run);
+    const za = ext && isCorner(run.start, run.fixed) ? zAt(run.start) - HALF_T : zAt(run.start);
+    const zb = ext && isCorner(run.end + 1, run.fixed) ? zAt(run.end + 1) + HALF_T : zAt(run.end + 1);
+    return {
+      a: vec3(xAt(run.fixed), 0, za),
+      b: vec3(xAt(run.fixed), 0, zb),
+      height: WALL_HEIGHT,
+      axis: 'z',
+      sides: [run.neg, run.pos],
+    };
+  });
+  const hWalls: CompiledWall[] = hRuns.map((run) => {
+    const ext = isExterior(run);
+    const xa = ext && isCorner(run.fixed, run.start) ? xAt(run.start) - HALF_T : xAt(run.start);
+    const xb = ext && isCorner(run.fixed, run.end + 1) ? xAt(run.end + 1) + HALF_T : xAt(run.end + 1);
+    return {
+      a: vec3(xa, 0, zAt(run.fixed)),
+      b: vec3(xb, 0, zAt(run.fixed)),
+      height: WALL_HEIGHT,
+      axis: 'x',
+      sides: [run.neg, run.pos],
+    };
+  });
 
   // Each claimed edge becomes an opening — the same geometry that one-cell wall
   // run would have, plus the kind-specific fields.

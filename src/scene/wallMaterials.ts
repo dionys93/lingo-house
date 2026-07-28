@@ -8,10 +8,12 @@ import type { CompiledRoom, WallSide } from '../core/grid';
 
 export type Triple = [number, number, number];
 
-export const WALL_THICKNESS = 0.08; // wall depth; used by the shell to extrude walls, doors, gables
+// Wall depth lives in the core now (it extends corners by half this). Re-exported
+// so wall/door/window/roof shell code keeps importing it from one place.
+export { WALL_THICKNESS } from '../core/grid';
 export const HOUSE_SIDING = '#dfd3c3'; // exterior default, for any face meeting 'outside'
 export const DEFAULT_INTERIOR = '#d8d2c8'; // rooms authored without a colour
-export const TRIM = '#c4b8a4'; // top / bottom / end faces
+export const TRIM = '#c4b8a4'; // top / bottom / interior end faces
 
 // side → colour, resolved once from the compiled rooms.
 export function buildColorOf(rooms: readonly CompiledRoom[]): (side: WallSide) => string {
@@ -21,7 +23,9 @@ export function buildColorOf(rooms: readonly CompiledRoom[]): (side: WallSide) =
 
 // BoxGeometry face order is [+X, -X, +Y, -Y, +Z, -Z]. A 'z'-axis piece is thin in
 // X, so its broad faces are ±X; an 'x'-axis piece thin in Z, so ±Z. neg is the
-// smaller-coordinate side, pos the larger. Edge faces get TRIM.
+// smaller-coordinate side, pos the larger. Top/bottom get TRIM. END caps read as
+// siding when the wall is exterior, so where two exterior walls overlap at a
+// corner the coincident faces match (siding vs siding) instead of TRIM z-fighting.
 export function faceColors(
   axis: 'x' | 'z',
   sides: readonly [WallSide, WallSide],
@@ -29,7 +33,8 @@ export function faceColors(
 ): [string, string, string, string, string, string] {
   const neg = colorOf(sides[0]);
   const pos = colorOf(sides[1]);
+  const end = sides.includes('outside') ? colorOf('outside') : TRIM;
   return axis === 'z'
-    ? [pos, neg, TRIM, TRIM, TRIM, TRIM]
-    : [TRIM, TRIM, TRIM, TRIM, pos, neg];
+    ? [pos, neg, TRIM, TRIM, end, end]
+    : [end, end, TRIM, TRIM, pos, neg];
 }
