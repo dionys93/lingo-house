@@ -51,20 +51,94 @@ const factories: Record<ItemKind, () => JSX.Element> = {
   table: Table,
 };
 
-function Item({ item }: { item: CompiledItem }) {
-  const Build = factories[item.kind];
+// The click target is a single invisible box over the item's compiled bounds,
+// NOT the item's own meshes. A table is mostly gaps — thin legs and air — so
+// aiming at the real geometry means missed clicks between the legs. One forgiving
+// box also keeps hit-testing stable when a factory's geometry changes, and it's
+// the reason `bounds` is yaw-aware in the core: the proxy sits in WORLD space, a
+// sibling of the rotated group, so it can't inherit the yaw twice.
+function ClickProxy({
+  item,
+  selected,
+  onSelect,
+}: {
+  item: CompiledItem;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const { min, max } = item.bounds;
+  const centre: [number, number, number] = [
+    (min[0] + max[0]) / 2,
+    (min[1] + max[1]) / 2,
+    (min[2] + max[2]) / 2,
+  ];
+  const size: [number, number, number] = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
   return (
-    <group position={[...item.position]} rotation={[0, item.yaw, 0]}>
-      <Build />
-    </group>
+    <mesh
+      position={centre}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        document.body.style.cursor = 'pointer';
+      }}
+      onPointerOut={() => {
+        document.body.style.cursor = 'auto';
+      }}
+    >
+      <boxGeometry args={size} />
+      {/* Invisible but still raycast (opacity 0, not `visible={false}`). When the
+          item is open it warms up just enough to show what you're reading. */}
+      <meshBasicMaterial
+        transparent
+        opacity={selected ? 0.14 : 0}
+        depthWrite={false}
+        color="#ffb545"
+      />
+    </mesh>
   );
 }
 
-export function Items({ grid }: { grid: CompiledGrid }) {
+function Item({
+  item,
+  selected,
+  onSelect,
+}: {
+  item: CompiledItem;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const Build = factories[item.kind];
+  return (
+    <>
+      <group position={[...item.position]} rotation={[0, item.yaw, 0]}>
+        <Build />
+      </group>
+      <ClickProxy item={item} selected={selected} onSelect={onSelect} />
+    </>
+  );
+}
+
+export function Items({
+  grid,
+  selectedId,
+  onSelect,
+}: {
+  grid: CompiledGrid;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
   return (
     <>
       {grid.items.map((item) => (
-        <Item key={item.id} item={item} />
+        <Item
+          key={item.id}
+          item={item}
+          selected={item.id === selectedId}
+          onSelect={() => onSelect(item.id)}
+        />
       ))}
     </>
   );
