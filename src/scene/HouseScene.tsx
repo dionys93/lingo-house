@@ -11,12 +11,13 @@ import { OrbitControls } from '@react-three/drei';
 import { compileGrid, roofFor } from '../core/grid';
 import { describeError, type HouseError } from '../core/errors';
 import { buildDoorGraph, makeNavReducer, START_OUTSIDE } from '../core/nav';
-import { GROUND_FLOOR, DOORS, WINDOWS } from '../authoring/rooms';
+import { GROUND_FLOOR, DOORS, WINDOWS, ITEMS } from '../authoring/rooms';
 import { Ground } from './Ground';
 import { Floor } from './Floor';
 import { Ceiling } from './Ceiling';
 import { Walls } from './Walls';
 import { Roof } from './Roof';
+import { Items } from './Items';
 import { Doors } from './Doors';
 import { Windows } from './Windows';
 import { CameraRig } from './CameraRig';
@@ -50,7 +51,7 @@ function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
 }
 
 export function HouseScene() {
-  const result = useMemo(() => compileGrid(GROUND_FLOOR, [...DOORS, ...WINDOWS]), []);
+  const result = useMemo(() => compileGrid(GROUND_FLOOR, [...DOORS, ...WINDOWS], 0, ITEMS), []);
   const compiled = result.ok ? result.value : null;
 
   const graph = useMemo(() => buildDoorGraph(compiled?.openings ?? []), [compiled]);
@@ -74,6 +75,7 @@ export function HouseScene() {
             <Ceiling grid={compiled} />
             <Walls grid={compiled} />
             {roof && <Roof roof={roof} />}
+            <Items grid={compiled} />
             <Doors grid={compiled} nav={nav} dispatch={dispatch} />
             <Windows grid={compiled} />
             <CameraRig nav={nav} dispatch={dispatch} rooms={compiled.rooms} />

@@ -25,14 +25,13 @@
 // kind, between which rooms.
 
 import { describe, it, expect } from 'vitest';
-import { defineRoom, EMPTY } from '../core/blocks';
+import { defineRoom, _ } from '../core/blocks';
 import { compileGrid, consecutiveRanges, CELL, WALL_HEIGHT, WALL_THICKNESS } from '../core/grid';
 import type { HouseError } from '../core/errors';
 import type { Result } from '../core/result';
 
 const K = defineRoom({ key: 'kitchen', name: 'Kitchen', color: '#d4d4d4' });
 const L = defineRoom({ key: 'livingRoom', name: 'Living Room' });
-const _ = EMPTY;
 
 // ── assertion helpers (strict-safe: no `!`, no bare indexing) ────────────────
 function unwrap<T>(r: Result<T, readonly HouseError[]>): T {
@@ -276,9 +275,20 @@ describe('compileGrid — openings', () => {
     expect(errs).toContainEqual({ tag: 'OpeningNotOnWall', cell: [0, 0], side: 'right' });
   });
 
+  // Regression: the bounds test read `c < 0` with no upper check, so a door past
+  // the last COLUMN fell through to keyAt → 'outside' and was reported as
+  // OpeningCellEmpty. Wrong diagnosis for a real mistake; the unused `C`
+  // parameter was the compiler pointing straight at it.
+  it('rejects a door off the grid — past the last column, not just the last row', () => {
+    const off = (cell: readonly [number, number]) =>
+      errorsOf(compileGrid([[K, K]], [{ kind: 'door', cell, side: 'front', swing: 'out' }]));
+    expect(off([0, 5])).toContainEqual({ tag: 'OpeningCellOutOfBounds', cell: [0, 5] });
+    expect(off([5, 0])).toContainEqual({ tag: 'OpeningCellOutOfBounds', cell: [5, 0] });
+  });
+
   it('rejects a door on an empty cell', () => {
     const errs = errorsOf(
-      compileGrid([[K, EMPTY]], [{ kind: 'door', cell: [0, 1], side: 'front', swing: 'out' }]),
+      compileGrid([[K, _]], [{ kind: 'door', cell: [0, 1], side: 'front', swing: 'out' }]),
     );
     expect(errs).toContainEqual({ tag: 'OpeningCellEmpty', cell: [0, 1] });
   });

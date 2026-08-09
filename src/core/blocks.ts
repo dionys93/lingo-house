@@ -17,6 +17,15 @@ export interface RoomDef {
 export const EMPTY = Symbol('empty');
 export type Empty = typeof EMPTY;
 
+// The authoring shorthand for an empty cell, exported so every plan and test
+// IMPORTS it instead of re-declaring `const _ = EMPTY`. That re-declaration is
+// silently broken: `EMPTY` is a `unique symbol`, but aliasing it through an
+// un-annotated `const` widens it to plain `symbol`, which is not assignable to
+// `Block` — so any grid literal containing a locally-aliased `_` fails to
+// compile. Annotating at each site would work; exporting it once means nobody
+// has to know.
+export const _: Empty = EMPTY;
+
 export type Block = RoomDef | Empty;
 export type Grid = readonly (readonly Block[])[];
 
@@ -46,3 +55,20 @@ export type Opening =
       readonly head: number; // height of its top edge
       readonly between?: readonly [string, string];
     };
+
+// ── Items: furniture/objects placed IN a cell — the click targets of the
+// language loop. Authored in storey-local grid space (a cell, like doors);
+// the compiler emits world space. Never author world coordinates: that's the
+// rule that lets baseY sweep items along with everything else when storeys
+// stack. `kind` is a CLOSED union — the shell's factory record plus exhaustive
+// checks make the compiler walk you to every site when a kind is added.
+export type ItemKind = 'table';
+export type Facing = 'n' | 's' | 'e' | 'w'; // n = toward the BACK of the house (row 0)
+
+export interface ItemDef {
+  readonly id: string; // unique across the plan; compiler errors on duplicates
+  readonly kind: ItemKind;
+  readonly cell: Cell; // same addressing as openings
+  readonly offset?: readonly [x: number, z: number]; // within-cell nudge, in cell units (0.5 = one cell edge)
+  readonly facing?: Facing; // default 's' — toward the front/camera
+}

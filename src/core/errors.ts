@@ -9,8 +9,7 @@
 // the grid errors, but doors and stairs are already designed (locked decisions),
 // so their variants live here now — the error-display switch handles them all
 // from day one, and switch-exhaustiveness-check guarantees future variants can't
-// slip through unhandled. Item errors are deliberately ABSENT until the item
-// placement model is finalized; no speculative variants.
+// slip through unhandled. Item errors landed with the locked item model.
 //
 // NOTE: Cell / RoomKey / Side are declared here because errors.ts is the first
 // core file that needs them. They'll migrate to a shared `types.ts` when we
@@ -53,6 +52,11 @@ export type HouseError =
       readonly expected: readonly [RoomKey, RoomKey];
       readonly actual: readonly [RoomKey, RoomKey];
     }
+
+  // ── Items (placed by cell; model locked — see planning doc) ──
+  | { readonly tag: 'ItemCellOutOfBounds'; readonly id: string; readonly cell: Cell }
+  | { readonly tag: 'ItemCellEmpty'; readonly id: string; readonly cell: Cell }
+  | { readonly tag: 'DuplicateItemId'; readonly id: string }
 
   // ── Textures ──────────────────────────
   | { readonly tag: 'UnknownTextureKey'; readonly key: string };
@@ -102,6 +106,12 @@ export function describeError(e: HouseError): string {
       return `Stair lands at ${fmtCell(e.landing)}, where there's no room above to step onto.`;
     case 'StairConnectsWrongRooms':
       return `Stair: you said ${e.expected.join(' ↔ ')}, but it connects ${e.actual.join(' ↔ ')}.`;
+    case 'ItemCellOutOfBounds':
+      return `Item '${e.id}' at cell ${fmtCell(e.cell)} is off the grid.`;
+    case 'ItemCellEmpty':
+      return `Item '${e.id}' at cell ${fmtCell(e.cell)} sits on an empty cell — put it in a room.`;
+    case 'DuplicateItemId':
+      return `Two items share the id '${e.id}' — item ids must be unique.`;
     case 'UnknownTextureKey':
       return `Unknown texture key '${e.key}'.`;
     default:

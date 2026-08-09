@@ -17,7 +17,7 @@
 
 import { ok, err, type Result } from './result';
 import { assertNever, type Cell, type HouseError, type RoomKey, type Side } from './errors';
-import { isRoom, type Grid, type Opening, type RoomDef } from './blocks';
+import { isRoom, type Facing, type Grid, type ItemDef, type ItemKind, type Opening, type RoomDef } from './blocks';
 import { gableRoof, type RoofMesh, type RoofBox } from './roof';
 import { pairs, range } from './seq';
 
@@ -74,6 +74,36 @@ export type CompiledOpening =
   | (OpeningBase & { readonly kind: 'door'; readonly swing: 'in' | 'out' })
   | (OpeningBase & { readonly kind: 'window'; readonly sill: number; readonly head: number });
 
+// ── Items. Canonical per-kind footprint (w along X, d along Z when facing 's',
+// h up) — DATA the core needs to emit click bounds; what a kind LOOKS like stays
+// in the shell's factory, same split as room `color`. Sizes are stylised to fit
+// one CELL (0.5) under WALL_HEIGHT (1.2). ──
+interface ItemDims {
+  readonly w: number;
+  readonly d: number;
+  readonly h: number;
+}
+export const ITEM_DIMENSIONS: Record<ItemKind, ItemDims> = {
+  table: { w: 0.44, d: 0.3, h: 0.34 },
+};
+
+// facing → rotation about Y, for a model whose local "front" is +Z ('s').
+export const ITEM_YAW: Record<Facing, number> = {
+  s: 0,
+  e: Math.PI / 2,
+  n: Math.PI,
+  w: -Math.PI / 2,
+};
+
+export interface CompiledItem {
+  readonly id: string;
+  readonly kind: ItemKind;
+  readonly position: Vec3; // world, at the floor; baseY already applied
+  readonly yaw: number; // radians about Y — shell applies to the whole item group
+  readonly bounds: AABB; // world, yaw-aware — for click raycasting
+  readonly room: RoomKey; // DERIVED from the cell, never authored
+}
+
 // A storey's roofable outline: the world bbox its walls enclose, and the height
 // its walls top out at (baseY + WALL_HEIGHT). The roof is a pure function of this —
 // the seam that lets the roof "travel" with whatever storey's blocks it sits on.
@@ -86,6 +116,7 @@ export interface CompiledGrid {
   readonly rooms: readonly CompiledRoom[];
   readonly walls: readonly CompiledWall[];
   readonly openings: readonly CompiledOpening[];
+  readonly items: readonly CompiledItem[];
   readonly footprint: Footprint; // roof is computed from this, not baked in here
 }
 
@@ -105,10 +136,14 @@ export function roofFor(footprint: Footprint): RoofMesh {
 
 const vec3 = (x: number, y: number, z: number): Vec3 => [x, y, z];
 
+// NOTE: the positional-optional list (openings, baseY, items) is at its limit.
+// When compileHouse becomes the public entry (M2), fold these into an options
+// record there and let compileGrid go internal — scheduled, not forgotten.
 export function compileGrid(
   grid: Grid,
   openings: readonly Opening[] = [],
   baseY = 0,
+  items: readonly ItemDef[] = [],
 ): Result<CompiledGrid, readonly HouseError[]> {
   const R = grid.length;
   const C = grid.reduce((max, row) => Math.max(max, row.length), 0);
@@ -175,7 +210,15 @@ export function compileGrid(
       }
     }
   }
-  if (openingErrors.length > 0) return err(openingErrors);
+  // ── Items. Validated like openings (compileItems, below): every bad item is a
+  // typed error, valid ones compile to world space here — cell → centre + offset,
+  // room DERIVED from the cell, yaw from facing, yaw-aware click bounds. ──
+  const { itemErrors, compiledItems } = compileItems(items, { keyAt, xAt, zAt, R, C, baseY });
+
+  // Opening and item mistakes accumulate TOGETHER — the author sees every plan
+  // error in one compile, not openings first and items after a fix.
+  const planErrors = [...openingErrors, ...itemErrors];
+  if (planErrors.length > 0) return err(planErrors);
 
   // Wall boundaries, MINUS any edge a valid opening claimed. Each is "every
   // boundary line × every cell along it, kept where the two sides differ" — a
@@ -277,11 +320,74 @@ export function compileGrid(
     rooms: compiledRooms,
     walls: [...vWalls, ...hWalls],
     openings: compiledOpenings,
+    items: compiledItems,
     footprint,
   });
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+// Item validation + world placement, in one pass. Dependencies come in as a
+// context record (functions as parameters, no reach-back into compileGrid's
+// scope from elsewhere). Errors accumulate; a bad item never silently drops.
+interface ItemCtx {
+  readonly keyAt: (r: number, c: number) => WallSide;
+  readonly xAt: (col: number) => number;
+  readonly zAt: (row: number) => number;
+  readonly R: number;
+  readonly C: number;
+  readonly baseY: number;
+}
+
+function compileItems(
+  items: readonly ItemDef[],
+  ctx: ItemCtx,
+): { readonly itemErrors: readonly HouseError[]; readonly compiledItems: readonly CompiledItem[] } {
+  const { keyAt, xAt, zAt, R, C, baseY } = ctx;
+  const itemErrors: HouseError[] = [];
+  const compiledItems: CompiledItem[] = [];
+  const seenIds = new Set<string>();
+
+  for (const item of items) {
+    const [r, c] = item.cell;
+    if (seenIds.has(item.id)) {
+      itemErrors.push({ tag: 'DuplicateItemId', id: item.id });
+      continue;
+    }
+    seenIds.add(item.id);
+    if (r < 0 || r >= R || c < 0 || c >= C) {
+      itemErrors.push({ tag: 'ItemCellOutOfBounds', id: item.id, cell: item.cell });
+      continue;
+    }
+    const room = keyAt(r, c);
+    if (room === 'outside') {
+      itemErrors.push({ tag: 'ItemCellEmpty', id: item.id, cell: item.cell });
+      continue;
+    }
+
+    const [ox, oz] = item.offset ?? [0, 0];
+    const facing: Facing = item.facing ?? 's';
+    const x = xAt(c) + CELL / 2 + ox * CELL;
+    const z = zAt(r) + CELL / 2 + oz * CELL;
+    const { w, d, h } = ITEM_DIMENSIONS[item.kind];
+    // Yaw-aware half-extents: e/w swap the X/Z footprint. Yaws are axis-aligned
+    // quarter turns, so the AABB is exact, not a rotated-box overestimate.
+    const [hx, hz] = facing === 'e' || facing === 'w' ? [d / 2, w / 2] : [w / 2, d / 2];
+    compiledItems.push({
+      id: item.id,
+      kind: item.kind,
+      position: vec3(x, baseY, z),
+      yaw: ITEM_YAW[facing],
+      bounds: {
+        min: vec3(x - hx, baseY, z - hz),
+        max: vec3(x + hx, baseY + h, z + hz),
+      },
+      room,
+    });
+  }
+
+  return { itemErrors, compiledItems };
+}
 
 // A grid boundary edge an opening resolves to. `orient` 'v' = vertical boundary
 // (a run along Z), 'h' = horizontal (along X). `fixed` is the boundary line index,
@@ -327,7 +433,7 @@ function validateOpening(
     return {
       ok: false,
       error:
-        r < 0 || r >= R || c < 0
+        r < 0 || r >= R || c < 0 || c >= C
           ? { tag: 'OpeningCellOutOfBounds', cell: op.cell }
           : { tag: 'OpeningCellEmpty', cell: op.cell },
     };

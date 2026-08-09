@@ -23,13 +23,13 @@
 // "wall" is an internal seam and you'll get NotOnWall. When you resize the house,
 // re-point openings to the room's true outer edge.
 
-import { defineRoom, EMPTY, type Grid, type Opening } from '../core/blocks';
+// Need empty space in the plan? Add `_` to this import and drop it in the grid.
+import { defineRoom, type Grid, type ItemDef, type Opening } from '../core/blocks';
 
 // ── The rooms: a key, a display name, and the colour seen from inside. ──
 const K = defineRoom({ key: 'kitchen', name: 'Kitchen', color: '#d4d4d4' });
 const L = defineRoom({ key: 'livingRoom', name: 'Living Room', color: '#c9b79b' });
 const B = defineRoom({ key: 'bathroom', name: 'Bathroom', color: '#c8d5c8' });
-const _ = EMPTY;
 
 // ── The floor plan. Edit this. ──
 // A bathroom across the back-left (2 rows), a kitchen down the right two columns,
@@ -59,4 +59,11 @@ export const WINDOWS: readonly Opening[] = [
   { kind: 'window', cell: [2, 0], side: 'left', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
   { kind: 'window', cell: [3, 0], side: 'left', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
   { kind: 'window', cell: [4, 2], side: 'front', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
+];
+
+// ── Items: furniture placed IN a cell (row, col — same addressing as doors).
+// `facing` turns the piece: 's' faces the front of the house. `offset` nudges
+// within the cell in cell units. Ids must be unique — the compiler checks. ──
+export const ITEMS: readonly ItemDef[] = [
+  { id: 'living-table', kind: 'table', cell: [3, 1], facing: 's' }, // middle of the living room
 ];
