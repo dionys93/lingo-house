@@ -27,7 +27,10 @@ export const CELL = 0.5;
 export const WALL_HEIGHT = 1.2;
 export const WALL_THICKNESS = 0.08; // wall depth; the core extends corners by half this so walls overlap
 export const ROOF_PITCH = 0.55; // roof rise per unit of horizontal run (a ratio)
-export const ROOF_OVERHANG = 0.12; // how far the roof hangs past the gable ends
+export const ROOF_RAKE_OVERHANG = 0.12; // how far the slopes hang past the gable ends
+// Horizontal run past the eave walls' OUTER face; the eave edge drops below
+// wall-top by ROOF_PITCH × this (≈ 0.09 world units at current values).
+export const ROOF_EAVE_OVERHANG = 0.16;
 
 export type Vec3 = readonly [number, number, number];
 export type WallSide = RoomKey | 'outside';
@@ -90,7 +93,14 @@ export interface CompiledGrid {
 // footprint; today the shell calls it with the single grid's. Pitch/overhang stay
 // encapsulated here so callers only supply the outline.
 export function roofFor(footprint: Footprint): RoofMesh {
-  return gableRoof(footprint.bbox, footprint.wallTopY, ROOF_PITCH, ROOF_OVERHANG);
+  return gableRoof(footprint.bbox, footprint.wallTopY, {
+    pitch: ROOF_PITCH,
+    rakeOverhang: ROOF_RAKE_OVERHANG,
+    eaveOverhang: ROOF_EAVE_OVERHANG,
+    // The footprint bbox is the wall CENTERLINE outline; the roof bears on the
+    // wall's outer top edge, half a thickness outboard.
+    bearingOffset: WALL_THICKNESS / 2,
+  });
 }
 
 const vec3 = (x: number, y: number, z: number): Vec3 => [x, y, z];
