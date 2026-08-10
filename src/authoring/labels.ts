@@ -16,11 +16,17 @@ import type { LabelTable } from '../core/labels';
 export const LABELS: LabelTable = {
   en: {
     table: 'the table',
+    laptop: 'the laptop',
+    tv: 'the television',
   },
   es: {
     table: 'la mesa',
+    laptop: 'el portátil',
+    tv: 'la televisión',
   },
   de: {
     table: 'der Tisch',
+    laptop: 'der Laptop',
+    tv: 'der Fernseher',
   },
 };

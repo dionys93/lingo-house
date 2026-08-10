@@ -74,17 +74,22 @@ export type CompiledOpening =
   | (OpeningBase & { readonly kind: 'door'; readonly swing: 'in' | 'out' })
   | (OpeningBase & { readonly kind: 'window'; readonly sill: number; readonly head: number });
 
-// ── Items. Canonical per-kind footprint (w along X, d along Z when facing 's',
-// h up) — DATA the core needs to emit click bounds; what a kind LOOKS like stays
-// in the shell's factory, same split as room `color`. Sizes are stylised to fit
-// one CELL (0.5) under WALL_HEIGHT (1.2). ──
-interface ItemDims {
+// ── Items. Canonical per-kind spec — DATA the core needs to place items and
+// emit click bounds; what a kind LOOKS like stays in the shell's factory, same
+// split as room `color`. Sizes are stylised to fit one CELL (0.5) under
+// WALL_HEIGHT (1.2). `supportsTop` is the height at which OTHER items rest on
+// this one — `null` means nothing can, which is what turns "laptop on a TV"
+// into a typed error instead of a laptop embedded in a screen. ──
+interface ItemSpec {
   readonly w: number;
   readonly d: number;
   readonly h: number;
+  readonly supportsTop: number | null;
 }
-export const ITEM_DIMENSIONS: Record<ItemKind, ItemDims> = {
-  table: { w: 0.44, d: 0.3, h: 0.34 },
+export const ITEM_SPECS: Record<ItemKind, ItemSpec> = {
+  table: { w: 0.44, d: 0.3, h: 0.34, supportsTop: 0.34 }, // things rest on the slab
+  laptop: { w: 0.13, d: 0.1, h: 0.09, supportsTop: null },
+  tv: { w: 0.34, d: 0.03, h: 0.2, supportsTop: null },
 };
 
 // facing → rotation about Y, for a model whose local "front" is +Z ('s').
@@ -94,6 +99,13 @@ export const ITEM_YAW: Record<Facing, number> = {
   n: Math.PI,
   w: -Math.PI / 2,
 };
+
+// The inverse, for inheriting a host's orientation. Built FROM ITEM_YAW so the
+// two can't drift apart, and keyed by number since that's what a compiled item
+// carries.
+const FACING_OF_YAW: ReadonlyMap<number, Facing> = new Map(
+  (Object.entries(ITEM_YAW) as readonly [Facing, number][]).map(([f, y]) => [y, f]),
+);
 
 export interface CompiledItem {
   readonly id: string;
@@ -327,9 +339,15 @@ export function compileGrid(
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-// Item validation + world placement, in one pass. Dependencies come in as a
-// context record (functions as parameters, no reach-back into compileGrid's
-// scope from elsewhere). Errors accumulate; a bad item never silently drops.
+// Item validation + world placement. Dependencies come in as a context record
+// (functions as parameters, no reach-back into compileGrid's scope). Errors
+// accumulate; a bad item never silently drops.
+//
+// Placement is a GRAPH now, not a list: an item mounted on another can't be
+// placed until its host is. Resolution is a memoized depth-first walk with a
+// `visiting` set, so a mount loop is reported as a MountCycle instead of
+// overflowing the stack. Order of authoring doesn't matter — a laptop may be
+// listed before the table it sits on.
 interface ItemCtx {
   readonly keyAt: (r: number, c: number) => WallSide;
   readonly xAt: (col: number) => number;
@@ -339,51 +357,180 @@ interface ItemCtx {
   readonly baseY: number;
 }
 
+// side → the way an item hung on that wall must face, and which way is INTO the
+// room from the wall's centreline. Derived, never authored: a TV facing into the
+// wall is not a thing anyone wants, so it shouldn't be expressible.
+const WALL_MOUNT: Record<Side, { readonly facing: Facing; readonly inward: 1 | -1 }> = {
+  back: { facing: 's', inward: 1 }, // wall at the cell's low-Z edge; room is +Z
+  front: { facing: 'n', inward: -1 },
+  left: { facing: 'e', inward: 1 }, // wall at the cell's low-X edge; room is +X
+  right: { facing: 'w', inward: -1 },
+};
+
+// Shared by all three mounts, so the AABB rule lives in exactly one place.
+// Yaws are axis-aligned quarter turns, so e/w simply swap the X/Z footprint and
+// the box is exact rather than a rotated-box overestimate.
+function itemBounds(kind: ItemKind, [x, y, z]: Vec3, facing: Facing): AABB {
+  const { w, d, h } = ITEM_SPECS[kind];
+  const [hx, hz] = facing === 'e' || facing === 'w' ? [d / 2, w / 2] : [w / 2, d / 2];
+  return { min: vec3(x - hx, y, z - hz), max: vec3(x + hx, y + h, z + hz) };
+}
+
 function compileItems(
   items: readonly ItemDef[],
   ctx: ItemCtx,
 ): { readonly itemErrors: readonly HouseError[]; readonly compiledItems: readonly CompiledItem[] } {
   const { keyAt, xAt, zAt, R, C, baseY } = ctx;
   const itemErrors: HouseError[] = [];
-  const compiledItems: CompiledItem[] = [];
-  const seenIds = new Set<string>();
 
-  for (const item of items) {
-    const [r, c] = item.cell;
-    if (seenIds.has(item.id)) {
-      itemErrors.push({ tag: 'DuplicateItemId', id: item.id });
-      continue;
+  // Pass 1: index by id. Duplicates are reported here and the FIRST wins, so
+  // mounts that name that id resolve against one unambiguous item.
+  const byId = new Map<string, ItemDef>();
+  for (const def of items) {
+    if (byId.has(def.id)) itemErrors.push({ tag: 'DuplicateItemId', id: def.id });
+    else byId.set(def.id, def);
+  }
+
+  // Pass 2: resolve. `null` means "this item failed"; the reason is already in
+  // itemErrors. A dependent of a failed host is dropped WITHOUT a second error —
+  // one root cause per mistake, not a cascade of consequences burying it.
+  const memo = new Map<string, CompiledItem | null>();
+  const visiting = new Set<string>();
+  const cycleReported = new Set<string>();
+
+  const fail = (id: string, error: HouseError): null => {
+    itemErrors.push(error);
+    memo.set(id, null);
+    return null;
+  };
+
+  const resolve = (def: ItemDef): CompiledItem | null => {
+    const cached = memo.get(def.id);
+    if (cached !== undefined) return cached;
+    if (visiting.has(def.id)) {
+      if (!cycleReported.has(def.id)) {
+        cycleReported.add(def.id);
+        itemErrors.push({ tag: 'MountCycle', ids: [...visiting, def.id] });
+      }
+      return null;
     }
-    seenIds.add(item.id);
+    visiting.add(def.id);
+    const placed = place(def);
+    visiting.delete(def.id);
+    if (memo.get(def.id) === undefined) memo.set(def.id, placed);
+    return placed;
+  };
+
+  // Cell checks are shared by the floor and wall mounts.
+  const roomAt = (def: ItemDef, cell: Cell): WallSide | null => {
+    const [r, c] = cell;
     if (r < 0 || r >= R || c < 0 || c >= C) {
-      itemErrors.push({ tag: 'ItemCellOutOfBounds', id: item.id, cell: item.cell });
-      continue;
+      fail(def.id, { tag: 'ItemCellOutOfBounds', id: def.id, cell });
+      return null;
     }
     const room = keyAt(r, c);
     if (room === 'outside') {
-      itemErrors.push({ tag: 'ItemCellEmpty', id: item.id, cell: item.cell });
-      continue;
+      fail(def.id, { tag: 'ItemCellEmpty', id: def.id, cell });
+      return null;
     }
+    return room;
+  };
 
-    const [ox, oz] = item.offset ?? [0, 0];
-    const facing: Facing = item.facing ?? 's';
-    const x = xAt(c) + CELL / 2 + ox * CELL;
-    const z = zAt(r) + CELL / 2 + oz * CELL;
-    const { w, d, h } = ITEM_DIMENSIONS[item.kind];
-    // Yaw-aware half-extents: e/w swap the X/Z footprint. Yaws are axis-aligned
-    // quarter turns, so the AABB is exact, not a rotated-box overestimate.
-    const [hx, hz] = facing === 'e' || facing === 'w' ? [d / 2, w / 2] : [w / 2, d / 2];
-    compiledItems.push({
-      id: item.id,
-      kind: item.kind,
-      position: vec3(x, baseY, z),
-      yaw: ITEM_YAW[facing],
-      bounds: {
-        min: vec3(x - hx, baseY, z - hz),
-        max: vec3(x + hx, baseY + h, z + hz),
-      },
-      room,
-    });
+  const emit = (def: ItemDef, position: Vec3, facing: Facing, room: WallSide): CompiledItem => ({
+    id: def.id,
+    kind: def.kind,
+    position,
+    yaw: ITEM_YAW[facing],
+    bounds: itemBounds(def.kind, position, facing),
+    room,
+  });
+
+  function place(def: ItemDef): CompiledItem | null {
+    const m = def.mount;
+    switch (m.on) {
+      case 'floor': {
+        const room = roomAt(def, m.cell);
+        if (room === null) return null;
+        const [r, c] = m.cell;
+        const [ox, oz] = m.offset ?? [0, 0];
+        const position = vec3(xAt(c) + CELL / 2 + ox * CELL, baseY, zAt(r) + CELL / 2 + oz * CELL);
+        return emit(def, position, m.facing ?? 's', room);
+      }
+
+      case 'item': {
+        const hostDef = byId.get(m.host);
+        if (hostDef === undefined) {
+          return fail(def.id, { tag: 'UnknownMountHost', id: def.id, host: m.host });
+        }
+        const host = resolve(hostDef);
+        if (host === null) {
+          memo.set(def.id, null); // host's error is the root cause; don't pile on
+          return null;
+        }
+        const spec = ITEM_SPECS[host.kind];
+        if (spec.supportsTop === null) {
+          return fail(def.id, { tag: 'ItemNotMountable', id: def.id, host: m.host });
+        }
+        // Offset is in fractions of the host's footprint, expressed in the
+        // host's LOCAL frame, then turned by the host's yaw — so authoring
+        // doesn't have to re-do the trigonometry every time a table is rotated.
+        const [ox, oz] = m.offset ?? [0, 0];
+        const [lx, lz] = [ox * spec.w, oz * spec.d];
+        const [cos, sin] = [Math.cos(host.yaw), Math.sin(host.yaw)];
+        const position = vec3(
+          host.position[0] + lx * cos + lz * sin,
+          host.position[1] + spec.supportsTop,
+          host.position[2] - lx * sin + lz * cos,
+        );
+        // Inherit the host's orientation unless told otherwise.
+        const facing = m.facing ?? FACING_OF_YAW.get(host.yaw) ?? 's';
+        return emit(def, position, facing, host.room);
+      }
+
+      case 'wall': {
+        const room = roomAt(def, m.cell);
+        if (room === null) return null;
+        // Same edge test the openings use: if both sides of the edge are the
+        // same room there is no wall there, and the item would hang in mid-air.
+        const edge = resolveEdge(m.cell, m.side);
+        const neg =
+          edge.orient === 'v'
+            ? keyAt(edge.varying, edge.fixed - 1)
+            : keyAt(edge.fixed - 1, edge.varying);
+        const pos =
+          edge.orient === 'v' ? keyAt(edge.varying, edge.fixed) : keyAt(edge.fixed, edge.varying);
+        if (neg === pos) {
+          return fail(def.id, { tag: 'ItemNotOnWall', id: def.id, cell: m.cell, side: m.side });
+        }
+
+        const { facing, inward } = WALL_MOUNT[m.side];
+        const { d, h } = ITEM_SPECS[def.kind];
+        const top = m.height + h;
+        if (top > WALL_HEIGHT) {
+          return fail(def.id, { tag: 'ItemTooHigh', id: def.id, top, limit: WALL_HEIGHT });
+        }
+        // Off the wall's INNER face (half a thickness in from the centreline),
+        // then out by half the item's depth so it rests against the surface
+        // rather than half-buried in it.
+        const clearance = inward * (WALL_THICKNESS / 2 + d / 2);
+        const along = (m.offset ?? 0) * CELL;
+        const [r, c] = m.cell;
+        const position =
+          edge.orient === 'v'
+            ? vec3(xAt(edge.fixed) + clearance, baseY + m.height, zAt(r) + CELL / 2 + along)
+            : vec3(xAt(c) + CELL / 2 + along, baseY + m.height, zAt(edge.fixed) + clearance);
+        return emit(def, position, facing, room);
+      }
+
+      default:
+        return assertNever(m);
+    }
+  }
+
+  const compiledItems: CompiledItem[] = [];
+  for (const def of byId.values()) {
+    const placed = resolve(def);
+    if (placed !== null) compiledItems.push(placed);
   }
 
   return { itemErrors, compiledItems };

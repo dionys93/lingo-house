@@ -14,14 +14,14 @@
 
 import type { JSX } from 'react';
 import type { CompiledGrid, CompiledItem } from '../core/grid';
-import { ITEM_DIMENSIONS } from '../core/grid';
+import { ITEM_SPECS } from '../core/grid';
 import type { ItemKind } from '../core/blocks';
 
 const TABLE_TOP = '#8a6a4f'; // walnut
 const TABLE_LEG = '#6f523c';
 
 function Table(): JSX.Element {
-  const { w, d, h } = ITEM_DIMENSIONS.table;
+  const { w, d, h } = ITEM_SPECS.table;
   const topT = 0.035; // slab thickness
   const legS = 0.035; // square leg side
   const inset = 0.03; // legs in from the edges
@@ -46,9 +46,80 @@ function Table(): JSX.Element {
   );
 }
 
-// kind → local-space mesh builder. Record over the closed union = exhaustive.
+const LAPTOP_BODY = '#b8bcc2';
+const LAPTOP_SCREEN = '#2b3238';
+const LAPTOP_KEYS = '#8f959c';
+
+// Open laptop: a base with a darker key area, and a lid tilted back past
+// vertical. Local "front" is +Z, so the screen faces the same way the item does.
+function Laptop(): JSX.Element {
+  const { w, d, h } = ITEM_SPECS.laptop;
+  const baseT = 0.012;
+  const lidT = 0.008;
+  const lidTilt = -0.28; // radians past upright, leaning away from the viewer
+  return (
+    <>
+      <mesh position={[0, baseT / 2, 0]}>
+        <boxGeometry args={[w, baseT, d]} />
+        <meshStandardMaterial color={LAPTOP_BODY} roughness={0.5} metalness={0.25} />
+      </mesh>
+      <mesh position={[0, baseT + 0.001, 0.008]}>
+        <boxGeometry args={[w * 0.82, 0.002, d * 0.62]} />
+        <meshStandardMaterial color={LAPTOP_KEYS} roughness={0.8} />
+      </mesh>
+      {/* Hinged at the back edge: the group pivots, the lid hangs off it. */}
+      <group position={[0, baseT, -d / 2]} rotation={[lidTilt, 0, 0]}>
+        <mesh position={[0, (h - baseT) / 2, lidT / 2]}>
+          <boxGeometry args={[w, h - baseT, lidT]} />
+          <meshStandardMaterial color={LAPTOP_BODY} roughness={0.5} metalness={0.25} />
+        </mesh>
+        <mesh position={[0, (h - baseT) / 2, lidT]}>
+          <boxGeometry args={[w * 0.88, (h - baseT) * 0.84, 0.001]} />
+          <meshStandardMaterial
+            color={LAPTOP_SCREEN}
+            roughness={0.25}
+            emissive={LAPTOP_SCREEN}
+            emissiveIntensity={0.35}
+          />
+        </mesh>
+      </group>
+    </>
+  );
+}
+
+const TV_BEZEL = '#1a1c1f';
+const TV_SCREEN = '#10161c';
+
+// Wall TV: a thin bezel with an inset screen on its +Z face. The compiler has
+// already put it against the wall facing the room, so this just builds it
+// flat — no wall logic in here.
+function Tv(): JSX.Element {
+  const { w, d, h } = ITEM_SPECS.tv;
+  return (
+    <>
+      <mesh position={[0, h / 2, 0]}>
+        <boxGeometry args={[w, h, d]} />
+        <meshStandardMaterial color={TV_BEZEL} roughness={0.45} />
+      </mesh>
+      <mesh position={[0, h / 2, d / 2 + 0.001]}>
+        <boxGeometry args={[w * 0.93, h * 0.88, 0.002]} />
+        <meshStandardMaterial
+          color={TV_SCREEN}
+          roughness={0.18}
+          emissive={TV_SCREEN}
+          emissiveIntensity={0.5}
+        />
+      </mesh>
+    </>
+  );
+}
+
+// kind → local-space mesh builder. Record over the closed union = exhaustive:
+// add a kind and this line stops compiling until it has a factory.
 const factories: Record<ItemKind, () => JSX.Element> = {
   table: Table,
+  laptop: Laptop,
+  tv: Tv,
 };
 
 // The click target is a single invisible box over the item's compiled bounds,

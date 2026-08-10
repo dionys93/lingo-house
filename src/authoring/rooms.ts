@@ -61,9 +61,19 @@ export const WINDOWS: readonly Opening[] = [
   { kind: 'window', cell: [4, 2], side: 'front', sill: 0.25, head: 1.0, between: ['livingRoom', 'outside'] },
 ];
 
-// ── Items: furniture placed IN a cell (row, col — same addressing as doors).
-// `facing` turns the piece: 's' faces the front of the house. `offset` nudges
-// within the cell in cell units. Ids must be unique — the compiler checks. ──
+// ── Items: furniture. WHERE each one sits is a `mount`:
+//   { on: 'floor', cell, offset?, facing? }   — standing on the floor of a cell
+//   { on: 'item',  host, offset?, facing? }   — sitting on top of another item
+//   { on: 'wall',  cell, side, height, offset? } — hung on a wall, facing the room
+// Offsets are fractions (0.5 = half a cell, or half the host's width). A wall
+// item's facing is derived — it always looks into the room. Ids must be unique;
+// order doesn't matter, so a laptop may be listed before its table. ──
 export const ITEMS: readonly ItemDef[] = [
-  { id: 'living-table', kind: 'table', cell: [3, 1], facing: 's' }, // middle of the living room
+  // Living room, middle of the floor.
+  { id: 'living-table', kind: 'table', mount: { on: 'floor', cell: [3, 1], facing: 's' } },
+  // Sitting on that table, nudged toward its back-left corner. No cell, no
+  // height, no facing — all three are inherited or derived from the table.
+  { id: 'work-laptop', kind: 'laptop', mount: { on: 'item', host: 'living-table', offset: [-0.2, -0.1] } },
+  // Hung on the living room's back wall (the bathroom partition), 0.55 up.
+  { id: 'living-tv', kind: 'tv', mount: { on: 'wall', cell: [2, 0], side: 'back', height: 0.55 } },
 ];

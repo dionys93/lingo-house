@@ -57,6 +57,11 @@ export type HouseError =
   | { readonly tag: 'ItemCellOutOfBounds'; readonly id: string; readonly cell: Cell }
   | { readonly tag: 'ItemCellEmpty'; readonly id: string; readonly cell: Cell }
   | { readonly tag: 'DuplicateItemId'; readonly id: string }
+  | { readonly tag: 'UnknownMountHost'; readonly id: string; readonly host: string }
+  | { readonly tag: 'MountCycle'; readonly ids: readonly string[] }
+  | { readonly tag: 'ItemNotMountable'; readonly id: string; readonly host: string }
+  | { readonly tag: 'ItemNotOnWall'; readonly id: string; readonly cell: Cell; readonly side: Side }
+  | { readonly tag: 'ItemTooHigh'; readonly id: string; readonly top: number; readonly limit: number }
 
   // ── Textures ──────────────────────────
   | { readonly tag: 'UnknownTextureKey'; readonly key: string };
@@ -112,6 +117,16 @@ export function describeError(e: HouseError): string {
       return `Item '${e.id}' at cell ${fmtCell(e.cell)} sits on an empty cell — put it in a room.`;
     case 'DuplicateItemId':
       return `Two items share the id '${e.id}' — item ids must be unique.`;
+    case 'UnknownMountHost':
+      return `Item '${e.id}' is mounted on '${e.host}', but there is no item with that id.`;
+    case 'MountCycle':
+      return `These items are mounted on each other in a loop: ${e.ids.join(' → ')}.`;
+    case 'ItemNotMountable':
+      return `Item '${e.id}' can't sit on '${e.host}' — nothing rests on that kind of item.`;
+    case 'ItemNotOnWall':
+      return `Item '${e.id}' hangs on the ${e.side} of ${fmtCell(e.cell)}, but there's no wall there.`;
+    case 'ItemTooHigh':
+      return `Item '${e.id}' reaches ${e.top.toFixed(2)}, above the ${e.limit.toFixed(2)} wall — it would poke through the ceiling.`;
     case 'UnknownTextureKey':
       return `Unknown texture key '${e.key}'.`;
     default:

@@ -56,19 +56,53 @@ export type Opening =
       readonly between?: readonly [string, string];
     };
 
-// ── Items: furniture/objects placed IN a cell — the click targets of the
-// language loop. Authored in storey-local grid space (a cell, like doors);
-// the compiler emits world space. Never author world coordinates: that's the
-// rule that lets baseY sweep items along with everything else when storeys
-// stack. `kind` is a CLOSED union — the shell's factory record plus exhaustive
-// checks make the compiler walk you to every site when a kind is added.
-export type ItemKind = 'table';
+// ── Items: furniture/objects — the click targets of the language loop.
+// Authored in storey-local grid space; the compiler emits world space. Never
+// author world coordinates: that's the rule that lets baseY sweep items along
+// with everything else when storeys stack. `kind` is a CLOSED union — the
+// shell's factory record plus exhaustive checks make the compiler walk you to
+// every site when a kind is added.
+export type ItemKind = 'table' | 'laptop' | 'tv';
 export type Facing = 'n' | 's' | 'e' | 'w'; // n = toward the BACK of the house (row 0)
+
+// WHERE an item sits is a RELATIONSHIP, not a coordinate — and the three kinds
+// of relationship don't take the same information, so they're a discriminated
+// union rather than one record of optional fields. A wall-mounted TV has no
+// `facing` (it must face into the room — derived, not authored) and no 2-D
+// offset (it can only slide ALONG the wall, so its offset is a scalar); a
+// laptop on a table has no cell of its own. Optional fields would let you
+// author every one of those contradictions and need runtime checks to catch
+// them. This way they don't typecheck.
+export type Mount =
+  // On the floor of a cell. `offset` nudges within the cell, in cell fractions.
+  | {
+      readonly on: 'floor';
+      readonly cell: Cell;
+      readonly offset?: readonly [x: number, z: number];
+      readonly facing?: Facing;
+    }
+  // On top of another item. `offset` is in fractions of the HOST's footprint and
+  // is applied in the host's own rotated frame, so [0.25, 0] means "a quarter of
+  // the way toward the host's right", whichever way the host is turned. Facing
+  // defaults to the host's, so a laptop lines up with its table for free.
+  | {
+      readonly on: 'item';
+      readonly host: string;
+      readonly offset?: readonly [x: number, z: number];
+      readonly facing?: Facing;
+    }
+  // Hung on the wall on `side` of `cell`, `height` above that storey's floor,
+  // measured to the item's underside. Faces into the room automatically.
+  | {
+      readonly on: 'wall';
+      readonly cell: Cell;
+      readonly side: Side;
+      readonly height: number;
+      readonly offset?: number; // slide along the wall, in cell fractions
+    };
 
 export interface ItemDef {
   readonly id: string; // unique across the plan; compiler errors on duplicates
   readonly kind: ItemKind;
-  readonly cell: Cell; // same addressing as openings
-  readonly offset?: readonly [x: number, z: number]; // within-cell nudge, in cell units (0.5 = one cell edge)
-  readonly facing?: Facing; // default 's' — toward the front/camera
+  readonly mount: Mount;
 }
