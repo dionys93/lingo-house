@@ -79,11 +79,38 @@ describe('compileHouse — the stairwell is DERIVED', () => {
     expect(h.storeys[0].openFloor).toEqual([]); // nothing above the ground floor
   });
 
-  it('removes those tiles from the room, so the renderer never sees a hole', () => {
+  it('leaves the rooms alone — a room still OWNS the cells it owns', () => {
+    // The first version of this cut the tiles out of each room's `floor` list.
+    // That broke an invariant: `cells` and `floor` are index-aligned, one tile
+    // per cell, and a shortened `floor` beside a full `cells` is a trap for
+    // anything that later zips them. The hole is a separate cell list instead,
+    // and the renderer skips by cell.
     const h = compiled(house());
+    for (const storey of h.storeys) {
+      for (const room of storey.grid.rooms) {
+        expect(room.floor).toHaveLength(room.cells.length);
+      }
+    }
     const tiles = (i: number) => h.storeys[i].grid.rooms.reduce((n, r) => n + r.floor.length, 0);
-    expect(tiles(0)).toBe(6); // all six cells
-    expect(tiles(1)).toBe(4); // six minus the two-cell run
+    expect(tiles(0)).toBe(6);
+    expect(tiles(1)).toBe(6); // NOT 4 — the hole lives in openFloor, not here
+  });
+
+  it('opens the ceiling below to match, so the stairs do not run into a lid', () => {
+    const h = compiled(house());
+    // The storey below sees the same cells missing from its ceiling as the
+    // storey above sees missing from its floor.
+    expect(h.storeys[0].openCeiling).toEqual(h.storeys[1].openFloor);
+    expect(h.storeys[1].openCeiling).toEqual([]); // nothing above the top storey
+  });
+
+  it('the skipped cells are ones the room really has, so skipping by cell works', () => {
+    const h = compiled(house());
+    const upper = h.storeys[1];
+    const owned = upper.grid.rooms.flatMap((r) => r.cells);
+    for (const hole of upper.openFloor) {
+      expect(owned.some((c) => c[0] === hole[0] && c[1] === hole[1])).toBe(true);
+    }
   });
 
   it('derives the arrival cell one step past the top tread, and the rooms it joins', () => {

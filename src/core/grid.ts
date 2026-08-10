@@ -76,6 +76,14 @@ interface OpeningBase {
 // guess with a magic fraction of the WALL height and land near the lintel.
 export const DOOR_HEIGHT_FRAC = 0.82;
 
+// The storey floor an opening stands on. Openings emit their endpoints at their
+// storey's baseY, so THIS is the bottom of the wall around them — not zero, the
+// moment there's more than one storey. Renderers that hardcode 0 draw the whole
+// opening down at ground level; that's exactly what went wrong with upper-storey
+// windows and doors, so the value has a name now rather than being spelled
+// `a[1]` in whichever file remembers.
+export const openingFloorY = (o: CompiledOpening): number => o.a[1];
+
 // Discriminated on `kind`: a door can't carry a sill, a window can't swing.
 // BOTH now carry `sill`/`head`, the opening's true vertical extent — a door's
 // sill is the floor. `height` stays the full wall height, which is what the

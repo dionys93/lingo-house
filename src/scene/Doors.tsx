@@ -9,7 +9,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { CompiledGrid, CompiledOpening } from '../core/grid';
+import { openingFloorY, type CompiledGrid, type CompiledOpening } from '../core/grid';
 import type { NavState } from '../core/nav';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
 
@@ -37,6 +37,8 @@ function DoorInstance({
   const len = Math.hypot(b[0] - a[0], b[2] - a[2]);
   // Comes from the compiler now, so the popup and the geometry can't disagree.
   const doorHeight = opening.head - opening.sill;
+  // Everything vertical hangs off the storey floor, not off zero.
+  const floorY = openingFloorY(opening);
   const midX = (a[0] + b[0]) / 2;
   const midZ = (a[2] + b[2]) / 2;
 
@@ -46,7 +48,7 @@ function DoorInstance({
       : [len, height - doorHeight, WALL_THICKNESS];
   const lintelPos: Triple = [
     axis === 'z' ? a[0] : midX,
-    (doorHeight + height) / 2,
+    floorY + (doorHeight + height) / 2,
     axis === 'z' ? midZ : a[2],
   ];
   const lintelColors = faceColors(axis, sides, colorOf);
@@ -73,7 +75,7 @@ function DoorInstance({
         ))}
       </mesh>
 
-      <group ref={hinge} position={[a[0], 0, a[2]]}>
+      <group ref={hinge} position={[a[0], floorY, a[2]]}>
         <mesh
           position={panelOffset}
           onClick={(e) => {

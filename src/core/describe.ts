@@ -14,7 +14,8 @@
 // the surface registry lands, the material ("the linoleum") is one more entry
 // under the floor's room.
 
-import type { CompiledGrid, CompiledOpening, Vec3 } from './grid';
+import type { CompiledOpening, Vec3 } from './grid';
+import type { CompiledHouse } from './house';
 import type { DoorGraph, Location } from './nav';
 import type { Selection } from './explorer';
 import { noun, type Bilingual, type LabelTable, type Locale } from './labels';
@@ -40,12 +41,19 @@ const midpoint = (a: Vec3, b: Vec3): Vec3 => [
 export function describe(
   selection: Selection,
   where: Location,
-  grid: CompiledGrid,
+  house: CompiledHouse,
   graph: DoorGraph,
   labels: LabelTable,
   from: Locale,
   to: Locale,
 ): Described | null {
+  // Room keys are unique across the WHOLE house (see the M2 gate decision), so
+  // a flat search over every storey is unambiguous — no level needed, which is
+  // exactly what that decision bought.
+  const rooms = house.storeys.flatMap((s) => s.grid.rooms);
+  const openings = house.storeys.flatMap((s) => s.grid.openings);
+  const items = house.storeys.flatMap((s) => s.grid.items);
+
   const roomLabel = (key: Location, pick: 'name' | 'enter'): Bilingual =>
     key === 'outside'
       ? {
@@ -53,7 +61,7 @@ export function describe(
           to: pick === 'name' ? labels[to].outside : labels[to].goOutside,
         }
       : (() => {
-          const room = grid.rooms.find((r) => r.key === key);
+          const room = rooms.find((r) => r.key === key);
           // A compiled grid can't contain a wall side that isn't a room or
           // 'outside', so this only trips if a caller invents a location.
           if (room === undefined) return { from: key, to: key };
@@ -66,7 +74,7 @@ export function describe(
 
   switch (selection.on) {
     case 'item': {
-      const item = grid.items.find((i) => i.id === selection.id);
+      const item = items.find((i) => i.id === selection.id);
       if (item === undefined) return null;
       return {
         subject: noun(labels, from, to, item.kind),
@@ -80,9 +88,7 @@ export function describe(
     }
 
     case 'opening': {
-      const opening: CompiledOpening | undefined = grid.openings.find(
-        (o) => o.id === selection.id,
-      );
+      const opening: CompiledOpening | undefined = openings.find((o) => o.id === selection.id);
       if (opening === undefined) return null;
       const centre = midpoint(opening.a, opening.b);
       // Dead centre of the opening itself — horizontally the midpoint of its

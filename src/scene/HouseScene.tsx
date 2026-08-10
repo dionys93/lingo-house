@@ -8,12 +8,12 @@
 import { useCallback, useMemo, useReducer } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { compileGrid, roofFor } from '../core/grid';
+import { compileHouse, type CompiledStorey } from '../core/house';
 import { describeError, type HouseError } from '../core/errors';
-import { buildDoorGraph, makeNavReducer, START_OUTSIDE } from '../core/nav';
+import { buildDoorGraph, makeNavReducer, START_OUTSIDE, type NavState } from '../core/nav';
 import { explorerReducer, START_EXPLORER, type Selection } from '../core/explorer';
 import { describe as describeSelection } from '../core/describe';
-import { GROUND_FLOOR, DOORS, WINDOWS, ITEMS } from '../authoring/rooms';
+import { HOUSE } from '../authoring/rooms';
 import { LABELS } from '../authoring/labels';
 import { Ground } from './Ground';
 import { Floor } from './Floor';
@@ -55,15 +55,61 @@ function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
   );
 }
 
-export function HouseScene() {
-  const result = useMemo(() => compileGrid(GROUND_FLOOR, { openings: [...DOORS, ...WINDOWS], items: ITEMS }), []);
-  const compiled = result.ok ? result.value : null;
+// Everything that repeats per floor. Each storey draws its own walls, floors,
+// ceilings, openings and items, all already in world space — the only thing it
+// needs to be told about its level is where the stairwell leaves a gap.
+function Storey({
+  storey,
+  nav,
+  selectedItemId,
+  select,
+}: {
+  storey: CompiledStorey;
+  nav: NavState;
+  selectedItemId: string | null;
+  select: (selection: Selection) => void;
+}) {
+  const { grid, baseY, openFloor, openCeiling } = storey;
+  return (
+    <>
+      <Floor
+        grid={grid}
+        baseY={baseY}
+        skip={openFloor}
+        onPick={(at) => select({ on: 'part', part: 'floor', at })}
+      />
+      <Ceiling
+        grid={grid}
+        baseY={baseY}
+        skip={openCeiling}
+        onPick={(at) => select({ on: 'part', part: 'ceiling', at })}
+      />
+      <Walls grid={grid} onPick={(at) => select({ on: 'part', part: 'wall', at })} />
+      <Items
+        grid={grid}
+        selectedId={selectedItemId}
+        onSelect={(id) => select({ on: 'item', id })}
+      />
+      <Doors grid={grid} nav={nav} onPick={(id) => select({ on: 'opening', id })} />
+      <Windows grid={grid} onPick={(id) => select({ on: 'opening', id })} />
+    </>
+  );
+}
 
-  const graph = useMemo(() => buildDoorGraph(compiled?.openings ?? []), [compiled]);
+export function HouseScene() {
+  const result = useMemo(() => compileHouse(HOUSE), []);
+  const house = result.ok ? result.value : null;
+
+  // Doors and rooms are gathered across every storey. That's safe precisely
+  // because room keys and opening ids are unique house-wide — the M2 gate
+  // decision cashing out: nav, camera and labels never need to know a level.
+  const openings = useMemo(() => house?.storeys.flatMap((s) => s.grid.openings) ?? [], [house]);
+  const rooms = useMemo(() => house?.storeys.flatMap((s) => s.grid.rooms) ?? [], [house]);
+
+  const graph = useMemo(() => buildDoorGraph(openings), [openings]);
   const reducer = useMemo(() => makeNavReducer(graph), [graph]);
   const [nav, dispatch] = useReducer(reducer, START_OUTSIDE);
   const [explorer, explore] = useReducer(explorerReducer, START_EXPLORER);
-  const roof = useMemo(() => (compiled ? roofFor(compiled.footprint) : null), [compiled]);
 
   const outside = nav.tag === 'in' && nav.location === 'outside';
 
@@ -72,11 +118,11 @@ export function HouseScene() {
   // door and it's gone; no effect watching nav, nothing to forget to clear, and
   // no way for the two reducers to disagree.
   const described =
-    compiled && explorer.selected !== null && nav.tag === 'in'
+    house && explorer.selected !== null && nav.tag === 'in'
       ? describeSelection(
           explorer.selected,
           nav.location,
-          compiled,
+          house,
           graph,
           LABELS,
           explorer.from,
@@ -101,21 +147,21 @@ export function HouseScene() {
         <ambientLight intensity={0.6} />
         <directionalLight position={[5, 8, 5]} intensity={1} />
         <Ground />
-        {compiled && (
+        {house && (
           <>
-            <Floor grid={compiled} onPick={(at) => select({ on: 'part', part: 'floor', at })} />
-            <Ceiling grid={compiled} onPick={(at) => select({ on: 'part', part: 'ceiling', at })} />
-            <Walls grid={compiled} onPick={(at) => select({ on: 'part', part: 'wall', at })} />
-            {roof && <Roof roof={roof} onPick={(at) => select({ on: 'part', part: 'roof', at })} />}
-            <Items
-              grid={compiled}
-              selectedId={explorer.selected?.on === 'item' ? explorer.selected.id : null}
-              onSelect={(id) => select({ on: 'item', id })}
-            />
-            <Doors grid={compiled} nav={nav} onPick={(id) => select({ on: 'opening', id })} />
-            <Windows grid={compiled} onPick={(id) => select({ on: 'opening', id })} />
-            <CameraRig nav={nav} dispatch={dispatch} rooms={compiled.rooms} />
-            <InteriorControls nav={nav} rooms={compiled.rooms} />
+            {house.storeys.map((storey) => (
+              <Storey
+                key={storey.level}
+                storey={storey}
+                nav={nav}
+                selectedItemId={explorer.selected?.on === 'item' ? explorer.selected.id : null}
+                select={select}
+              />
+            ))}
+            {/* Once, on top — the roof belongs to the house, not to a storey. */}
+            <Roof roof={house.roof} onPick={(at) => select({ on: 'part', part: 'roof', at })} />
+            <CameraRig nav={nav} dispatch={dispatch} rooms={rooms} />
+            <InteriorControls nav={nav} rooms={rooms} />
             {described && (
               <SelectionPopup
                 described={described}

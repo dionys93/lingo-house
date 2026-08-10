@@ -5,12 +5,12 @@
 // side — is plain value assertions.
 
 import { describe as suite, it, expect } from 'vitest';
-import { compileGrid } from '../core/grid';
+import { compileHouse } from '../core/house';
 import { buildDoorGraph } from '../core/nav';
 import { describe } from '../core/describe';
 import type { LabelTable, Locale, NounKey } from '../core/labels';
 import type { Selection } from '../core/explorer';
-import { defineRoom, type Grid } from '../core/blocks';
+import { defineRoom, type Grid, type ItemDef, type Opening } from '../core/blocks';
 
 const K = defineRoom({
   key: 'kitchen',
@@ -67,18 +67,23 @@ const DOORS = [
 ] as const;
 const ITEMS = [{ id: 't1', kind: 'table', mount: { on: 'floor', cell: [0, 0] } }] as const;
 
-const compiled = (() => {
-  const r = compileGrid(GRID, { openings: [...DOORS], items: [...ITEMS] });
+// One storey, but compiled as a house — describe() reads the whole building so
+// that a room on any floor resolves without a level tagging along.
+const asHouse = (openings: readonly Opening[], items: readonly ItemDef[] = []) => {
+  const r = compileHouse([{ level: 0, grid: GRID, openings, items }]);
   if (!r.ok) throw new Error(JSON.stringify(r.error));
   return r.value;
-})();
+};
+
+const house = asHouse([...DOORS], [...ITEMS]);
+const compiled = house.storeys[0].grid;
 const graph = buildDoorGraph(compiled.openings);
 
 const doorIds = compiled.openings.filter((o) => o.kind === 'door').map((o) => o.id);
 const [interiorDoor, frontDoor] = doorIds;
 
 const at = (sel: Selection, where: 'kitchen' | 'livingRoom' | 'outside') =>
-  describe(sel, where, compiled, graph, LABELS, 'en', 'es');
+  describe(sel, where, house, graph, LABELS, 'en', 'es');
 
 suite('describe — the word chain', () => {
   it('names what you clicked, with the room you are in as context', () => {
@@ -122,19 +127,13 @@ suite('describe — the traversal phrase', () => {
   });
 
   it('names a window but never offers to walk through it', () => {
-    const grid = compileGrid(
-      [[K, L]],
-      {
-        openings: [...DOORS, { kind: 'window', cell: [0, 0], side: 'back', sill: 0.4, head: 0.9 }],
-      },
-    );
-    if (!grid.ok) throw new Error('setup');
-    const win = grid.value.openings.find((o) => o.kind === 'window')!;
+    const h = asHouse([...DOORS, { kind: 'window', cell: [0, 0], side: 'back', sill: 0.4, head: 0.9 }]);
+    const win = h.storeys[0].grid.openings.find((o) => o.kind === 'window')!;
     const d = describe(
       { on: 'opening', id: win.id },
       'kitchen',
-      grid.value,
-      buildDoorGraph(grid.value.openings),
+      h,
+      buildDoorGraph(h.storeys[0].grid.openings),
       LABELS,
       'en',
       'es',
@@ -158,19 +157,13 @@ suite('describe — popup placement', () => {
   });
 
   it('anchors a window popup in the middle of the glass', () => {
-    const g = compileGrid(
-      [[K, L]],
-      {
-        openings: [...DOORS, { kind: 'window', cell: [0, 0], side: 'back', sill: 0.4, head: 0.9 }],
-      },
-    );
-    if (!g.ok) throw new Error('setup');
-    const win = g.value.openings.find((o) => o.kind === 'window')!;
+    const h = asHouse([...DOORS, { kind: 'window', cell: [0, 0], side: 'back', sill: 0.4, head: 0.9 }]);
+    const win = h.storeys[0].grid.openings.find((o) => o.kind === 'window')!;
     const d = describe(
       { on: 'opening', id: win.id },
       'kitchen',
-      g.value,
-      buildDoorGraph(g.value.openings),
+      h,
+      buildDoorGraph(h.storeys[0].grid.openings),
       LABELS,
       'en',
       'es',

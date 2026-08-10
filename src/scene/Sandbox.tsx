@@ -11,14 +11,24 @@ import type { CSSProperties } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { compileGrid, roofFor } from '../core/grid';
-import { defineRoom, EMPTY, type Grid } from '../core/blocks';
+import { defineRoom, EMPTY, type Grid, type RoomLabels } from '../core/blocks';
+import { LOCALES, type Locale } from '../core/labels';
 import { Ground } from './Ground';
 import { Floor } from './Floor';
 import { Walls } from './Walls';
 import { Roof } from './Roof';
 
-const K = defineRoom({ key: 'room', name: 'Room', color: '#cbb89a' });
-const L = defineRoom({ key: 'room2', name: 'Room 2', color: '#c8d5c8' });
+// The sandbox exists to eyeball roof geometry against different footprints, so
+// its rooms are never read aloud. One helper fills every locale rather than
+// three near-identical blocks per room.
+const plain = (name: string) =>
+  Object.fromEntries(LOCALES.map((l) => [l, { name, enter: `Go to ${name}` }])) as Record<
+    Locale,
+    RoomLabels
+  >;
+
+const K = defineRoom({ key: 'room', labels: plain('the room'), color: '#cbb89a' });
+const L = defineRoom({ key: 'room2', labels: plain('the second room'), color: '#c8d5c8' });
 const _ = EMPTY;
 
 const PRESETS: readonly { readonly name: string; readonly grid: Grid }[] = [

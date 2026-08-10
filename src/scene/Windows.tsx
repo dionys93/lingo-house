@@ -10,6 +10,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { CompiledGrid, CompiledOpening } from '../core/grid';
 import { pickable } from './pickable';
+import { openingFloorY } from '../core/grid';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
 import { roomOf, styleForRoom } from './windowStyles';
 
@@ -75,6 +76,7 @@ function WindowInstance({
   const midX = (a[0] + b[0]) / 2;
   const midZ = (a[2] + b[2]) / 2;
   const style = styleForRoom(roomOf(sides));
+  const floorY = openingFloorY(opening);
 
   // Orient the window group so local X runs along the opening, local Z = wall normal.
   const position: Triple = [axis === 'z' ? a[0] : midX, 0, axis === 'z' ? midZ : a[2]];
@@ -86,8 +88,12 @@ function WindowInstance({
 
   return (
     <group>
-      <Infill opening={opening} y0={0} y1={sill} colorOf={colorOf} />
-      <Infill opening={opening} y0={head} y1={height} colorOf={colorOf} />
+      {/* Wall below the sill and above the head. Both ends are measured from
+          THIS storey's floor: with a hardcoded 0 the upstairs sill panel grew
+          down through the whole ground floor, and the head panel came out with
+          a negative height and silently vanished. */}
+      <Infill opening={opening} y0={floorY} y1={sill} colorOf={colorOf} />
+      <Infill opening={opening} y0={head} y1={floorY + height} colorOf={colorOf} />
 
       <group position={position} rotation={[0, rotationY, 0]} {...(onPick ? pickable(onPick) : {})}>
         {/* glass */}

@@ -9,6 +9,7 @@
 
 import * as THREE from 'three';
 import { CELL, type CompiledGrid, type Vec3 } from '../core/grid';
+import type { Cell } from '../core/errors';
 import { pickable } from './pickable';
 
 export function RoomTiles({
@@ -17,12 +18,16 @@ export function RoomTiles({
   faceUp,
   defaultColor,
   onPick,
+  skip = [],
 }: {
   grid: CompiledGrid;
   y: number;
   faceUp: boolean;
   defaultColor: string;
   onPick?: (at: Vec3) => void;
+  /** Cells to leave open — a stairwell. Matched by CELL, which is why this maps
+   *  over `room.cells` and indexes `room.floor`: the two are index-aligned. */
+  skip?: readonly Cell[];
 }) {
   const rotX = faceUp ? -Math.PI / 2 : Math.PI / 2;
   // Undefined onPick = not pickable at all, rather than a no-op handler that
@@ -31,7 +36,10 @@ export function RoomTiles({
   return (
     <>
       {grid.rooms.flatMap((room) =>
-        room.floor.map((centre, i) => (
+        room.cells.flatMap((cell, i) => {
+          if (skip.some((s) => s[0] === cell[0] && s[1] === cell[1])) return [];
+          const centre = room.floor[i];
+          return (
           <mesh
             key={`${room.key}-${i}`}
             position={[centre[0], y, centre[2]]}
@@ -41,7 +49,8 @@ export function RoomTiles({
             <planeGeometry args={[CELL, CELL]} />
             <meshStandardMaterial color={room.color ?? defaultColor} side={THREE.DoubleSide} />
           </mesh>
-        )),
+          );
+        }),
       )}
     </>
   );

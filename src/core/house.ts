@@ -30,8 +30,13 @@ export interface CompiledStair {
 export interface CompiledStorey {
   readonly level: number;
   readonly baseY: number;
-  readonly grid: CompiledGrid; // floors already have the stairwell cut out
-  readonly openFloor: readonly Cell[]; // cells with no floor — the hole below the stair above
+  readonly grid: CompiledGrid;
+  // Cells with no floor: the stairwell coming up from the storey below.
+  readonly openFloor: readonly Cell[];
+  // Cells with no ceiling: the same stairwell, seen from underneath. Derived
+  // from the storey ABOVE's openFloor, so looking up the stairs shows the
+  // opening rather than a ceiling sealing it off.
+  readonly openCeiling: readonly Cell[];
 }
 
 export interface CompiledHouse {
@@ -85,8 +90,17 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
       items: s.items ?? [],
       baseY: s.level * WALL_HEIGHT,
     });
-    if (r.ok) compiled.set(s.level, r.value);
-    else phase1.push(...r.error);
+    // An opening's id is `${orient}:${fixed}:${varying}` — unique per GRID, but
+    // the same edge exists at the same coordinates on every storey, so across a
+    // house it isn't unique at all. An id that isn't unique in the scope it's
+    // looked up in is a broken id, so it gets qualified here rather than having
+    // every lookup carry a level alongside it. compileGrid stays level-ignorant.
+    if (r.ok) {
+      compiled.set(s.level, {
+        ...r.value,
+        openings: r.value.openings.map((o) => ({ ...o, id: `L${s.level}:${o.id}` })),
+      });
+    } else phase1.push(...r.error);
   }
 
   if (phase1.length > 0) return err(phase1);
@@ -102,6 +116,16 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
     for (const room of compiled.get(s.level)!.rooms) {
       if (seenKeys.has(room.key)) phase2.push({ tag: 'DuplicateRoomKey', key: room.key });
       seenKeys.add(room.key);
+    }
+  }
+
+  // Item ids are AUTHORED, so unlike opening ids they can collide by accident.
+  // compileGrid catches duplicates within a storey; only here can we see across.
+  const seenItemIds = new Set<string>();
+  for (const s of ordered) {
+    for (const item of compiled.get(s.level)!.items) {
+      if (seenItemIds.has(item.id)) phase2.push({ tag: 'DuplicateItemId', id: item.id });
+      seenItemIds.add(item.id);
     }
   }
 
@@ -230,23 +254,19 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
   if (phase2.length > 0) return err(phase2);
 
   // ── Emit ──────────────────────────────────────────────────────────────────
-  // Floors come out of here with the stairwell already removed, so the renderer
-  // never has to know a hole exists — it draws exactly the tiles it's given.
-  const out: CompiledStorey[] = ordered.map((s) => {
-    const grid = compiled.get(s.level)!;
-    const holeCells = holes.get(s.level) ?? [];
-    const holed =
-      holeCells.length === 0
-        ? grid
-        : {
-            ...grid,
-            rooms: grid.rooms.map((r) => ({
-              ...r,
-              floor: r.floor.filter((_, i) => !holeCells.some((h) => sameCell(h, r.cells[i]))),
-            })),
-          };
-    return { level: s.level, baseY: s.level * WALL_HEIGHT, grid: holed, openFloor: holeCells };
-  });
+  // The holes are emitted as CELL LISTS rather than by filtering each room's
+  // `floor`. Filtering was the first attempt and it quietly broke an invariant:
+  // `CompiledRoom.cells` and `.floor` are index-aligned (one tile per cell), and
+  // a shortened `floor` beside a full `cells` is a trap for anyone who later
+  // zips them. The room still OWNS the cells it owns; it's the tiles that aren't
+  // drawn, which the renderer skips by cell.
+  const out: CompiledStorey[] = ordered.map((s) => ({
+    level: s.level,
+    baseY: s.level * WALL_HEIGHT,
+    grid: compiled.get(s.level)!,
+    openFloor: holes.get(s.level) ?? [],
+    openCeiling: holes.get(s.level + 1) ?? [],
+  }));
 
   // The roof sits on whatever the topmost walls are — add a storey and it
   // recomputes up there, over the new blocks.
