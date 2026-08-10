@@ -70,9 +70,23 @@ interface OpeningBase {
   readonly sides: readonly [WallSide, WallSide];
 }
 
+// How tall the doorway itself is, as a fraction of the wall. This lived in the
+// renderer, which meant a door's real vertical extent existed nowhere in the
+// compiled data — so anything else that needed it (the popup anchor) had to
+// guess with a magic fraction of the WALL height and land near the lintel.
+export const DOOR_HEIGHT_FRAC = 0.82;
+
 // Discriminated on `kind`: a door can't carry a sill, a window can't swing.
+// BOTH now carry `sill`/`head`, the opening's true vertical extent — a door's
+// sill is the floor. `height` stays the full wall height, which is what the
+// renderer fills around the opening.
 export type CompiledOpening =
-  | (OpeningBase & { readonly kind: 'door'; readonly swing: 'in' | 'out' })
+  | (OpeningBase & {
+      readonly kind: 'door';
+      readonly swing: 'in' | 'out';
+      readonly sill: number;
+      readonly head: number;
+    })
   | (OpeningBase & { readonly kind: 'window'; readonly sill: number; readonly head: number });
 
 // ── Items. Canonical per-kind spec — DATA the core needs to place items and
@@ -299,7 +313,13 @@ export function compileGrid(
     const common = { id, ...geom, height: WALL_HEIGHT, sides: [neg, pos] as const };
     compiledOpenings.push(
       op.kind === 'door'
-        ? { ...common, kind: 'door', swing: op.swing }
+        ? {
+            ...common,
+            kind: 'door',
+            swing: op.swing,
+            sill: baseY,
+            head: baseY + WALL_HEIGHT * DOOR_HEIGHT_FRAC,
+          }
         : { ...common, kind: 'window', sill: op.sill, head: op.head },
     );
   }

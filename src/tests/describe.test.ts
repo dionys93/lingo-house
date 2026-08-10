@@ -146,3 +146,38 @@ suite('describe — the traversal phrase', () => {
     expect(d.action).toBeUndefined();
   });
 });
+
+suite('describe — popup placement', () => {
+  it('anchors a door popup dead centre of the doorway, not up at the lintel', () => {
+    const d = at({ on: 'opening', id: interiorDoor }, 'kitchen')!;
+    const door = compiled.openings.find((o) => o.id === interiorDoor)!;
+    // Horizontally the midpoint of the opening's span…
+    expect(d.anchor[0]).toBeCloseTo((door.a[0] + door.b[0]) / 2);
+    expect(d.anchor[2]).toBeCloseTo((door.a[2] + door.b[2]) / 2);
+    // …vertically the middle of the DOORWAY's own extent. The old anchor used
+    // 0.75 × wall height (0.9), which sat above a doorway only 0.98 tall.
+    expect(d.anchor[1]).toBeCloseTo((door.sill + door.head) / 2);
+    expect(d.anchor[1]).toBeLessThan(door.head);
+  });
+
+  it('anchors a window popup in the middle of the glass', () => {
+    const g = compileGrid(
+      [[K, L]],
+      [...DOORS, { kind: 'window', cell: [0, 0], side: 'back', sill: 0.4, head: 0.9 }],
+      0,
+      [],
+    );
+    if (!g.ok) throw new Error('setup');
+    const win = g.value.openings.find((o) => o.kind === 'window')!;
+    const d = describe(
+      { on: 'opening', id: win.id },
+      'kitchen',
+      g.value,
+      buildDoorGraph(g.value.openings),
+      LABELS,
+      'en',
+      'es',
+    )!;
+    expect(d.anchor[1]).toBeCloseTo(0.65); // (0.4 + 0.9) / 2
+  });
+});

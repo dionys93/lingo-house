@@ -8,6 +8,7 @@ import {
   START_OUTSIDE,
   type NavState,
 } from '../core/nav';
+import { DOOR_HEIGHT_FRAC } from '../core/grid';
 import type { CompiledOpening, CompiledRoom, WallSide } from '../core/grid';
 
 // A minimal door fixture — only the fields the nav core reads matter here.
@@ -19,6 +20,8 @@ function door(id: string, a: WallSide, b: WallSide): CompiledOpening {
     b: [0, 0, 0.5],
     axis: 'z',
     height: 1.2,
+    sill: 0,
+    head: 1.2 * DOOR_HEIGHT_FRAC,
     sides: [a, b],
     swing: 'in',
   };

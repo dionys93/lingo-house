@@ -16,7 +16,6 @@ import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMat
 type DoorOpening = Extract<CompiledOpening, { kind: 'door' }>;
 
 const DOOR_THICKNESS = 0.04;
-const DOOR_HEIGHT_FRAC = 0.82;
 const DOOR_GAP = 0.02;
 const OPEN_ANGLE = (Math.PI / 2) * 0.9;
 const PANEL_COLOR = '#8a6f52';
@@ -36,7 +35,8 @@ function DoorInstance({
 
   const { a, b, axis, height, sides, swing } = opening;
   const len = Math.hypot(b[0] - a[0], b[2] - a[2]);
-  const doorHeight = height * DOOR_HEIGHT_FRAC;
+  // Comes from the compiler now, so the popup and the geometry can't disagree.
+  const doorHeight = opening.head - opening.sill;
   const midX = (a[0] + b[0]) / 2;
   const midZ = (a[2] + b[2]) / 2;
 

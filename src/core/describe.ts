@@ -85,7 +85,10 @@ export function describe(
       );
       if (opening === undefined) return null;
       const centre = midpoint(opening.a, opening.b);
-      const anchor: Vec3 = [centre[0], opening.height * 0.75, centre[2]];
+      // Dead centre of the opening itself — horizontally the midpoint of its
+      // span, vertically the middle of its own sill→head extent. Not a fraction
+      // of the WALL height, which for a door put the popup up at the lintel.
+      const anchor: Vec3 = [centre[0], (opening.sill + opening.head) / 2, centre[2]];
       const base = {
         subject: noun(labels, from, to, opening.kind === 'door' ? 'door' : 'window'),
         context: here,
