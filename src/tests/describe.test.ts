@@ -43,6 +43,7 @@ const WORDS = {
   wall: { en: 'the wall', es: 'la pared', de: 'die Wand' },
   floor: { en: 'the floor', es: 'el suelo', de: 'der Boden' },
   ceiling: { en: 'the ceiling', es: 'el techo', de: 'die Decke' },
+  roof: { en: 'the roof', es: 'el tejado', de: 'das Dach' },
 } as const satisfies Record<NounKey, Record<Locale, string>>;
 
 const nounsIn = (l: Locale): Record<NounKey, string> =>

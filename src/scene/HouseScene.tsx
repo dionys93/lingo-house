@@ -106,7 +106,7 @@ export function HouseScene() {
             <Floor grid={compiled} onPick={(at) => select({ on: 'part', part: 'floor', at })} />
             <Ceiling grid={compiled} onPick={(at) => select({ on: 'part', part: 'ceiling', at })} />
             <Walls grid={compiled} onPick={(at) => select({ on: 'part', part: 'wall', at })} />
-            {roof && <Roof roof={roof} />}
+            {roof && <Roof roof={roof} onPick={(at) => select({ on: 'part', part: 'roof', at })} />}
             <Items
               grid={compiled}
               selectedId={explorer.selected?.on === 'item' ? explorer.selected.id : null}

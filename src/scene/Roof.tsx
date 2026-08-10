@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import type { Vec3 } from '../core/grid';
 import type { Gable, MeshData, RoofMesh } from '../core/roof';
 import { WALL_THICKNESS, HOUSE_SIDING } from './wallMaterials';
+import { pickable } from './pickable';
 
 const ROOF_COLOR = '#a86b4c'; // terracotta
 
@@ -55,16 +56,21 @@ function gableGeometry(gables: readonly Gable[], thickness: number): THREE.Buffe
   return geo;
 }
 
-export function Roof({ roof }: { roof: RoofMesh }) {
+export function Roof({ roof, onPick }: { roof: RoofMesh; onPick?: (at: Vec3) => void }) {
   const slopeGeo = useMemo(() => slopeGeometry(roof.slopes), [roof]);
   const gableGeo = useMemo(() => gableGeometry(roof.gables, WALL_THICKNESS), [roof]);
 
+  // Slopes and gable ends are both "the roof" — one label, two meshes, so the
+  // handlers go on each rather than on a wrapping group (a group has no surface
+  // to hit).
+  const picks = onPick ? pickable(onPick) : {};
+
   return (
     <>
-      <mesh geometry={slopeGeo}>
+      <mesh geometry={slopeGeo} {...picks}>
         <meshStandardMaterial color={ROOF_COLOR} side={THREE.DoubleSide} roughness={0.9} />
       </mesh>
-      <mesh geometry={gableGeo}>
+      <mesh geometry={gableGeo} {...picks}>
         <meshStandardMaterial color={HOUSE_SIDING} side={THREE.DoubleSide} roughness={0.9} />
       </mesh>
     </>
