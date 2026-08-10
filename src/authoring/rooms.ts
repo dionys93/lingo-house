@@ -24,7 +24,7 @@
 // re-point openings to the room's true outer edge.
 
 // Need empty space in the plan? Add `_` to this import and drop it in the grid.
-import { defineRoom, type Grid, type ItemDef, type Opening } from '../core/blocks';
+import { defineRoom, type Grid, type ItemDef, type Opening, type Stair, type Storey } from '../core/blocks';
 
 // ── The rooms: a key, its words in every language, and the colour seen from
 // inside. `name` is what the room is called; `enter` is the phrase shown on ANY
@@ -119,4 +119,98 @@ export const ITEMS: readonly ItemDef[] = [
   { id: 'living-tv', kind: 'tv', mount: { on: 'wall', cell: [3, 2], side: 'back', height: 0.55 } },
   // The dining wing: same room as the kitchen, just the far end of it.
   { id: 'dining-table', kind: 'table', mount: { on: 'floor', cell: [1, 4], facing: 's' } },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UPSTAIRS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const M = defineRoom({
+  key: 'bedroom',
+  color: '#c4bcd0',
+  labels: {
+    en: { name: 'the bedroom', enter: 'Open the door to the bedroom' },
+    es: { name: 'el dormitorio', enter: 'Abre la puerta del dormitorio' },
+    de: { name: 'das Schlafzimmer', enter: 'Öffne die Tür zum Schlafzimmer' },
+  },
+});
+const S = defineRoom({
+  key: 'bedroomSmall',
+  color: '#cdc6b6',
+  labels: {
+    en: { name: 'the small bedroom', enter: 'Open the door to the small bedroom' },
+    es: { name: 'el cuarto pequeño', enter: 'Abre la puerta del cuarto pequeño' },
+    de: { name: 'das kleine Schlafzimmer', enter: 'Öffne die Tür zum kleinen Schlafzimmer' },
+  },
+});
+// A DIFFERENT KEY from the downstairs bathroom, but the same words. Keys are
+// internal identifiers; `labels` is what anyone reads. That's what lets room
+// keys stay globally unique without inventing silly names for the user.
+const W = defineRoom({
+  key: 'bathroomUp',
+  color: '#c8d5c8',
+  labels: {
+    en: { name: 'the bathroom', enter: 'Open the door to the bathroom' },
+    es: { name: 'el baño', enter: 'Abre la puerta del baño' },
+    de: { name: 'das Badezimmer', enter: 'Öffne die Tür zum Badezimmer' },
+  },
+});
+const U = defineRoom({
+  key: 'landing',
+  color: '#ded5c6',
+  labels: {
+    en: { name: 'the landing', enter: 'Go up to the landing' },
+    es: { name: 'el rellano', enter: 'Sube al rellano' },
+    de: { name: 'der Treppenabsatz', enter: 'Geh hinauf zum Treppenabsatz' },
+  },
+});
+
+// Same 6×6 outline as the ground floor — REQUIRED, not stylistic: the roof sits
+// on the top storey's footprint, and a smaller upper storey is a setback whose
+// exposed lower roof isn't supported yet. The compiler enforces it.
+//
+// The landing's three front cells sit directly over the staircase; their floor
+// is cut away automatically, derived from the stair below.
+//
+//        col:  0  1  2  3  4  5
+export const UPPER_FLOOR: Grid = [
+  /* row 0 */ [S, S, S, W, W, W],
+  /* row 1 */ [S, S, S, W, W, W],
+  /* row 2 */ [U, U, U, W, W, W],
+  /* row 3 */ [U, M, M, M, M, M],
+  /* row 4 */ [U, M, M, M, M, M],
+  /* row 5 */ [U, M, M, M, M, M],
+];
+
+export const UPPER_DOORS: readonly Opening[] = [
+  { kind: 'door', cell: [2, 1], side: 'back', swing: 'in', between: ['landing', 'bedroomSmall'] },
+  { kind: 'door', cell: [2, 2], side: 'right', swing: 'in', between: ['landing', 'bathroomUp'] },
+  { kind: 'door', cell: [3, 1], side: 'left', swing: 'in', between: ['bedroom', 'landing'] },
+];
+
+export const UPPER_WINDOWS: readonly Opening[] = [
+  { kind: 'window', cell: [0, 1], side: 'back', sill: 0.45, head: 0.95, between: ['bedroomSmall', 'outside'] },
+  { kind: 'window', cell: [0, 4], side: 'back', sill: 0.6, head: 1.0, between: ['bathroomUp', 'outside'] },
+  { kind: 'window', cell: [1, 5], side: 'right', sill: 0.6, head: 1.0, between: ['bathroomUp', 'outside'] },
+  { kind: 'window', cell: [4, 5], side: 'right', sill: 0.35, head: 1.0, between: ['bedroom', 'outside'] },
+  { kind: 'window', cell: [5, 3], side: 'front', sill: 0.35, head: 1.0, between: ['bedroom', 'outside'] },
+];
+
+export const UPPER_ITEMS: readonly ItemDef[] = [
+  { id: 'bedroom-table', kind: 'table', mount: { on: 'floor', cell: [4, 4], facing: 's' } },
+  // The bedroom's back wall — the partition with the upstairs bathroom. NOT the
+  // front of [4,5]: that edge is bedroom-to-bedroom, so there's no wall there.
+  { id: 'bedroom-tv', kind: 'tv', mount: { on: 'wall', cell: [3, 3], side: 'back', height: 0.6 } },
+];
+
+// ── The staircase. Rises up the living room's left column, bottom tread by the
+// front wall. The arrival cell upstairs ([2,0], on the landing) and the
+// stairwell hole are both DERIVED from this run — nothing else to keep in sync.
+export const STAIRS: readonly Stair[] = [{ id: 'main-stair', from: [5, 0], to: [3, 0] }];
+
+// ── The house: storeys snap into an array. `level` is authoritative; array
+// order is cosmetic. Push another Storey to add a floor. ──
+export const HOUSE: readonly Storey[] = [
+  { level: 0, grid: GROUND_FLOOR, openings: [...DOORS, ...WINDOWS], items: ITEMS, stairs: STAIRS },
+  { level: 1, grid: UPPER_FLOOR, openings: [...UPPER_DOORS, ...UPPER_WINDOWS], items: UPPER_ITEMS },
 ];

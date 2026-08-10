@@ -121,3 +121,28 @@ export interface ItemDef {
   readonly kind: ItemKind;
   readonly mount: Mount;
 }
+
+// ── Stairs: the vertical edges of the house. Authored on the LOWER storey,
+// because that's where you start climbing.
+//
+// `from` is the bottom tread's cell and `to` is the top tread's; the cells
+// between are derived, and so is the ARRIVAL cell on the storey above — one step
+// further along the same line. Nothing about the upper storey is authored here:
+// the stairwell hole is exactly the run's cells, cut from the floor above. That
+// derivation is the whole point. Authoring the hole separately would let it
+// drift out of line with the stair the first time anyone moved one.
+export interface Stair {
+  readonly id: string; // unique across the house
+  readonly from: Cell; // bottom tread, on this storey
+  readonly to: Cell; // top tread, on this storey — must share a row or column with `from`
+}
+
+// A storey is a grid plus what's in it. `level` is authoritative and array order
+// is cosmetic: 0 is the ground, negative is below grade, positive is above.
+export interface Storey {
+  readonly level: number;
+  readonly grid: Grid;
+  readonly openings?: readonly Opening[];
+  readonly items?: readonly ItemDef[];
+  readonly stairs?: readonly Stair[]; // stairs rising OUT of this storey to level + 1
+}

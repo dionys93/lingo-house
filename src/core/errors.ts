@@ -63,6 +63,22 @@ export type HouseError =
   | { readonly tag: 'ItemNotOnWall'; readonly id: string; readonly cell: Cell; readonly side: Side }
   | { readonly tag: 'ItemTooHigh'; readonly id: string; readonly top: number; readonly limit: number }
 
+  // ── House level: storeys stacked together ──
+  | { readonly tag: 'EmptyHouse' }
+  | { readonly tag: 'DuplicateStorey'; readonly level: number }
+  | { readonly tag: 'FloatingStorey'; readonly level: number; readonly missing: number }
+  | { readonly tag: 'DuplicateRoomKey'; readonly key: string }
+  | { readonly tag: 'FootprintMismatch'; readonly level: number }
+  | { readonly tag: 'UnreachableStorey'; readonly level: number }
+
+  // ── Stairs ────────────────────────────
+  | { readonly tag: 'DuplicateStairId'; readonly id: string }
+  | { readonly tag: 'StairNotStraight'; readonly id: string }
+  | { readonly tag: 'StairTooShort'; readonly id: string }
+  | { readonly tag: 'StairCellInvalid'; readonly id: string; readonly cell: Cell }
+  | { readonly tag: 'StairArrivalInvalid'; readonly id: string; readonly cell: Cell }
+  | { readonly tag: 'StairWithoutStoreyAbove'; readonly id: string; readonly level: number }
+
   // ── Textures ──────────────────────────
   | { readonly tag: 'UnknownTextureKey'; readonly key: string };
 
@@ -127,6 +143,30 @@ export function describeError(e: HouseError): string {
       return `Item '${e.id}' hangs on the ${e.side} of ${fmtCell(e.cell)}, but there's no wall there.`;
     case 'ItemTooHigh':
       return `Item '${e.id}' reaches ${e.top.toFixed(2)}, above the ${e.limit.toFixed(2)} wall — it would poke through the ceiling.`;
+    case 'EmptyHouse':
+      return `The house has no storeys.`;
+    case 'DuplicateStorey':
+      return `Two storeys both claim level ${e.level} — levels must be unique.`;
+    case 'FloatingStorey':
+      return `Level ${e.level} floats: there's no level ${e.missing} beneath it.`;
+    case 'DuplicateRoomKey':
+      return `Two rooms share the key '${e.key}'. Keys are unique across the whole house, storeys included — give one a distinct key (they can still share a name).`;
+    case 'FootprintMismatch':
+      return `Level ${e.level} doesn't cover the same footprint as the storey below. Setback roofs aren't supported yet, so every storey must have the same outline.`;
+    case 'UnreachableStorey':
+      return `Level ${e.level} can't be reached — no stairs connect it to the rest of the house.`;
+    case 'DuplicateStairId':
+      return `Two stairs share the id '${e.id}' — stair ids must be unique.`;
+    case 'StairNotStraight':
+      return `Stair '${e.id}' bends: its bottom and top treads must share a row or a column.`;
+    case 'StairTooShort':
+      return `Stair '${e.id}' has no run — its bottom and top treads are the same cell.`;
+    case 'StairCellInvalid':
+      return `Stair '${e.id}' runs through ${fmtCell(e.cell)}, which isn't inside a room on that storey.`;
+    case 'StairArrivalInvalid':
+      return `Stair '${e.id}' would arrive at ${fmtCell(e.cell)} upstairs, which isn't inside a room. Extend the room, or move the stair.`;
+    case 'StairWithoutStoreyAbove':
+      return `Stair '${e.id}' climbs out of level ${e.level}, but there's no level ${e.level + 1} to arrive on.`;
     case 'UnknownTextureKey':
       return `Unknown texture key '${e.key}'.`;
     default:
