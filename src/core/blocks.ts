@@ -8,9 +8,24 @@
 // Vocabulary (matches rooms.ts): a *cell* is a grid position ([row, col]); a
 // *block* is what sits in a cell — a room marker or EMPTY.
 
+// A room carries its own labels because room keys are authored and open-ended —
+// a central Record<RoomKey, ...> couldn't be checked for completeness without
+// making RoomKey generic through the whole core. Here the compiler still refuses
+// a room that lacks a name in any language.
+//   name  — what the room is called ("the kitchen" / "la cocina")
+//   enter — the phrase on a door LEADING HERE ("Open the door to the kitchen").
+//           Keyed by DESTINATION, not by door: it's a fact about the room, so
+//           every door that arrives here says it and adding a door costs no text.
+import type { Locale } from './labels';
+
+export interface RoomLabels {
+  readonly name: string;
+  readonly enter: string;
+}
+
 export interface RoomDef {
   readonly key: string;
-  readonly name: string;
+  readonly labels: Record<Locale, RoomLabels>;
   readonly color?: string; // interior colour; absent = house default. Opaque to the core.
 }
 

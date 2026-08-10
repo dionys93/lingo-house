@@ -119,11 +119,17 @@ describe('navReducer', () => {
   });
 });
 
+const ROOM_LABELS = {
+  en: { name: 'the kitchen', enter: 'Open the door to the kitchen' },
+  es: { name: 'la cocina', enter: 'Abre la puerta de la cocina' },
+  de: { name: 'die Küche', enter: 'Öffne die Tür zur Küche' },
+};
+
 describe('boundsAt', () => {
   const rooms: readonly CompiledRoom[] = [
     {
       key: 'kitchen',
-      name: 'Kitchen',
+      labels: ROOM_LABELS,
       cells: [[0, 0]],
       bounds: { min: [0, 0, 0], max: [1, 1.2, 1] },
       floor: [],

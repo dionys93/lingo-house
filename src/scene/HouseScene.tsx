@@ -11,7 +11,8 @@ import { OrbitControls } from '@react-three/drei';
 import { compileGrid, roofFor } from '../core/grid';
 import { describeError, type HouseError } from '../core/errors';
 import { buildDoorGraph, makeNavReducer, START_OUTSIDE } from '../core/nav';
-import { explorerReducer, START_EXPLORER } from '../core/explorer';
+import { explorerReducer, START_EXPLORER, type Selection } from '../core/explorer';
+import { describe as describeSelection } from '../core/describe';
 import { GROUND_FLOOR, DOORS, WINDOWS, ITEMS } from '../authoring/rooms';
 import { LABELS } from '../authoring/labels';
 import { Ground } from './Ground';
@@ -21,7 +22,7 @@ import { Walls } from './Walls';
 import { Roof } from './Roof';
 import { Items } from './Items';
 import { Doors } from './Doors';
-import { ItemPopup } from './ItemPopup';
+import { SelectionPopup } from './SelectionPopup';
 import { LanguageBar } from './LanguageBar';
 import { Windows } from './Windows';
 import { CameraRig } from './CameraRig';
@@ -66,16 +67,31 @@ export function HouseScene() {
 
   const outside = nav.tag === 'in' && nav.location === 'outside';
 
-  // DERIVED, not synced: the popup is showing when the selected item is in the
-  // room you're standing in. Walk out and it hides; walk back and it's still
-  // there. No effect watching nav, nothing to forget to clear, and no way for
-  // the two reducers to disagree — the only source of truth is the pair of them.
-  const selectedItem = compiled?.items.find((i) => i.id === explorer.selected) ?? null;
-  const popupItem =
-    selectedItem && nav.tag === 'in' && nav.location === selectedItem.room ? selectedItem : null;
+  // DERIVED, not synced: the popup exists only while you're standing still in a
+  // place, and describe() resolves the words from that place. Walk through a
+  // door and it's gone; no effect watching nav, nothing to forget to clear, and
+  // no way for the two reducers to disagree.
+  const described =
+    compiled && explorer.selected !== null && nav.tag === 'in'
+      ? describeSelection(
+          explorer.selected,
+          nav.location,
+          compiled,
+          graph,
+          LABELS,
+          explorer.from,
+          explorer.to,
+        )
+      : null;
 
-  const onSelect = useCallback((id: string) => explore({ tag: 'selectItem', id }), []);
+  const select = useCallback((selection: Selection) => explore({ tag: 'select', selection }), []);
   const onDismiss = useCallback(() => explore({ tag: 'dismiss' }), []);
+  // Traversal is now an ACT OF READING: it happens from the popup's phrase
+  // button, and closes the popup so the next room starts clean.
+  const onAct = useCallback((doorId: string) => {
+    dispatch({ tag: 'traverse', doorId });
+    explore({ tag: 'dismiss' });
+  }, []);
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -87,21 +103,25 @@ export function HouseScene() {
         <Ground />
         {compiled && (
           <>
-            <Floor grid={compiled} />
-            <Ceiling grid={compiled} />
-            <Walls grid={compiled} />
+            <Floor grid={compiled} onPick={(at) => select({ on: 'part', part: 'floor', at })} />
+            <Ceiling grid={compiled} onPick={(at) => select({ on: 'part', part: 'ceiling', at })} />
+            <Walls grid={compiled} onPick={(at) => select({ on: 'part', part: 'wall', at })} />
             {roof && <Roof roof={roof} />}
-            <Items grid={compiled} selectedId={explorer.selected} onSelect={onSelect} />
-            <Doors grid={compiled} nav={nav} dispatch={dispatch} />
-            <Windows grid={compiled} />
+            <Items
+              grid={compiled}
+              selectedId={explorer.selected?.on === 'item' ? explorer.selected.id : null}
+              onSelect={(id) => select({ on: 'item', id })}
+            />
+            <Doors grid={compiled} nav={nav} onPick={(id) => select({ on: 'opening', id })} />
+            <Windows grid={compiled} onPick={(id) => select({ on: 'opening', id })} />
             <CameraRig nav={nav} dispatch={dispatch} rooms={compiled.rooms} />
             <InteriorControls nav={nav} rooms={compiled.rooms} />
-            {popupItem && (
-              <ItemPopup
-                item={popupItem}
-                labels={LABELS}
+            {described && (
+              <SelectionPopup
+                described={described}
                 from={explorer.from}
                 to={explorer.to}
+                onAct={onAct}
                 onDismiss={onDismiss}
               />
             )}

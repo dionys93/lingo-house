@@ -27,9 +27,38 @@
 import { defineRoom, type Grid, type ItemDef, type Opening } from '../core/blocks';
 
 // ── The rooms: a key, a display name, and the colour seen from inside. ──
-const K = defineRoom({ key: 'kitchen', name: 'Kitchen', color: '#d4d4d4' });
-const L = defineRoom({ key: 'livingRoom', name: 'Living Room', color: '#c9b79b' });
-const B = defineRoom({ key: 'bathroom', name: 'Bathroom', color: '#c8d5c8' });
+// Each room carries its own words: `name` is what it's called, `enter` is the
+// phrase shown on ANY door leading here ("Open the door to the kitchen"). Keying
+// the phrase by destination rather than by door means adding a door costs no new
+// text. Informal register throughout (tú / du), which is what beginners meet
+// first — keep it consistent when you add rooms.
+const K = defineRoom({
+  key: 'kitchen',
+  color: '#d4d4d4',
+  labels: {
+    en: { name: 'the kitchen', enter: 'Open the door to the kitchen' },
+    es: { name: 'la cocina', enter: 'Abre la puerta de la cocina' },
+    de: { name: 'die Küche', enter: 'Öffne die Tür zur Küche' },
+  },
+});
+const L = defineRoom({
+  key: 'livingRoom',
+  color: '#c9b79b',
+  labels: {
+    en: { name: 'the living room', enter: 'Open the door to the living room' },
+    es: { name: 'la sala', enter: 'Abre la puerta de la sala' },
+    de: { name: 'das Wohnzimmer', enter: 'Öffne die Tür zum Wohnzimmer' },
+  },
+});
+const B = defineRoom({
+  key: 'bathroom',
+  color: '#c8d5c8',
+  labels: {
+    en: { name: 'the bathroom', enter: 'Open the door to the bathroom' },
+    es: { name: 'el baño', enter: 'Abre la puerta del baño' },
+    de: { name: 'das Badezimmer', enter: 'Öffne die Tür zum Badezimmer' },
+  },
+});
 
 // ── The floor plan. Edit this. ──
 // A bathroom across the back-left (2 rows), a kitchen down the right two columns,

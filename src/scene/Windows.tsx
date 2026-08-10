@@ -9,6 +9,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { CompiledGrid, CompiledOpening } from '../core/grid';
+import { pickable } from './pickable';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
 import { roomOf, styleForRoom } from './windowStyles';
 
@@ -63,9 +64,11 @@ function Bar({ w, h, x, y, color }: { w: number; h: number; x: number; y: number
 function WindowInstance({
   opening,
   colorOf,
+  onPick,
 }: {
   opening: WindowOpening;
   colorOf: (side: string) => string;
+  onPick?: () => void;
 }) {
   const { a, b, axis, height, sides, sill, head } = opening;
   const len = Math.hypot(b[0] - a[0], b[2] - a[2]);
@@ -86,7 +89,7 @@ function WindowInstance({
       <Infill opening={opening} y0={0} y1={sill} colorOf={colorOf} />
       <Infill opening={opening} y0={head} y1={height} colorOf={colorOf} />
 
-      <group position={position} rotation={[0, rotationY, 0]}>
+      <group position={position} rotation={[0, rotationY, 0]} {...(onPick ? pickable(onPick) : {})}>
         {/* glass */}
         <mesh position={[0, midY, 0]}>
           <boxGeometry args={[innerW, innerH, GLASS_DEPTH]} />
@@ -117,13 +120,24 @@ function WindowInstance({
   );
 }
 
-export function Windows({ grid }: { grid: CompiledGrid }) {
+export function Windows({
+  grid,
+  onPick,
+}: {
+  grid: CompiledGrid;
+  onPick?: (id: string) => void;
+}) {
   const colorOf = useMemo(() => buildColorOf(grid.rooms), [grid.rooms]);
   const windows = grid.openings.filter((o): o is WindowOpening => o.kind === 'window');
   return (
     <>
       {windows.map((o) => (
-        <WindowInstance key={o.id} opening={o} colorOf={colorOf} />
+        <WindowInstance
+          key={o.id}
+          opening={o}
+          colorOf={colorOf}
+          onPick={onPick ? () => onPick(o.id) : undefined}
+        />
       ))}
     </>
   );

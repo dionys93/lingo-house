@@ -9,23 +9,29 @@ import {
   START_EXPLORER,
   type ExplorerEvent,
   type ExplorerState,
+  type Selection,
 } from '../core/explorer';
 
 const run = (state: ExplorerState, ...events: readonly ExplorerEvent[]): ExplorerState =>
   events.reduce(explorerReducer, state);
 
+const item = (id: string): Selection => ({ on: 'item', id });
+const pick = (id: string): ExplorerEvent => ({ tag: 'select', selection: item(id) });
+const part = (at: readonly [number, number, number]): ExplorerEvent => ({
+  tag: 'select',
+  selection: { on: 'part', part: 'wall', at },
+});
+
 describe('explorerReducer — selection', () => {
   it('selects an item', () => {
-    expect(run(START_EXPLORER, { tag: 'selectItem', id: 'living-table' }).selected).toBe(
-      'living-table',
-    );
+    expect(run(START_EXPLORER, pick('living-table')).selected).toEqual(item('living-table'));
   });
 
   it('re-clicking the open item closes it — the item is its own toggle', () => {
     const s = run(
       START_EXPLORER,
-      { tag: 'selectItem', id: 'living-table' },
-      { tag: 'selectItem', id: 'living-table' },
+      pick('living-table'),
+      pick('living-table'),
     );
     expect(s.selected).toBeNull();
   });
@@ -33,20 +39,20 @@ describe('explorerReducer — selection', () => {
   it('clicking a different item switches rather than closing', () => {
     const s = run(
       START_EXPLORER,
-      { tag: 'selectItem', id: 'living-table' },
-      { tag: 'selectItem', id: 'kitchen-table' },
+      pick('living-table'),
+      pick('kitchen-table'),
     );
-    expect(s.selected).toBe('kitchen-table');
+    expect(s.selected).toEqual(item('kitchen-table'));
   });
 
   it('dismiss clears the selection and is idempotent', () => {
-    const once = run(START_EXPLORER, { tag: 'selectItem', id: 'living-table' }, { tag: 'dismiss' });
+    const once = run(START_EXPLORER, pick('living-table'), { tag: 'dismiss' });
     expect(once.selected).toBeNull();
     expect(run(once, { tag: 'dismiss' })).toEqual(once);
   });
 
   it('selection never disturbs the language pair', () => {
-    const s = run(START_EXPLORER, { tag: 'selectItem', id: 'living-table' });
+    const s = run(START_EXPLORER, pick('living-table'));
     expect([s.from, s.to]).toEqual([START_EXPLORER.from, START_EXPLORER.to]);
   });
 });
@@ -93,10 +99,10 @@ describe('explorerReducer — the language pair', () => {
   it('changing languages keeps the popup open — you can compare pairs in place', () => {
     const s = run(
       START_EXPLORER,
-      { tag: 'selectItem', id: 'living-table' },
+      pick('living-table'),
       { tag: 'setTo', locale: 'de' },
     );
-    expect(s.selected).toBe('living-table');
+    expect(s.selected).toEqual(item('living-table'));
     expect([s.from, s.to]).toEqual(['en', 'de']);
   });
 });
@@ -104,8 +110,26 @@ describe('explorerReducer — the language pair', () => {
 describe('explorerReducer — purity', () => {
   it('never mutates the state it is given', () => {
     const before = { ...START_EXPLORER };
-    explorerReducer(START_EXPLORER, { tag: 'selectItem', id: 'living-table' });
+    explorerReducer(START_EXPLORER, pick('living-table'));
     explorerReducer(START_EXPLORER, { tag: 'setFrom', locale: 'es' });
     expect(START_EXPLORER).toEqual(before);
+  });
+});
+
+describe('explorerReducer — selecting things other than items', () => {
+  it('distinguishes an item from an opening with the same id', () => {
+    // Ids live in separate namespaces; the union is what keeps them apart.
+    const s = run(START_EXPLORER, pick('x'), {
+      tag: 'select',
+      selection: { on: 'opening', id: 'x' },
+    });
+    expect(s.selected).toEqual({ on: 'opening', id: 'x' }); // switched, not toggled off
+  });
+
+  it('toggles a part off only when the SAME point is clicked again', () => {
+    const same = run(START_EXPLORER, part([1, 0, 2]), part([1, 0, 2]));
+    expect(same.selected).toBeNull();
+    const moved = run(START_EXPLORER, part([1, 0, 2]), part([1, 0, 2.5]));
+    expect(moved.selected).toEqual({ on: 'part', part: 'wall', at: [1, 0, 2.5] });
   });
 });

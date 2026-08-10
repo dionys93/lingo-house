@@ -25,13 +25,14 @@
 // kind, between which rooms.
 
 import { describe, it, expect } from 'vitest';
-import { defineRoom, _ } from '../core/blocks';
+import { _ } from '../core/blocks';
+import { room } from './support';
 import { compileGrid, consecutiveRanges, CELL, WALL_HEIGHT, WALL_THICKNESS } from '../core/grid';
 import type { HouseError } from '../core/errors';
 import type { Result } from '../core/result';
 
-const K = defineRoom({ key: 'kitchen', name: 'Kitchen', color: '#d4d4d4' });
-const L = defineRoom({ key: 'livingRoom', name: 'Living Room' });
+const K = room('kitchen', 'Kitchen', '#d4d4d4');
+const L = room('livingRoom', 'Living Room');
 
 // ── assertion helpers (strict-safe: no `!`, no bare indexing) ────────────────
 function unwrap<T>(r: Result<T, readonly HouseError[]>): T {
@@ -87,7 +88,7 @@ describe('compileGrid — rooms & merging', () => {
   it('room identity is by key, not object reference', () => {
     // Two distinct defineRoom objects sharing a key are the SAME room — the key
     // is the identity the rest of the system (doors' `between`, labels) uses.
-    const K2 = defineRoom({ key: 'kitchen', name: 'Kitchen' });
+    const K2 = room('kitchen', 'Kitchen');
     const g = unwrap(compileGrid([[K, K2]]));
     expect(g.rooms.map((r) => r.key)).toEqual(['kitchen']);
   });
@@ -243,7 +244,7 @@ describe('compileGrid — grid errors', () => {
   });
 
   it("a room keyed 'outside' is a reserved-key error", () => {
-    const O = defineRoom({ key: 'outside', name: 'Nope' });
+    const O = room('outside', 'Nope');
     expect(errorsOf(compileGrid([[O]]))).toContainEqual({ tag: 'ReservedRoomKey', key: 'outside' });
   });
 });

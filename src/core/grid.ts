@@ -17,7 +17,8 @@
 
 import { ok, err, type Result } from './result';
 import { assertNever, type Cell, type HouseError, type RoomKey, type Side } from './errors';
-import { isRoom, type Facing, type Grid, type ItemDef, type ItemKind, type Opening, type RoomDef } from './blocks';
+import { isRoom, type Facing, type Grid, type ItemDef, type ItemKind, type Opening, type RoomDef, type RoomLabels } from './blocks';
+import type { Locale } from './labels';
 import { gableRoof, type RoofMesh, type RoofBox } from './roof';
 import { pairs, range } from './seq';
 
@@ -42,7 +43,7 @@ export interface AABB {
 
 export interface CompiledRoom {
   readonly key: RoomKey;
-  readonly name: string;
+  readonly labels: Record<Locale, RoomLabels>; // carried through; the core never picks a language
   readonly color?: string; // opaque to the core; the factory interprets it
   readonly cells: readonly Cell[];
   readonly bounds: AABB;
@@ -312,7 +313,7 @@ export function compileGrid(
       max: vec3(xAt(Math.max(...colsOf) + 1), baseY + WALL_HEIGHT, zAt(Math.max(...rowsOf) + 1)),
     };
     const floor: Vec3[] = cells.map(([r, c]) => vec3(xAt(c) + CELL / 2, baseY, zAt(r) + CELL / 2));
-    const base = { key, name: def.name, cells, bounds, floor };
+    const base = { key, labels: def.labels, cells, bounds, floor };
     compiledRooms.push(def.color === undefined ? base : { ...base, color: def.color });
   }
 

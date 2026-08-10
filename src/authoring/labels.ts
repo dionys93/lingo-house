@@ -4,7 +4,9 @@
 // │  THIS IS THE FILE YOU EDIT TO CHANGE WHAT THINGS ARE CALLED.          │
 // └──────────────────────────────────────────────────────────────────────┘
 //
-// One row per language, one entry per item kind. The type makes this table
+// One block per language: a noun for every item kind and every part of the
+// building, plus the two words for 'outside' (which is a destination but not a
+// room). Room names live on the rooms themselves in rooms.ts. The type makes this table
 // TOTAL: add a language to `Locale` or an item to `ItemKind` and this file stops
 // compiling until every blank is filled. You can't ship a half-translated house.
 //
@@ -15,18 +17,45 @@ import type { LabelTable } from '../core/labels';
 
 export const LABELS: LabelTable = {
   en: {
-    table: 'the table',
-    laptop: 'the laptop',
-    tv: 'the television',
+    nouns: {
+      table: 'the table',
+      laptop: 'the laptop',
+      tv: 'the television',
+      door: 'the door',
+      window: 'the window',
+      wall: 'the wall',
+      floor: 'the floor',
+      ceiling: 'the ceiling',
+    },
+    outside: 'outside',
+    goOutside: 'Go outside',
   },
   es: {
-    table: 'la mesa',
-    laptop: 'el portátil',
-    tv: 'la televisión',
+    nouns: {
+      table: 'la mesa',
+      laptop: 'el portátil',
+      tv: 'la televisión',
+      door: 'la puerta',
+      window: 'la ventana',
+      wall: 'la pared',
+      floor: 'el suelo',
+      ceiling: 'el techo',
+    },
+    outside: 'afuera',
+    goOutside: 'Sal afuera',
   },
   de: {
-    table: 'der Tisch',
-    laptop: 'der Laptop',
-    tv: 'der Fernseher',
+    nouns: {
+      table: 'der Tisch',
+      laptop: 'der Laptop',
+      tv: 'der Fernseher',
+      door: 'die Tür',
+      window: 'das Fenster',
+      wall: 'die Wand',
+      floor: 'der Boden',
+      ceiling: 'die Decke',
+    },
+    outside: 'draußen',
+    goOutside: 'Geh nach draußen',
   },
 };

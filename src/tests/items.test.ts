@@ -6,11 +6,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { compileGrid, ITEM_SPECS, type CompiledGrid } from '../core/grid';
-import { defineRoom, _, type Grid, type ItemDef } from '../core/blocks';
+import { _, type Grid, type ItemDef } from '../core/blocks';
+import { room } from './support';
 import { WALL_THICKNESS } from '../core/grid';
 
-const K = defineRoom({ key: 'kitchen', name: 'Kitchen' });
-const L = defineRoom({ key: 'livingRoom', name: 'Living Room' });
+const K = room('kitchen', 'Kitchen');
+const L = room('livingRoom', 'Living Room');
 
 // 2×2, kitchen top row, living room bottom-left, one empty cell.
 // C = 2, R = 2 → xAt(c) = c·0.5 − 0.5, zAt(r) = r·0.5 − 0.5.

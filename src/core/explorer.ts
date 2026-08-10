@@ -15,16 +15,39 @@
 // you're learning.
 
 import { assertNever } from './errors';
-import type { Locale } from './labels';
+import type { Locale, PartKey } from './labels';
+import type { Vec3 } from './grid';
+
+// WHAT was clicked. A union rather than a bare id, because the four things you
+// can click are identified differently: items and openings have ids, but a wall
+// or a floor tile has no identity worth carrying — every wall is "the wall", so
+// the only thing needed is where to hang the popup. The room you're standing in
+// is NOT stored here; it's read from nav at render time, so the two can't
+// disagree.
+export type Selection =
+  | { readonly on: 'item'; readonly id: string }
+  | { readonly on: 'opening'; readonly id: string }
+  | { readonly on: 'part'; readonly part: PartKey; readonly at: Vec3 };
 
 export interface ExplorerState {
   readonly from: Locale;
   readonly to: Locale;
-  readonly selected: string | null; // CompiledItem['id']
+  readonly selected: Selection | null;
 }
 
+// Structural identity, so re-clicking the same thing toggles it shut. Parts
+// compare by position: clicking the SAME floor tile closes, clicking the next
+// one along moves the popup.
+export const sameSelection = (a: Selection, b: Selection): boolean => {
+  if (a.on !== b.on) return false;
+  if (a.on === 'part' && b.on === 'part') {
+    return a.part === b.part && a.at.every((v, i) => v === b.at[i]);
+  }
+  return 'id' in a && 'id' in b && a.id === b.id;
+};
+
 export type ExplorerEvent =
-  | { readonly tag: 'selectItem'; readonly id: string }
+  | { readonly tag: 'select'; readonly selection: Selection }
   | { readonly tag: 'dismiss' }
   | { readonly tag: 'setFrom'; readonly locale: Locale }
   | { readonly tag: 'setTo'; readonly locale: Locale };
@@ -38,10 +61,16 @@ export const START_EXPLORER: ExplorerState = { from: 'en', to: 'es', selected: n
 // UIs do. Every state this reducer can produce is a state worth rendering.
 export function explorerReducer(state: ExplorerState, event: ExplorerEvent): ExplorerState {
   switch (event.tag) {
-    case 'selectItem':
-      // Clicking the item that's already open closes it — the popup's X and the
-      // item itself are the same toggle, so you never have to aim for the X.
-      return { ...state, selected: state.selected === event.id ? null : event.id };
+    case 'select':
+      // Clicking the thing that's already open closes it — the popup's X and the
+      // thing itself are the same toggle, so you never have to aim for the X.
+      return {
+        ...state,
+        selected:
+          state.selected !== null && sameSelection(state.selected, event.selection)
+            ? null
+            : event.selection,
+      };
     case 'dismiss':
       return { ...state, selected: null };
     case 'setFrom':

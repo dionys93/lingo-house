@@ -10,7 +10,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { CompiledGrid, CompiledOpening } from '../core/grid';
-import type { NavEvent, NavState } from '../core/nav';
+import type { NavState } from '../core/nav';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
 
 type DoorOpening = Extract<CompiledOpening, { kind: 'door' }>;
@@ -25,12 +25,12 @@ function DoorInstance({
   opening,
   colorOf,
   open,
-  onTraverse,
+  onPick,
 }: {
   opening: DoorOpening;
   colorOf: (side: string) => string;
   open: boolean;
-  onTraverse: () => void;
+  onPick: () => void;
 }) {
   const hinge = useRef<THREE.Group>(null);
 
@@ -78,7 +78,7 @@ function DoorInstance({
           position={panelOffset}
           onClick={(e) => {
             e.stopPropagation();
-            onTraverse();
+            onPick();
           }}
           onPointerOver={(e) => {
             e.stopPropagation();
@@ -99,11 +99,13 @@ function DoorInstance({
 export function Doors({
   grid,
   nav,
-  dispatch,
+  onPick,
 }: {
   grid: CompiledGrid;
   nav: NavState;
-  dispatch: (event: NavEvent) => void;
+  // Clicking a door SELECTS it — traversal now happens from the popup's action
+  // button, so that moving through the house means reading the phrase for it.
+  onPick: (id: string) => void;
 }) {
   const colorOf = useMemo(() => buildColorOf(grid.rooms), [grid.rooms]);
   const doors = grid.openings.filter((o): o is DoorOpening => o.kind === 'door');
@@ -115,9 +117,7 @@ export function Doors({
           opening={o}
           colorOf={colorOf}
           open={nav.tag === 'moving' && nav.doorId === o.id}
-          onTraverse={() => {
-            dispatch({ tag: 'traverse', doorId: o.id });
-          }}
+          onPick={() => onPick(o.id)}
         />
       ))}
     </>

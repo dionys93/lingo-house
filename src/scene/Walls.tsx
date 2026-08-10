@@ -8,7 +8,8 @@
 // Doors so the door's lintel matches the wall around it.
 
 import { useMemo } from 'react';
-import type { CompiledGrid, CompiledWall } from '../core/grid';
+import type { CompiledGrid, CompiledWall, Vec3 } from '../core/grid';
+import { pickable } from './pickable';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
 
 function boxFor(wall: CompiledWall): { size: Triple; pos: Triple } {
@@ -22,14 +23,16 @@ function boxFor(wall: CompiledWall): { size: Triple; pos: Triple } {
 function WallMesh({
   wall,
   colorOf,
+  onPick,
 }: {
   wall: CompiledWall;
   colorOf: (side: string) => string;
+  onPick?: (at: Vec3) => void;
 }) {
   const { size, pos } = boxFor(wall);
   const colors = faceColors(wall.axis, wall.sides, colorOf);
   return (
-    <mesh position={pos}>
+    <mesh position={pos} {...(onPick ? pickable(onPick) : {})}>
       <boxGeometry args={size} />
       {colors.map((c, i) => (
         <meshStandardMaterial key={i} attach={`material-${i}`} color={c} />
@@ -38,12 +41,12 @@ function WallMesh({
   );
 }
 
-export function Walls({ grid }: { grid: CompiledGrid }) {
+export function Walls({ grid, onPick }: { grid: CompiledGrid; onPick?: (at: Vec3) => void }) {
   const colorOf = useMemo(() => buildColorOf(grid.rooms), [grid.rooms]);
   return (
     <>
       {grid.walls.map((wall, i) => (
-        <WallMesh key={i} wall={wall} colorOf={colorOf} />
+        <WallMesh key={i} wall={wall} colorOf={colorOf} onPick={onPick} />
       ))}
     </>
   );
