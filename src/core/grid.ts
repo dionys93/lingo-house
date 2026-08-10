@@ -163,15 +163,22 @@ export function roofFor(footprint: Footprint): RoofMesh {
 
 const vec3 = (x: number, y: number, z: number): Vec3 => [x, y, z];
 
-// NOTE: the positional-optional list (openings, baseY, items) is at its limit.
-// When compileHouse becomes the public entry (M2), fold these into an options
-// record there and let compileGrid go internal — scheduled, not forgotten.
+// Everything except the grid itself arrives in one record. Four positional
+// optionals was the limit — `compileGrid(g, [], 1.2, items)` says nothing about
+// what 1.2 is, and stairs would have added a fifth. Named fields also mean
+// compileHouse can build the options per storey without counting commas.
+export interface CompileOptions {
+  readonly openings?: readonly Opening[];
+  readonly items?: readonly ItemDef[];
+  /** World Y of this storey's floor. Every emitted Y is measured from here. */
+  readonly baseY?: number;
+}
+
 export function compileGrid(
   grid: Grid,
-  openings: readonly Opening[] = [],
-  baseY = 0,
-  items: readonly ItemDef[] = [],
+  options: CompileOptions = {},
 ): Result<CompiledGrid, readonly HouseError[]> {
+  const { openings = [], items = [], baseY = 0 } = options;
   const R = grid.length;
   const C = grid.reduce((max, row) => Math.max(max, row.length), 0);
 
@@ -320,7 +327,10 @@ export function compileGrid(
             sill: baseY,
             head: baseY + WALL_HEIGHT * DOOR_HEIGHT_FRAC,
           }
-        : { ...common, kind: 'window', sill: op.sill, head: op.head },
+        : // Authored sill/head are heights ABOVE THIS STOREY'S FLOOR, so they
+          // need the same offset every other Y gets. Without it an upstairs
+          // window renders down inside the storey below.
+          { ...common, kind: 'window', sill: baseY + op.sill, head: baseY + op.head },
     );
   }
 

@@ -56,7 +56,7 @@ function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
 }
 
 export function HouseScene() {
-  const result = useMemo(() => compileGrid(GROUND_FLOOR, [...DOORS, ...WINDOWS], 0, ITEMS), []);
+  const result = useMemo(() => compileGrid(GROUND_FLOOR, { openings: [...DOORS, ...WINDOWS], items: ITEMS }), []);
   const compiled = result.ok ? result.value : null;
 
   const graph = useMemo(() => buildDoorGraph(compiled?.openings ?? []), [compiled]);

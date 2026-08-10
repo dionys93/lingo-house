@@ -68,7 +68,7 @@ const DOORS = [
 const ITEMS = [{ id: 't1', kind: 'table', mount: { on: 'floor', cell: [0, 0] } }] as const;
 
 const compiled = (() => {
-  const r = compileGrid(GRID, [...DOORS], 0, [...ITEMS]);
+  const r = compileGrid(GRID, { openings: [...DOORS], items: [...ITEMS] });
   if (!r.ok) throw new Error(JSON.stringify(r.error));
   return r.value;
 })();
@@ -124,12 +124,9 @@ suite('describe — the traversal phrase', () => {
   it('names a window but never offers to walk through it', () => {
     const grid = compileGrid(
       [[K, L]],
-      [
-        ...DOORS,
-        { kind: 'window', cell: [0, 0], side: 'back', sill: 0.4, head: 0.9 },
-      ],
-      0,
-      [],
+      {
+        openings: [...DOORS, { kind: 'window', cell: [0, 0], side: 'back', sill: 0.4, head: 0.9 }],
+      },
     );
     if (!grid.ok) throw new Error('setup');
     const win = grid.value.openings.find((o) => o.kind === 'window')!;
@@ -163,9 +160,9 @@ suite('describe — popup placement', () => {
   it('anchors a window popup in the middle of the glass', () => {
     const g = compileGrid(
       [[K, L]],
-      [...DOORS, { kind: 'window', cell: [0, 0], side: 'back', sill: 0.4, head: 0.9 }],
-      0,
-      [],
+      {
+        openings: [...DOORS, { kind: 'window', cell: [0, 0], side: 'back', sill: 0.4, head: 0.9 }],
+      },
     );
     if (!g.ok) throw new Error('setup');
     const win = g.value.openings.find((o) => o.kind === 'window')!;

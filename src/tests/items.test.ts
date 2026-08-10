@@ -33,13 +33,13 @@ const onFloor = (cell: readonly [number, number], rest: object = {}): ItemDef['m
 });
 
 const compiled = (items: readonly ItemDef[], baseY = 0): CompiledGrid => {
-  const r = compileGrid(GRID, [], baseY, items);
+  const r = compileGrid(GRID, { items, baseY });
   if (!r.ok) throw new Error(`expected Ok, got: ${JSON.stringify(r.error)}`);
   return r.value;
 };
 
 const errorTags = (items: readonly ItemDef[]): readonly string[] => {
-  const r = compileGrid(GRID, [], 0, items);
+  const r = compileGrid(GRID, { items });
   if (r.ok) throw new Error('expected Err, got Ok');
   return r.error.map((e) => e.tag);
 };
@@ -91,9 +91,10 @@ describe('compileGrid — items', () => {
   it('accumulates item errors WITH opening errors in one compile', () => {
     const r = compileGrid(
       GRID,
-      [{ kind: 'door', cell: [9, 9], side: 'front', swing: 'in' }], // bad opening
-      0,
-      [table({ mount: onFloor([1, 1]) })], // bad item
+      {
+        openings: [{ kind: 'door', cell: [9, 9], side: 'front', swing: 'in' }], // bad opening
+        items: [table({ mount: onFloor([1, 1]) })], // bad item
+      },
     );
     expect(r.ok).toBe(false);
     if (!r.ok) {
