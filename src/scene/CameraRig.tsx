@@ -16,6 +16,13 @@ import { EXTERIOR_CAMERA, EXTERIOR_TARGET, type Vantage } from './vantage';
 
 const REACH = 0.12; // distance that counts as "arrived" at a waypoint
 
+// How fast the camera converges on its target. Climbing is deliberately slower
+// than walking through a doorway: a flight of stairs is a longer move through
+// more space, and at door speed it reads as being yanked up through the ceiling.
+// The stair popup's phrase is meant to be read on the way, too.
+const DAMP_DOOR = 5;
+const DAMP_STAIR = 1.9;
+
 function dampVec(v: THREE.Vector3, t: Vec3, lambda: number, dt: number): void {
   v.x = THREE.MathUtils.damp(v.x, t[0], lambda, dt);
   v.y = THREE.MathUtils.damp(v.y, t[1], lambda, dt);
@@ -63,7 +70,7 @@ export function CameraRig({
     const dest = arrival(nav.to, nav.via, vantages);
     const aimPos = phase.current === 'approach' ? nav.via : dest.pos;
     const aimLook = phase.current === 'approach' ? nav.via : dest.look;
-    dampVec(camera.position, aimPos, 5, dt);
+    dampVec(camera.position, aimPos, nav.kind === 'stair' ? DAMP_STAIR : DAMP_DOOR, dt);
     camera.lookAt(aimLook[0], aimLook[1], aimLook[2]);
 
     const reached =

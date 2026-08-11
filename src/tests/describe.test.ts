@@ -197,10 +197,18 @@ suite('describe — stairs', () => {
   const atStair = (where: 'kitchen' | 'livingRoom' | 'outside') =>
     describe({ on: 'stair', id: 'st' }, where, twoStorey, stairGraph, LABELS, 'en', 'es');
 
-  it('names the stairs and hangs the popup on the flight itself', () => {
+  it('names the stairs and hangs the popup partway UP the flight', () => {
     const d = atStair('kitchen')!;
     expect(d.subject).toEqual({ from: 'the stairs', to: 'la escalera' });
-    expect(d.anchor[1]).toBeGreaterThan(0);
+    // Between the bottom and top treads — not above the topmost step, which is
+    // where a fixed lift off the middle tread used to put it.
+    const [stair] = twoStorey.stairs;
+    const lo = stair.treads[0][1];
+    const hi = stair.treads[stair.treads.length - 1][1];
+    expect(d.anchor[1]).toBeGreaterThan(lo);
+    expect(d.anchor[1]).toBeLessThan(hi);
+    // …and horizontally halfway along the run, whatever the tread count.
+    expect(d.anchor[2]).toBeCloseTo((stair.treads[0][2] + stair.treads[stair.treads.length - 1][2]) / 2);
   });
 
   it('says CLIMB from the bottom and DESCEND from the top — same stair', () => {

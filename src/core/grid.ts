@@ -133,6 +133,10 @@ const FACING_OF_YAW: ReadonlyMap<number, Facing> = new Map(
 export interface CompiledItem {
   readonly id: string;
   readonly kind: ItemKind;
+  // Which kind of mount put it here. The shell needs this to answer "does this
+  // wall have anything hanging on it?" — asking the geometry alone can't tell a
+  // TV bolted to a wall from a table that happens to stand against one.
+  readonly mountedOn: 'floor' | 'item' | 'wall';
   readonly position: Vec3; // world, at the floor; baseY already applied
   readonly yaw: number; // radians about Y — shell applies to the whole item group
   readonly bounds: AABB; // world, yaw-aware — for click raycasting
@@ -478,6 +482,7 @@ function compileItems(
   const emit = (def: ItemDef, position: Vec3, facing: Facing, room: WallSide): CompiledItem => ({
     id: def.id,
     kind: def.kind,
+    mountedOn: def.mount.on,
     position,
     yaw: ITEM_YAW[facing],
     bounds: itemBounds(def.kind, position, facing),

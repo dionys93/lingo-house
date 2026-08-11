@@ -117,11 +117,17 @@ export function describe(
     case 'stair': {
       const stair = stairs.find((s) => s.id === selection.id);
       if (stair === undefined) return null;
-      const mid = stair.treads[Math.floor(stair.treads.length / 2)];
+      // Halfway along the FLIGHT, not the middle tread: with an even number of
+      // treads there is no middle one, and lifting off a tread top by a fixed
+      // amount pushed the popup above the topmost step, so it read as sitting at
+      // the top of the stairs rather than on them.
+      const first = stair.treads[0];
+      const last = stair.treads[stair.treads.length - 1];
+      const mid = midpoint(first, last);
       const base = {
         subject: noun(labels, from, to, 'stairs'),
         context: here,
-        anchor: [mid[0], mid[1] + 0.45, mid[2]] as Vec3,
+        anchor: [mid[0], mid[1] + 0.18, mid[2]] as Vec3,
       };
       const edge = graph.traverse(where, stair.id);
       if (edge === undefined) return base; // you're not at either end of it

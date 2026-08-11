@@ -45,6 +45,11 @@ const errorTags = (items: readonly ItemDef[]): readonly string[] => {
 };
 
 describe('compileGrid — items', () => {
+  it('records how it was mounted, so the shell can find wall-hung items', () => {
+    const { items } = compiled([table()]);
+    expect(items[0].mountedOn).toBe('floor');
+  });
+
   it('places an item at its cell centre, room derived from the cell', () => {
     const [item] = compiled([table()]).items;
     expect(item.position).toEqual([-0.25, 0, 0.25]); // cell [1,0] centre
@@ -217,5 +222,17 @@ describe('compileGrid — mounting on a wall', () => {
 
   it('baseY lifts wall mounts with the storey', () => {
     expect(compiled([tvOn({})], 1.2).items[0].position[1]).toBeCloseTo(1.2 + 0.5);
+  });
+});
+
+describe('compileGrid — mount kind is carried through', () => {
+  it('reports floor, item and wall mounts distinctly', () => {
+    const items: readonly ItemDef[] = [
+      { id: 't', kind: 'table', mount: onFloor([1, 0]) },
+      { id: 'l', kind: 'laptop', mount: { on: 'item', host: 't' } },
+      { id: 'v', kind: 'tv', mount: { on: 'wall', cell: [1, 0], side: 'back', height: 0.5 } },
+    ];
+    const byId = new Map(compiled(items).items.map((i) => [i.id, i.mountedOn]));
+    expect([byId.get('t'), byId.get('l'), byId.get('v')]).toEqual(['floor', 'item', 'wall']);
   });
 });
