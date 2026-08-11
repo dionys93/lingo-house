@@ -11,7 +11,10 @@ import type { CSSProperties } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { compileGrid, roofFor } from '../core/grid';
-import { defineRoom, EMPTY, type Grid, type RoomLabels } from '../core/blocks';
+// Every preset is a solid rectangle today. When non-rectangular footprints stop
+// being deferred, import `_` here and add an L-shaped preset — eyeballing that
+// roof is exactly what this sandbox is for.
+import { defineRoom, type Grid, type RoomLabels } from '../core/blocks';
 import { LOCALES, type Locale } from '../core/labels';
 import { Ground } from './Ground';
 import { Floor } from './Floor';
@@ -29,7 +32,6 @@ const plain = (name: string) =>
 
 const K = defineRoom({ key: 'room', labels: plain('the room'), color: '#cbb89a' });
 const L = defineRoom({ key: 'room2', labels: plain('the second room'), color: '#c8d5c8' });
-const _ = EMPTY;
 
 const PRESETS: readonly { readonly name: string; readonly grid: Grid }[] = [
   { name: '1×1', grid: [[K]] },

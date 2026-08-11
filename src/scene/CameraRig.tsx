@@ -10,9 +10,9 @@
 import { useEffect, useRef, type Dispatch } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { CompiledRoom, Vec3 } from '../core/grid';
-import { boundsAt, type Location, type NavEvent, type NavState } from '../core/nav';
-import { roomCenter, orbitRadius, EXTERIOR_CAMERA, EXTERIOR_TARGET } from './vantage';
+import type { Vec3 } from '../core/grid';
+import type { Location, NavEvent, NavState } from '../core/nav';
+import { EXTERIOR_CAMERA, EXTERIOR_TARGET, type Vantage } from './vantage';
 
 const REACH = 0.12; // distance that counts as "arrived" at a waypoint
 
@@ -23,11 +23,14 @@ function dampVec(v: THREE.Vector3, t: Vec3, lambda: number, dt: number): void {
 }
 
 // The camera position + look-at for arriving at `to`, entering through `via`.
-function arrival(to: Location, via: Vec3, rooms: readonly CompiledRoom[]): { pos: Vec3; look: Vec3 } {
-  const box = boundsAt(to, rooms);
-  if (box === null) return { pos: EXTERIOR_CAMERA, look: EXTERIOR_TARGET };
-  const center = roomCenter(box);
-  const r = orbitRadius(box);
+function arrival(
+  to: Location,
+  via: Vec3,
+  vantages: ReadonlyMap<string, Vantage>,
+): { pos: Vec3; look: Vec3 } {
+  const v = vantages.get(to);
+  if (v === undefined) return { pos: EXTERIOR_CAMERA, look: EXTERIOR_TARGET };
+  const { center, radius: r } = v;
   // unit vector from the room centre toward the doorway we came in through
   const dx = via[0] - center[0];
   const dz = via[2] - center[2];
@@ -39,11 +42,11 @@ function arrival(to: Location, via: Vec3, rooms: readonly CompiledRoom[]): { pos
 export function CameraRig({
   nav,
   dispatch,
-  rooms,
+  vantages,
 }: {
   nav: NavState;
   dispatch: Dispatch<NavEvent>;
-  rooms: readonly CompiledRoom[];
+  vantages: ReadonlyMap<string, Vantage>;
 }) {
   const { camera } = useThree();
   const phase = useRef<'approach' | 'enter'>('approach');
@@ -57,7 +60,7 @@ export function CameraRig({
     if (nav.tag !== 'moving') return;
     const dt = Math.min(delta, 0.05);
 
-    const dest = arrival(nav.to, nav.via, rooms);
+    const dest = arrival(nav.to, nav.via, vantages);
     const aimPos = phase.current === 'approach' ? nav.via : dest.pos;
     const aimLook = phase.current === 'approach' ? nav.via : dest.look;
     dampVec(camera.position, aimPos, 5, dt);

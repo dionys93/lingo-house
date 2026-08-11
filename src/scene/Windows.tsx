@@ -7,7 +7,6 @@
 // fills sill/head and drops the styled window in the gap.
 
 import { useMemo } from 'react';
-import * as THREE from 'three';
 import type { CompiledGrid, CompiledOpening } from '../core/grid';
 import { pickable } from './pickable';
 import { openingFloorY } from '../core/grid';

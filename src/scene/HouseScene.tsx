@@ -21,6 +21,7 @@ import { Ceiling } from './Ceiling';
 import { Walls } from './Walls';
 import { Roof } from './Roof';
 import { Stairs } from './Stairs';
+import { vantageFrom, type Vantage } from './vantage';
 import { Items } from './Items';
 import { Doors } from './Doors';
 import { SelectionPopup } from './SelectionPopup';
@@ -101,11 +102,26 @@ export function HouseScene() {
   const result = useMemo(() => compileHouse(HOUSE), []);
   const house = result.ok ? result.value : null;
 
-  // Doors and rooms are gathered across every storey. That's safe precisely
-  // because room keys and opening ids are unique house-wide — the M2 gate
-  // decision cashing out: nav, camera and labels never need to know a level.
+  // Doors from every storey in one flat list. That's safe precisely because
+  // opening ids are unique house-wide — the M2 gate decision cashing out: nav
+  // and labels never need to know a level.
   const openings = useMemo(() => house?.storeys.flatMap((s) => s.grid.openings) ?? [], [house]);
-  const rooms = useMemo(() => house?.storeys.flatMap((s) => s.grid.rooms) ?? [], [house]);
+
+  // Where the camera may stand in each room, derived from the tiles it can
+  // actually stand on — the room's floor minus the stairwell. Computed here
+  // because only the storey knows which cells are open.
+  const vantages = useMemo(() => {
+    const out = new Map<string, Vantage>();
+    for (const storey of house?.storeys ?? []) {
+      const open = new Set(storey.openFloor.map((c) => `${c[0]},${c[1]}`));
+      for (const room of storey.grid.rooms) {
+        const tiles = room.floor.filter((_, i) => !open.has(`${room.cells[i][0]},${room.cells[i][1]}`));
+        const v = vantageFrom(tiles);
+        if (v) out.set(room.key, v);
+      }
+    }
+    return out;
+  }, [house]);
 
   // Doors AND stairs — one graph, so climbing is the same kind of move as
   // walking through a doorway.
@@ -164,8 +180,8 @@ export function HouseScene() {
             {/* Once, on top — the roof belongs to the house, not to a storey. */}
             <Stairs stairs={house.stairs} onPick={(id) => select({ on: 'stair', id })} />
             <Roof roof={house.roof} onPick={(at) => select({ on: 'part', part: 'roof', at })} />
-            <CameraRig nav={nav} dispatch={dispatch} rooms={rooms} />
-            <InteriorControls nav={nav} rooms={rooms} />
+            <CameraRig nav={nav} dispatch={dispatch} vantages={vantages} />
+            <InteriorControls nav={nav} vantages={vantages} />
             {described && (
               <SelectionPopup
                 described={described}

@@ -10,9 +10,8 @@
 
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import type { CompiledRoom } from '../core/grid';
-import { boundsAt, type Location, type NavState } from '../core/nav';
-import { roomCenter, orbitRadius } from './vantage';
+import type { Location, NavState } from '../core/nav';
+import type { Vantage } from './vantage';
 
 // Drag sensitivity. If drag-right orbits the WRONG way, flip the azimuth sign;
 // if up/down is inverted, flip the pitch sign. Each is one character.
@@ -23,10 +22,10 @@ const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.m
 
 export function InteriorControls({
   nav,
-  rooms,
+  vantages,
 }: {
   nav: NavState;
-  rooms: readonly CompiledRoom[];
+  vantages: ReadonlyMap<string, Vantage>;
 }) {
   const { camera, gl } = useThree();
   const azimuth = useRef(0);
@@ -74,10 +73,9 @@ export function InteriorControls({
 
   useFrame(() => {
     if (!active || location === null) return;
-    const box = boundsAt(location, rooms);
-    if (box === null) return;
-    const center = roomCenter(box);
-    const r = orbitRadius(box);
+    const v = vantages.get(location);
+    if (v === undefined) return;
+    const { center, radius: r } = v;
 
     // Pick up the facing the transition left us at (looking into the room).
     if (initializedAt.current !== location) {

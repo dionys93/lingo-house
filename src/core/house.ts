@@ -13,7 +13,7 @@
 
 import { compileGrid, roofFor, WALL_HEIGHT, type CompiledGrid, type Vec3, type WallSide } from './grid';
 import type { RoofMesh } from './roof';
-import type { Stair, Storey } from './blocks';
+import type { Storey } from './blocks';
 import type { Cell, HouseError } from './errors';
 import { err, ok, type Result } from './result';
 
