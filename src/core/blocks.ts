@@ -18,9 +18,25 @@
 //           every door that arrives here says it and adding a door costs no text.
 import type { Locale } from './labels';
 
+//   name  — what the room is called ("the kitchen" / "la cocina")
+//   enter — the phrase on a DOOR leading here ("Open the door to the kitchen")
+//   up    — the phrase on a STAIR climbed to get here ("Go up to the landing")
+//   down  — the phrase on a stair descended to get here ("Go down to the hall")
+//
+// All keyed by DESTINATION, not by the door or stair: arriving somewhere is a
+// fact about the place you arrive at, so every route here says the same thing
+// and adding a route costs no new text.
+//
+// `up` and `down` are BOTH required even though most rooms only ever get one:
+// which applies depends on where the traveller started, not on the room, and the
+// compiler can't know that. Writing them out beats composing them — "sube al
+// baño" but "sube a la cocina", and a language app that teaches `a el` is worse
+// than one that teaches less.
 export interface RoomLabels {
   readonly name: string;
   readonly enter: string;
+  readonly up: string;
+  readonly down: string;
 }
 
 export interface RoomDef {

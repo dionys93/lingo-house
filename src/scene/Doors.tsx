@@ -3,7 +3,7 @@
 // Renders each kind:'door' opening, and is now the navigation trigger. Clicking a
 // door dispatches `traverse` — the reducer decides if the move is legal and, if
 // so, the CameraRig walks you through. A door swings open when it's the one being
-// traversed (nav.doorId), so open/close is DERIVED from nav state, not a local
+// traversed (nav.edgeId), so open/close is DERIVED from nav state, not a local
 // toggle — one source of truth for "which door is open".
 
 import { useMemo, useRef } from 'react';
@@ -118,7 +118,7 @@ export function Doors({
           key={o.id}
           opening={o}
           colorOf={colorOf}
-          open={nav.tag === 'moving' && nav.doorId === o.id}
+          open={nav.tag === 'moving' && nav.edgeId === o.id}
           onPick={() => onPick(o.id)}
         />
       ))}

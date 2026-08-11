@@ -27,6 +27,7 @@ import type { Vec3 } from './grid';
 export type Selection =
   | { readonly on: 'item'; readonly id: string }
   | { readonly on: 'opening'; readonly id: string }
+  | { readonly on: 'stair'; readonly id: string }
   | { readonly on: 'part'; readonly part: PartKey; readonly at: Vec3 };
 
 export interface ExplorerState {

@@ -38,27 +38,27 @@ const K = defineRoom({
   key: 'kitchen',
   color: '#d4d4d4',
   labels: {
-    en: { name: 'the kitchen', enter: 'Open the door to the kitchen' },
-    es: { name: 'la cocina', enter: 'Abre la puerta de la cocina' },
-    de: { name: 'die Küche', enter: 'Öffne die Tür zur Küche' },
+    en: { name: 'the kitchen', enter: 'Open the door to the kitchen', up: 'Go up to the kitchen', down: 'Go down to the kitchen' },
+    es: { name: 'la cocina', enter: 'Abre la puerta de la cocina', up: 'Sube a la cocina', down: 'Baja a la cocina' },
+    de: { name: 'die Küche', enter: 'Öffne die Tür zur Küche', up: 'Geh hinauf in die Küche', down: 'Geh hinunter in die Küche' },
   },
 });
 const L = defineRoom({
   key: 'livingRoom',
   color: '#c9b79b',
   labels: {
-    en: { name: 'the living room', enter: 'Open the door to the living room' },
-    es: { name: 'la sala', enter: 'Abre la puerta de la sala' },
-    de: { name: 'das Wohnzimmer', enter: 'Öffne die Tür zum Wohnzimmer' },
+    en: { name: 'the living room', enter: 'Open the door to the living room', up: 'Go up to the living room', down: 'Go down to the living room' },
+    es: { name: 'la sala', enter: 'Abre la puerta de la sala', up: 'Sube a la sala', down: 'Baja a la sala' },
+    de: { name: 'das Wohnzimmer', enter: 'Öffne die Tür zum Wohnzimmer', up: 'Geh hinauf ins Wohnzimmer', down: 'Geh hinunter ins Wohnzimmer' },
   },
 });
 const B = defineRoom({
   key: 'bathroom',
   color: '#c8d5c8',
   labels: {
-    en: { name: 'the bathroom', enter: 'Open the door to the bathroom' },
-    es: { name: 'el baño', enter: 'Abre la puerta del baño' },
-    de: { name: 'das Badezimmer', enter: 'Öffne die Tür zum Badezimmer' },
+    en: { name: 'the bathroom', enter: 'Open the door to the bathroom', up: 'Go up to the bathroom', down: 'Go down to the bathroom' },
+    es: { name: 'el baño', enter: 'Abre la puerta del baño', up: 'Sube al baño', down: 'Baja al baño' },
+    de: { name: 'das Badezimmer', enter: 'Öffne die Tür zum Badezimmer', up: 'Geh hinauf ins Badezimmer', down: 'Geh hinunter ins Badezimmer' },
   },
 });
 
@@ -129,18 +129,18 @@ const M = defineRoom({
   key: 'bedroom',
   color: '#c4bcd0',
   labels: {
-    en: { name: 'the bedroom', enter: 'Open the door to the bedroom' },
-    es: { name: 'el dormitorio', enter: 'Abre la puerta del dormitorio' },
-    de: { name: 'das Schlafzimmer', enter: 'Öffne die Tür zum Schlafzimmer' },
+    en: { name: 'the bedroom', enter: 'Open the door to the bedroom', up: 'Go up to the bedroom', down: 'Go down to the bedroom' },
+    es: { name: 'el dormitorio', enter: 'Abre la puerta del dormitorio', up: 'Sube al dormitorio', down: 'Baja al dormitorio' },
+    de: { name: 'das Schlafzimmer', enter: 'Öffne die Tür zum Schlafzimmer', up: 'Geh hinauf ins Schlafzimmer', down: 'Geh hinunter ins Schlafzimmer' },
   },
 });
 const S = defineRoom({
   key: 'bedroomSmall',
   color: '#cdc6b6',
   labels: {
-    en: { name: 'the small bedroom', enter: 'Open the door to the small bedroom' },
-    es: { name: 'el cuarto pequeño', enter: 'Abre la puerta del cuarto pequeño' },
-    de: { name: 'das kleine Schlafzimmer', enter: 'Öffne die Tür zum kleinen Schlafzimmer' },
+    en: { name: 'the small bedroom', enter: 'Open the door to the small bedroom', up: 'Go up to the small bedroom', down: 'Go down to the small bedroom' },
+    es: { name: 'el cuarto pequeño', enter: 'Abre la puerta del cuarto pequeño', up: 'Sube al cuarto pequeño', down: 'Baja al cuarto pequeño' },
+    de: { name: 'das kleine Schlafzimmer', enter: 'Öffne die Tür zum kleinen Schlafzimmer', up: 'Geh hinauf ins kleine Schlafzimmer', down: 'Geh hinunter ins kleine Schlafzimmer' },
   },
 });
 // A DIFFERENT KEY from the downstairs bathroom, but the same words. Keys are
@@ -150,18 +150,18 @@ const W = defineRoom({
   key: 'bathroomUp',
   color: '#c8d5c8',
   labels: {
-    en: { name: 'the bathroom', enter: 'Open the door to the bathroom' },
-    es: { name: 'el baño', enter: 'Abre la puerta del baño' },
-    de: { name: 'das Badezimmer', enter: 'Öffne die Tür zum Badezimmer' },
+    en: { name: 'the bathroom', enter: 'Open the door to the bathroom', up: 'Go up to the bathroom', down: 'Go down to the bathroom' },
+    es: { name: 'el baño', enter: 'Abre la puerta del baño', up: 'Sube al baño', down: 'Baja al baño' },
+    de: { name: 'das Badezimmer', enter: 'Öffne die Tür zum Badezimmer', up: 'Geh hinauf ins Badezimmer', down: 'Geh hinunter ins Badezimmer' },
   },
 });
 const U = defineRoom({
   key: 'landing',
   color: '#ded5c6',
   labels: {
-    en: { name: 'the landing', enter: 'Go up to the landing' },
-    es: { name: 'el rellano', enter: 'Sube al rellano' },
-    de: { name: 'der Treppenabsatz', enter: 'Geh hinauf zum Treppenabsatz' },
+    en: { name: 'the landing', enter: 'Go up to the landing', up: 'Go up to the landing', down: 'Go down to the landing' },
+    es: { name: 'el rellano', enter: 'Sube al rellano', up: 'Sube al rellano', down: 'Baja al rellano' },
+    de: { name: 'der Treppenabsatz', enter: 'Geh hinauf zum Treppenabsatz', up: 'Geh hinauf zum Treppenabsatz', down: 'Geh hinunter zum Treppenabsatz' },
   },
 });
 

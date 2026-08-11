@@ -53,7 +53,7 @@ export function SelectionPopup({
   described: Described;
   from: Locale;
   to: Locale;
-  onAct: (doorId: string) => void;
+  onAct: (edgeId: string) => void;
   onDismiss: () => void;
 }) {
   // Escape closes. A subscription to something outside React is exactly what an
@@ -97,7 +97,7 @@ export function SelectionPopup({
         {action && (
           <button
             type="button"
-            onClick={() => onAct(action.doorId)}
+            onClick={() => onAct(action.edgeId)}
             style={{
               display: 'block',
               width: '100%',

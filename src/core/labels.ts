@@ -33,7 +33,7 @@ export const LOCALE_NAMES: Record<Locale, string> = {
 
 // Everything clickable that isn't a room: the item kinds, plus the parts of the
 // building itself. Rooms are excluded on purpose — see the header.
-export type PartKey = 'door' | 'window' | 'wall' | 'floor' | 'ceiling' | 'roof';
+export type PartKey = 'door' | 'window' | 'wall' | 'floor' | 'ceiling' | 'roof' | 'stairs';
 export type NounKey = ItemKind | PartKey;
 
 export interface LocaleLabels {

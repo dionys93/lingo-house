@@ -15,8 +15,9 @@
 // under the floor's room.
 
 import type { CompiledOpening, Vec3 } from './grid';
+import type { RoomLabels } from './blocks';
 import type { CompiledHouse } from './house';
-import type { DoorGraph, Location } from './nav';
+import type { NavGraph, Location } from './nav';
 import type { Selection } from './explorer';
 import { noun, type Bilingual, type LabelTable, type Locale } from './labels';
 
@@ -28,7 +29,7 @@ export interface Described {
   readonly anchor: Vec3; // where to hang the popup, in world space
   readonly action?: {
     readonly label: Bilingual;
-    readonly doorId: string;
+    readonly edgeId: string; // hand this to nav's `traverse`
   };
 }
 
@@ -42,7 +43,7 @@ export function describe(
   selection: Selection,
   where: Location,
   house: CompiledHouse,
-  graph: DoorGraph,
+  graph: NavGraph,
   labels: LabelTable,
   from: Locale,
   to: Locale,
@@ -54,7 +55,9 @@ export function describe(
   const openings = house.storeys.flatMap((s) => s.grid.openings);
   const items = house.storeys.flatMap((s) => s.grid.items);
 
-  const roomLabel = (key: Location, pick: 'name' | 'enter'): Bilingual =>
+  const stairs = house.stairs;
+
+  const roomLabel = (key: Location, pick: keyof RoomLabels): Bilingual =>
     key === 'outside'
       ? {
           from: pick === 'name' ? labels[from].outside : labels[from].goOutside,
@@ -108,7 +111,27 @@ export function describe(
       // adding a door costs no new text.
       const edge = graph.traverse(where, opening.id);
       if (edge === undefined) return base; // door doesn't touch this side
-      return { ...base, action: { label: roomLabel(edge.to, 'enter'), doorId: opening.id } };
+      return { ...base, action: { label: roomLabel(edge.to, 'enter'), edgeId: opening.id } };
+    }
+
+    case 'stair': {
+      const stair = stairs.find((s) => s.id === selection.id);
+      if (stair === undefined) return null;
+      const mid = stair.treads[Math.floor(stair.treads.length / 2)];
+      const base = {
+        subject: noun(labels, from, to, 'stairs'),
+        context: here,
+        anchor: [mid[0], mid[1] + 0.45, mid[2]] as Vec3,
+      };
+      const edge = graph.traverse(where, stair.id);
+      if (edge === undefined) return base; // you're not at either end of it
+      // Which phrase depends on the DIRECTION of travel, which is a fact about
+      // where you're standing — not about the stair.
+      const goingUp = where === stair.connects[0];
+      return {
+        ...base,
+        action: { label: roomLabel(edge.to, goingUp ? 'up' : 'down'), edgeId: stair.id },
+      };
     }
 
     case 'part': {

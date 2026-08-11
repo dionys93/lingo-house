@@ -6,7 +6,7 @@
 
 import { describe as suite, it, expect } from 'vitest';
 import { compileHouse } from '../core/house';
-import { buildDoorGraph } from '../core/nav';
+import { buildNavGraph } from '../core/nav';
 import { describe } from '../core/describe';
 import type { LabelTable, Locale, NounKey } from '../core/labels';
 import type { Selection } from '../core/explorer';
@@ -15,17 +15,17 @@ import { defineRoom, type Grid, type ItemDef, type Opening } from '../core/block
 const K = defineRoom({
   key: 'kitchen',
   labels: {
-    en: { name: 'the kitchen', enter: 'Open the door to the kitchen' },
-    es: { name: 'la cocina', enter: 'Abre la puerta de la cocina' },
-    de: { name: 'die Küche', enter: 'Öffne die Tür zur Küche' },
+    en: { name: 'the kitchen', enter: 'Open the door to the kitchen', up: 'Go up to the kitchen', down: 'Go down to the kitchen' },
+    es: { name: 'la cocina', enter: 'Abre la puerta de la cocina', up: 'Sube a la cocina', down: 'Baja a la cocina' },
+    de: { name: 'die Küche', enter: 'Öffne die Tür zur Küche', up: 'Geh hinauf in die Küche', down: 'Geh hinunter in die Küche' },
   },
 });
 const L = defineRoom({
   key: 'livingRoom',
   labels: {
-    en: { name: 'the living room', enter: 'Open the door to the living room' },
-    es: { name: 'la sala', enter: 'Abre la puerta de la sala' },
-    de: { name: 'das Wohnzimmer', enter: 'Öffne die Tür zum Wohnzimmer' },
+    en: { name: 'the living room', enter: 'Open the door to the living room', up: 'Go up to the living room', down: 'Go down to the living room' },
+    es: { name: 'la sala', enter: 'Abre la puerta de la sala', up: 'Sube a la sala', down: 'Baja a la sala' },
+    de: { name: 'das Wohnzimmer', enter: 'Öffne die Tür zum Wohnzimmer', up: 'Geh hinauf ins Wohnzimmer', down: 'Geh hinunter ins Wohnzimmer' },
   },
 });
 
@@ -44,6 +44,7 @@ const WORDS = {
   floor: { en: 'the floor', es: 'el suelo', de: 'der Boden' },
   ceiling: { en: 'the ceiling', es: 'el techo', de: 'die Decke' },
   roof: { en: 'the roof', es: 'el tejado', de: 'das Dach' },
+  stairs: { en: 'the stairs', es: 'la escalera', de: 'die Treppe' },
 } as const satisfies Record<NounKey, Record<Locale, string>>;
 
 const nounsIn = (l: Locale): Record<NounKey, string> =>
@@ -77,7 +78,7 @@ const asHouse = (openings: readonly Opening[], items: readonly ItemDef[] = []) =
 
 const house = asHouse([...DOORS], [...ITEMS]);
 const compiled = house.storeys[0].grid;
-const graph = buildDoorGraph(compiled.openings);
+const graph = buildNavGraph(compiled.openings);
 
 const doorIds = compiled.openings.filter((o) => o.kind === 'door').map((o) => o.id);
 const [interiorDoor, frontDoor] = doorIds;
@@ -113,7 +114,7 @@ suite('describe — the traversal phrase', () => {
     const fromLiving = at({ on: 'opening', id: interiorDoor }, 'livingRoom')!;
     expect(fromKitchen.action!.label.to).toBe('Abre la puerta de la sala');
     expect(fromLiving.action!.label.to).toBe('Abre la puerta de la cocina');
-    expect(fromKitchen.action!.doorId).toBe(interiorDoor);
+    expect(fromKitchen.action!.edgeId).toBe(interiorDoor);
   });
 
   it('uses the outside phrase when the destination is not a room', () => {
@@ -133,7 +134,7 @@ suite('describe — the traversal phrase', () => {
       { on: 'opening', id: win.id },
       'kitchen',
       h,
-      buildDoorGraph(h.storeys[0].grid.openings),
+      buildNavGraph(h.storeys[0].grid.openings),
       LABELS,
       'en',
       'es',
@@ -163,11 +164,55 @@ suite('describe — popup placement', () => {
       { on: 'opening', id: win.id },
       'kitchen',
       h,
-      buildDoorGraph(h.storeys[0].grid.openings),
+      buildNavGraph(h.storeys[0].grid.openings),
       LABELS,
       'en',
       'es',
     )!;
     expect(d.anchor[1]).toBeCloseTo(0.65); // (0.4 + 0.9) / 2
+  });
+});
+
+suite('describe — stairs', () => {
+  // A two-storey fixture: the kitchen below, the living room above, joined by a
+  // stair. Contrived, but it exercises the only thing that matters here — which
+  // phrase you get depends on which end you're standing at.
+  const twoStorey = (() => {
+    const r = compileHouse([
+      {
+        level: 0,
+        grid: [[K], [K], [K]],
+        openings: [{ kind: 'door', cell: [2, 0], side: 'front', swing: 'out' }],
+        stairs: [{ id: 'st', from: [2, 0], to: [1, 0] }],
+      },
+      { level: 1, grid: [[L], [L], [L]] },
+    ]);
+    if (!r.ok) throw new Error(JSON.stringify(r.error));
+    return r;
+  })().value;
+  const stairGraph = buildNavGraph(
+    twoStorey.storeys.flatMap((s) => s.grid.openings),
+    twoStorey.stairs,
+  );
+  const atStair = (where: 'kitchen' | 'livingRoom' | 'outside') =>
+    describe({ on: 'stair', id: 'st' }, where, twoStorey, stairGraph, LABELS, 'en', 'es');
+
+  it('names the stairs and hangs the popup on the flight itself', () => {
+    const d = atStair('kitchen')!;
+    expect(d.subject).toEqual({ from: 'the stairs', to: 'la escalera' });
+    expect(d.anchor[1]).toBeGreaterThan(0);
+  });
+
+  it('says CLIMB from the bottom and DESCEND from the top — same stair', () => {
+    expect(atStair('kitchen')!.action!.label.to).toBe('Sube a la sala');
+    expect(atStair('livingRoom')!.action!.label.to).toBe('Baja a la cocina');
+  });
+
+  it('hands nav the stair id, so the popup button drives the same traverse', () => {
+    expect(atStair('kitchen')!.action!.edgeId).toBe('st');
+  });
+
+  it('offers no climb from a room the stair does not touch', () => {
+    expect(atStair('outside')!.action).toBeUndefined();
   });
 });

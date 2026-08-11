@@ -10,7 +10,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { compileHouse, type CompiledStorey } from '../core/house';
 import { describeError, type HouseError } from '../core/errors';
-import { buildDoorGraph, makeNavReducer, START_OUTSIDE, type NavState } from '../core/nav';
+import { buildNavGraph, makeNavReducer, START_OUTSIDE, type NavState } from '../core/nav';
 import { explorerReducer, START_EXPLORER, type Selection } from '../core/explorer';
 import { describe as describeSelection } from '../core/describe';
 import { HOUSE } from '../authoring/rooms';
@@ -20,6 +20,7 @@ import { Floor } from './Floor';
 import { Ceiling } from './Ceiling';
 import { Walls } from './Walls';
 import { Roof } from './Roof';
+import { Stairs } from './Stairs';
 import { Items } from './Items';
 import { Doors } from './Doors';
 import { SelectionPopup } from './SelectionPopup';
@@ -106,7 +107,9 @@ export function HouseScene() {
   const openings = useMemo(() => house?.storeys.flatMap((s) => s.grid.openings) ?? [], [house]);
   const rooms = useMemo(() => house?.storeys.flatMap((s) => s.grid.rooms) ?? [], [house]);
 
-  const graph = useMemo(() => buildDoorGraph(openings), [openings]);
+  // Doors AND stairs — one graph, so climbing is the same kind of move as
+  // walking through a doorway.
+  const graph = useMemo(() => buildNavGraph(openings, house?.stairs ?? []), [openings, house]);
   const reducer = useMemo(() => makeNavReducer(graph), [graph]);
   const [nav, dispatch] = useReducer(reducer, START_OUTSIDE);
   const [explorer, explore] = useReducer(explorerReducer, START_EXPLORER);
@@ -134,8 +137,8 @@ export function HouseScene() {
   const onDismiss = useCallback(() => explore({ tag: 'dismiss' }), []);
   // Traversal is now an ACT OF READING: it happens from the popup's phrase
   // button, and closes the popup so the next room starts clean.
-  const onAct = useCallback((doorId: string) => {
-    dispatch({ tag: 'traverse', doorId });
+  const onAct = useCallback((edgeId: string) => {
+    dispatch({ tag: 'traverse', edgeId });
     explore({ tag: 'dismiss' });
   }, []);
 
@@ -159,6 +162,7 @@ export function HouseScene() {
               />
             ))}
             {/* Once, on top — the roof belongs to the house, not to a storey. */}
+            <Stairs stairs={house.stairs} onPick={(id) => select({ on: 'stair', id })} />
             <Roof roof={house.roof} onPick={(at) => select({ on: 'part', part: 'roof', at })} />
             <CameraRig nav={nav} dispatch={dispatch} rooms={rooms} />
             <InteriorControls nav={nav} rooms={rooms} />
