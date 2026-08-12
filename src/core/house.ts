@@ -25,6 +25,11 @@ export interface CompiledStair {
   readonly arrival: Vec3; // world point you step onto, upstairs
   readonly rise: number; // total climb — one storey
   readonly connects: readonly [WallSide, WallSide]; // [lower room, upper room]
+  // Which flanks of the flight are open floor rather than wall, as seen by
+  // someone CLIMBING. A balustrade belongs on an open side; against a wall it
+  // reads as a mistake. Derived here because only the compiler knows which cells
+  // belong to rooms.
+  readonly openSides: readonly ('left' | 'right')[];
 }
 
 export interface CompiledStorey {
@@ -175,6 +180,8 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
       }
 
       // Every tread must stand in a room on the lower storey…
+      // null for anything that isn't inside a room on that storey — including
+      // cells off the grid entirely, which is what makes the flank test work.
       const roomAt = (g: CompiledGrid, cell: Cell): WallSide | null =>
         g.rooms.find((r) => r.cells.some((c) => sameCell(c, cell)))?.key ?? null;
       const bad = run.find((c) => roomAt(below, c) === null);
@@ -203,6 +210,19 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
       const baseY = s.level * WALL_HEIGHT;
       const centreOf = (g: CompiledGrid, cell: Cell): Vec3 =>
         g.rooms.flatMap((r) => r.cells.map((c, i) => [c, r.floor[i]] as const)).find(([c]) => sameCell(c, cell))![1];
+      // Grid step of the run, and the cell to each flank of it. Walking along
+      // (dr, dc), the climber's left is [r - dc, c + dr] and the right is its
+      // mirror — one rotation, written out rather than re-derived per side.
+      const [ar, ac] = run[0];
+      const [br, bc] = run[1] ?? stair.to;
+      const dr = Math.sign(br - ar);
+      const dc = Math.sign(bc - ac);
+      const flankOpen = (sign: 1 | -1): boolean =>
+        run.every((c) => roomAt(below, [c[0] - sign * dc, c[1] + sign * dr]) !== null);
+      const openSides: ('left' | 'right')[] = [];
+      if (flankOpen(1)) openSides.push('left');
+      if (flankOpen(-1)) openSides.push('right');
+
       stairs.push({
         id: stair.id,
         level: s.level,
@@ -215,6 +235,7 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
         arrival: centreOf(above, arrivalCell),
         rise: WALL_HEIGHT,
         connects: [roomAt(below, stair.from)!, upperRoom],
+        openSides,
       });
     }
   }

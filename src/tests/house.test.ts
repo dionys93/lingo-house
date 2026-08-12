@@ -113,6 +113,12 @@ describe('compileHouse — the stairwell is DERIVED', () => {
     }
   });
 
+  it('derives which flank is open floor, for the balustrade', () => {
+    // GRID_A is 3×2 and the run is down column 0, so the climber's right (column
+    // 1) is room and the left is off the grid entirely.
+    expect(compiled(house()).stairs[0].openSides).toEqual(['right']);
+  });
+
   it('derives the arrival cell one step past the top tread, and the rooms it joins', () => {
     const h = compiled(house());
     const [stair] = h.stairs;

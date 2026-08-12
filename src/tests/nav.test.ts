@@ -163,6 +163,7 @@ describe('buildNavGraph — stairs are edges like doors', () => {
     arrival: [0, 1.2, 0],
     rise: 1.2,
     connects: [a, b],
+    openSides: ['right'],
   });
 
   const graph = buildNavGraph(

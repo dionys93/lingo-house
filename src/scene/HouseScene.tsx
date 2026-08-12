@@ -21,6 +21,7 @@ import { Ceiling } from './Ceiling';
 import { Walls } from './Walls';
 import { Roof } from './Roof';
 import { Stairs } from './Stairs';
+import { SurfaceProvider } from './surfaces/SurfaceProvider';
 import { vantageFrom, type Vantage } from './vantage';
 import { Items } from './Items';
 import { Doors } from './Doors';
@@ -167,7 +168,7 @@ export function HouseScene() {
         <directionalLight position={[5, 8, 5]} intensity={1} />
         <Ground />
         {house && (
-          <>
+          <SurfaceProvider>
             {house.storeys.map((storey) => (
               <Storey
                 key={storey.level}
@@ -191,7 +192,7 @@ export function HouseScene() {
                 onDismiss={onDismiss}
               />
             )}
-          </>
+          </SurfaceProvider>
         )}
         <OrbitControls
           enabled={outside}
