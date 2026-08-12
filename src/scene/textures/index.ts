@@ -1,26 +1,13 @@
 // src/scene/textures/index.ts
 //
-// The texture registry — the answer to "how do textures get into components".
-// A component never constructs a texture; it asks for one BY KEY. Because the
-// key is constrained to TextureKey, a typo is a compile error, not a blank
-// surface at runtime. This is the render-side mirror of the compiler's
-// UnknownTextureKey check: the same "textures are a keyed set, unknown keys are
-// caught" rule, enforced here by the type system instead of a Result.
+// This folder is now just the texture ASSETS and the bespoke generators that
+// produce them (grass). The registry that decides which surface goes on which
+// mesh lives in `scene/surfaces/` — there used to be one here too, and two
+// registries answering the same question is how the next texture gets added to
+// the wrong one.
 //
-// Swapping procedural grass for an image later is a one-line change here — add a
-// factory that loads a file — and no component that says useSceneTexture('grass')
-// has to change.
+// Ground.tsx used to call `useSceneTexture('grass')` from here; it now calls
+// `useSurfaceMaterial('grass', …)` like everything else, which is what gets it
+// per-axis repeat and disposal for free.
 
-import { useMemo } from 'react';
-import * as THREE from 'three';
-import { createGrassTexture } from './grass';
-
-const FACTORIES = {
-  grass: createGrassTexture,
-} as const;
-
-export type TextureKey = keyof typeof FACTORIES;
-
-export function useSceneTexture(key: TextureKey): THREE.Texture {
-  return useMemo(() => FACTORIES[key](), [key]);
-}
+export { createGrassTexture } from './grass';

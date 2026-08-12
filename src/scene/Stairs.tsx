@@ -113,13 +113,17 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
 
   // Face sizes drive the repeat, so the grain is the same physical size on a
   // tread, a stringer and a rail alike. The pair is [u, v] in the geometry's own
-  // UV space, and the ORDER matters: the pattern's rings run along u, so u has
-  // to be the direction the board's grain runs. On a box's top face u maps to x,
-  // which for a tread is its WIDTH — the long axis of the board. Passing depth
-  // first put the grain across the plank instead of along it.
+  // UV space and the ORDER matters: the oak tile is ONE BOARD with its length
+  // along v, so v has to be the direction the board runs. On a box's top face u
+  // maps to x and v to z, so for a tread — a board laid across the flight —
+  // that's [depth, width]. Getting this backwards lays the grain across the
+  // plank instead of along it, which is exactly how the first version looked
+  // wrong however good the texture was.
   const flightLen = Math.hypot(runLen, stair.rise);
-  const tread = useSurfaceMaterial('wood.oak', [WIDTH, going + NOSING]);
-  const stringer = useSurfaceMaterial('wood.oak', [flightLen, STRINGER_DROP + riser]);
+  const tread = useSurfaceMaterial('wood.oak', [going + NOSING, WIDTH]);
+  // The stringer is one long board running up the flight: length along u here,
+  // because the extruded profile's UVs put the shape's own x on u.
+  const stringer = useSurfaceMaterial('wood.oak', [STRINGER_DROP + riser, flightLen]);
   const rail = useSurfaceMaterial('wood.walnut', [flightLen, RAIL_R * 2]);
   const picks = onPick ? pickable(() => onPick()) : {};
 

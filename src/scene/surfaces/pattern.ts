@@ -137,28 +137,35 @@ const luminance = (bytes: Uint8ClampedArray, i: number): number =>
   (bytes[i] * 0.299 + bytes[i + 1] * 0.587 + bytes[i + 2] * 0.114) / 255;
 
 /**
- * A tangent-space normal map derived from `pattern`'s own luminance.
- * `strength` scales the relief: 0 is flat, ~1 is pronounced.
+ * A tangent-space normal map derived from ANY RGBA image's luminance — a
+ * generated pattern or a loaded photograph, it makes no difference. Dark is low,
+ * pale is high, and the gradient of that field is the surface relief.
+ *
+ * Written against raw bytes rather than against `Pattern` precisely so the image
+ * path and the procedural path share it; two copies of this arithmetic drifting
+ * apart is how a photo texture ends up lit differently from a generated one.
+ *
+ * `strength` scales the relief: 0 is flat, ~3 is pronounced.
  */
-export function renderNormalMap(
-  pattern: Pattern,
-  size: number,
+export function normalFromLuminance(
+  rgba: Uint8ClampedArray,
+  width: number,
+  height: number,
   strength: number,
 ): Uint8ClampedArray {
-  const height = renderPattern(pattern, size);
-  const out = new Uint8ClampedArray(size * size * 4);
+  const out = new Uint8ClampedArray(width * height * 4);
   // Wrapping lookups, so the normal map tiles exactly like the colour map does.
   const at = (x: number, y: number): number =>
-    luminance(height, ((((y % size) + size) % size) * size + (((x % size) + size) % size)) * 4);
+    luminance(rgba, ((((y % height) + height) % height) * width + (((x % width) + width) % width)) * 4);
 
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
       const dx = (at(x + 1, y) - at(x - 1, y)) * strength;
       const dy = (at(x, y + 1) - at(x, y - 1)) * strength;
       // The surface normal is (-dx, -dy, 1) normalised, then mapped from
       // [-1,1] into the [0,255] byte range every normal map uses.
       const len = Math.hypot(dx, dy, 1);
-      const i = (y * size + x) * 4;
+      const i = (y * width + x) * 4;
       out[i] = ((-dx / len) * 0.5 + 0.5) * 255;
       out[i + 1] = ((-dy / len) * 0.5 + 0.5) * 255;
       out[i + 2] = (1 / len) * 0.5 * 255 + 127.5;
@@ -167,3 +174,10 @@ export function renderNormalMap(
   }
   return out;
 }
+
+/** The same thing for a generated pattern, which is just a square RGBA image. */
+export const renderNormalMap = (
+  pattern: Pattern,
+  size: number,
+  strength: number,
+): Uint8ClampedArray => normalFromLuminance(renderPattern(pattern, size), size, size, strength);
