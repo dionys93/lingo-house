@@ -1,12 +1,16 @@
 // src/scene/textures/grass.ts
 //
 // A procedural, seamless grass texture — no image asset, so nothing to load or
-// keep in the repo, and it's reproducible. The look comes from stacked octaves
+// keep in the repo, and it's genuinely reproducible: this used to claim to be
+// while calling Math.random(), which made it untestable and gave a different
+// lawn on every reload. Same seeded mulberry32 that pattern.ts uses, for the
+// reason pattern.ts states. The look comes from stacked octaves
 // of TILEABLE value noise (soft clumps) mapped onto a two-green palette, with a
 // little per-pixel grain on top. The two failure modes we're avoiding: a flat
 // single green (reads as plastic) and pure per-pixel noise (reads as static).
 
 import * as THREE from 'three';
+import { mulberry32 } from '../surfaces/pattern';
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 const smoothstep = (t: number): number => t * t * (3 - 2 * t);
@@ -14,8 +18,8 @@ const smoothstep = (t: number): number => t * t * (3 - 2 * t);
 // One octave of tileable value noise: a gridN×gridN field of random values,
 // sampled with WRAPPING indices (so the tile is seamless) and bilinearly
 // interpolated with a smoothstep falloff for soft edges.
-function makeOctave(gridN: number): (u: number, v: number) => number {
-  const field = Array.from({ length: gridN * gridN }, () => Math.random());
+function makeOctave(gridN: number, rand: () => number): (u: number, v: number) => number {
+  const field = Array.from({ length: gridN * gridN }, () => rand());
   const at = (ix: number, iy: number): number => {
     const wx = ((ix % gridN) + gridN) % gridN;
     const wy = ((iy % gridN) + gridN) % gridN;
@@ -34,16 +38,21 @@ function makeOctave(gridN: number): (u: number, v: number) => number {
   };
 }
 
-export function createGrassTexture(size = 256): THREE.CanvasTexture {
+// GRASS_SEED is arbitrary but fixed: change it to get a different lawn, and the
+// same value always gives the same one.
+const GRASS_SEED = 0x5eed_9a55;
+
+export function createGrassTexture(size = 256, seed = GRASS_SEED): THREE.CanvasTexture {
+  const rand = mulberry32(seed);
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
   if (ctx === null) throw new Error('createGrassTexture: 2D canvas context unavailable');
 
-  const o1 = makeOctave(8); // broad patches
-  const o2 = makeOctave(16); // mid clumps
-  const o3 = makeOctave(48); // fine variation
+  const o1 = makeOctave(8, rand); // broad patches
+  const o2 = makeOctave(16, rand); // mid clumps
+  const o3 = makeOctave(48, rand); // fine variation
 
   const dark: readonly [number, number, number] = [54, 88, 40];
   const light: readonly [number, number, number] = [128, 170, 78];
@@ -54,7 +63,7 @@ export function createGrassTexture(size = 256): THREE.CanvasTexture {
       const u = x / size;
       const v = y / size;
       const clump = o1(u, v) * 0.55 + o2(u, v) * 0.3 + o3(u, v) * 0.15;
-      const n = clump * 0.85 + Math.random() * 0.15; // grain on top of the clumps
+      const n = clump * 0.85 + rand() * 0.15; // grain on top of the clumps
       const i = (y * size + x) * 4;
       img.data[i] = lerp(dark[0], light[0], n);
       img.data[i + 1] = lerp(dark[1], light[1], n);

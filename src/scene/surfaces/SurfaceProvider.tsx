@@ -24,13 +24,16 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import * as THREE from 'three';
+import { useThree } from '@react-three/fiber';
 import { normalFromLuminance, renderPattern } from './pattern';
 import { SURFACES, type SurfaceKey, type SurfaceSpec } from './registry';
 
@@ -39,27 +42,50 @@ interface Built {
   readonly normalMap: THREE.Texture | null; // null when the spec asks for no relief
 }
 
-interface Store {
-  readonly base: ReadonlyMap<SurfaceKey, Built>;
-  readonly variants: Map<string, Built>; // key|rx|ry → clones carrying their own repeat
-  readonly disposables: THREE.Texture[];
+/** One surface cloned to carry a specific repeat. */
+interface Variant {
+  readonly map: THREE.Texture;
+  readonly normalMap: THREE.Texture | null;
 }
 
-const EMPTY: Store = { base: new Map(), variants: new Map(), disposables: [] };
-const SurfaceContext = createContext<Store>(EMPTY);
+interface Store {
+  readonly base: ReadonlyMap<SurfaceKey, Built>;
+  /**
+   * Clone-and-cache a repeat variant for a face of `rx`×`ry` tiles.
+   *
+   * SIDE-EFFECTING: allocates GPU resources. Call it from an effect, never from
+   * render. It used to be called inline in a `useMemo`, which put two mutations
+   * (`variants.set`, `disposables.push`) in the render phase — see the note on
+   * the variant cache in the provider for what that actually cost.
+   */
+  readonly acquire: (key: SurfaceKey, rx: number, ry: number) => Variant | null;
+}
 
-function configure(tex: THREE.Texture, srgb: boolean): THREE.Texture {
+const NO_SURFACES: Store = { base: new Map(), acquire: () => null };
+const SurfaceContext = createContext<Store>(NO_SURFACES);
+
+function configure(tex: THREE.Texture, srgb: boolean, anisotropy: number): THREE.Texture {
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   // Colour maps are authored in sRGB; a normal map is DATA — vectors, not
   // colour — and colour-managing it would bend every normal it encodes.
   tex.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-  tex.anisotropy = 4;
+  // Asked of the renderer rather than guessed. The hardcoded 4 cost real
+  // sharpness on the 40-unit ground plane, which is viewed almost edge-on at
+  // the camera's polar cap — precisely the case anisotropic filtering exists
+  // for. Every device we target reports 16.
+  tex.anisotropy = anisotropy;
   tex.needsUpdate = true;
   return tex;
 }
 
-function canvasTexture(bytes: Uint8ClampedArray, w: number, h: number, srgb: boolean): THREE.Texture {
+function canvasTexture(
+  bytes: Uint8ClampedArray,
+  w: number,
+  h: number,
+  srgb: boolean,
+  anisotropy: number,
+): THREE.Texture {
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -70,7 +96,7 @@ function canvasTexture(bytes: Uint8ClampedArray, w: number, h: number, srgb: boo
   const image = ctx.createImageData(w, h);
   image.data.set(bytes);
   ctx.putImageData(image, 0, 0);
-  return configure(new THREE.CanvasTexture(canvas), srgb);
+  return configure(new THREE.CanvasTexture(canvas), srgb, anisotropy);
 }
 
 /** Read a loaded image's pixels back out, so a normal map can be derived. */
@@ -85,18 +111,32 @@ function pixelsOf(image: TexImageSource, w: number, h: number): Uint8ClampedArra
 }
 
 export function SurfaceProvider({ children }: { children: ReactNode }) {
-  const [store, setStore] = useState<Store>(EMPTY);
+  // The renderer knows its own limit; we were guessing 4.
+  const maxAnisotropy = useThree((s) => s.gl.capabilities.getMaxAnisotropy());
+
+  const [base, setBase] = useState<ReadonlyMap<SurfaceKey, Built>>(() => new Map());
+
+  // Repeat-variants live in a REF, deliberately not in published state.
+  //
+  // They used to be a `variants: new Map()` field on the store object, minted
+  // fresh on every publish. Publishing happens once synchronously and again per
+  // image that resolves — so the moment the oak plank finished loading, every
+  // variant built before it was orphaned and re-cloned from scratch. A ref
+  // survives publishes, so a variant is cloned once and stays valid: `publish`
+  // copies the base Map but the `Built` values inside it are the same objects.
+  const variants = useRef(new Map<string, Variant>());
 
   useEffect(() => {
     let live = true;
     const base = new Map<SurfaceKey, Built>();
     const disposables: THREE.Texture[] = [];
+    const cache = variants.current;
     const publish = () => {
       if (live) {
         // A surface that never arrives is invisible: the mesh keeps its fallback
         // colour and looks like a styling choice. Say what actually got built.
         console.info('[surfaces] built:', [...base.keys()]);
-        setStore({ base: new Map(base), variants: new Map(), disposables });
+        setBase(new Map(base));
       }
     };
 
@@ -115,7 +155,7 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
         const size = spec.size ?? 128;
         const rgba = renderPattern(spec.source.pattern, size);
         remember(key, {
-          map: canvasTexture(rgba, size, size, true),
+          map: canvasTexture(rgba, size, size, true, maxAnisotropy),
           normalMap:
             spec.normalStrength > 0
               ? canvasTexture(
@@ -123,6 +163,7 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
                 size,
                 size,
                 false,
+                maxAnisotropy,
               )
               : null,
         });
@@ -130,20 +171,24 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
       }
 
       if (spec.source.kind === 'generator') {
-        remember(key, { map: configure(spec.source.make(), true), normalMap: null });
+        remember(key, { map: configure(spec.source.make(), true, maxAnisotropy), normalMap: null });
         continue;
       }
 
       // Image: the texture itself is ready when three says so, and only then can
       // its pixels be read back to derive relief.
+      // Hoisted: inside the deferred onError callback TypeScript has dropped the
+      // `kind === 'image'` narrowing on spec.source, so reading .url there is a
+      // strict-mode error. Capturing it here keeps the message and the type.
+      const url = spec.source.url;
       loader.load(
-        spec.source.url,
+        url,
         (tex) => {
           if (!live) {
             tex.dispose();
             return;
           }
-          configure(tex, true);
+          configure(tex, true, maxAnisotropy);
           let normalMap: THREE.Texture | null = null;
           if (spec.normalStrength > 0 && tex.image) {
             const w = tex.image.width as number;
@@ -151,7 +196,14 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
             const rgba = pixelsOf(tex.image as TexImageSource, w, h);
             // A cross-origin image would taint the canvas and getImageData throws;
             // ours is bundled, but losing relief beats losing the whole surface.
-            if (rgba) normalMap = canvasTexture(normalFromLuminance(rgba, w, h, spec.normalStrength), w, h, false);
+            if (rgba)
+              normalMap = canvasTexture(
+                normalFromLuminance(rgba, w, h, spec.normalStrength),
+                w,
+                h,
+                false,
+                maxAnisotropy,
+              );
           }
           remember(key, { map: tex, normalMap });
           publish();
@@ -164,7 +216,7 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
         // from the texture having loaded and simply looking plain. That is the
         // whole reason a missing surface is so expensive to diagnose.
         (err) => {
-          console.error(`[surfaces] ${key} FAILED to load: ${spec.source.url}`, err);
+          console.error(`[surfaces] ${key} FAILED to load: ${url}`, err);
         },
       );
     }
@@ -174,8 +226,48 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
     return () => {
       live = false;
       disposables.forEach((t) => t.dispose());
+      // Variants clone `.source` from the bases above, so disposing a base
+      // disposes its clones' pixels too. They have to go together or a
+      // StrictMode remount leaves consumers holding dead textures.
+      cache.forEach((v) => {
+        v.map.dispose();
+        v.normalMap?.dispose();
+      });
+      cache.clear();
     };
-  }, []);
+  }, [maxAnisotropy]);
+
+  const acquire = useCallback(
+    (key: SurfaceKey, rx: number, ry: number): Variant | null => {
+      const source = base.get(key);
+      if (source === undefined) return null;
+
+      const id = `${key}|${rx}|${ry}`;
+      const hit = variants.current.get(id);
+      if (hit !== undefined) return hit;
+
+      // `repeat` lives on the Texture, not the material, so two scales need two
+      // Textures. `clone()` shares `.source`, so every variant of one surface is
+      // still a single GPU upload — the cost is a wrapper object, not an image.
+      const map = source.map.clone();
+      map.repeat.set(rx, ry);
+      map.needsUpdate = true;
+
+      let normalMap: THREE.Texture | null = null;
+      if (source.normalMap) {
+        normalMap = source.normalMap.clone();
+        normalMap.repeat.set(rx, ry);
+        normalMap.needsUpdate = true;
+      }
+
+      const variant: Variant = { map, normalMap };
+      variants.current.set(id, variant);
+      return variant;
+    },
+    [base],
+  );
+
+  const store = useMemo<Store>(() => ({ base, acquire }), [base, acquire]);
 
   return <SurfaceContext.Provider value={store}>{children}</SurfaceContext.Provider>;
 }
@@ -202,48 +294,37 @@ export function useSurfaceMaterial(
   key: SurfaceKey,
   worldSize: readonly [number, number],
 ): SurfaceMaterial | null {
-  const store = useContext(SurfaceContext);
+  const { acquire } = useContext(SurfaceContext);
   const spec = SURFACES[key];
 
-  // Rounded so near-identical meshes share one clone instead of minting a
-  // texture per pixel of difference. At least 1, or the tile vanishes.
+  // PURE: what size of tile this face needs. Rounded so near-identical meshes
+  // share one clone instead of minting a texture per pixel of difference. At
+  // least 1, or the tile vanishes.
   const rx = Math.max(1, Math.round(worldSize[0] / spec.worldScale[0]));
   const ry = Math.max(1, Math.round(worldSize[1] / spec.worldScale[1]));
 
-  return useMemo(() => {
-    const source = store.base.get(key);
-    if (source === undefined) return null;
+  // EFFECTFUL: cloning a texture is a GPU allocation, so it happens after
+  // commit, not during render. `acquire` changes identity when new surfaces
+  // publish, which is what re-runs this and picks up a late-loading image.
+  const [variant, setVariant] = useState<Variant | null>(null);
+  useEffect(() => {
+    setVariant(acquire(key, rx, ry));
+  }, [acquire, key, rx, ry]);
 
-    const id = `${key}|${rx}|${ry}`;
-    let variant = store.variants.get(id);
-    if (variant === undefined) {
-      // `repeat` lives on the Texture, not the material, so two scales need two
-      // Textures. `clone()` shares `.source`, so every variant of one surface is
-      // still a single GPU upload — the cost is a wrapper object, not an image.
-      const map = source.map.clone();
-      map.repeat.set(rx, ry);
-      map.needsUpdate = true;
-      let normalMap: THREE.Texture | null = null;
-      if (source.normalMap) {
-        normalMap = source.normalMap.clone();
-        normalMap.repeat.set(rx, ry);
-        normalMap.needsUpdate = true;
-        store.disposables.push(normalMap);
-      }
-      variant = { map, normalMap };
-      store.variants.set(id, variant);
-      store.disposables.push(map);
-    }
-
-    return {
-      map: variant.map,
-      normalMap: variant.normalMap,
-      normalScale: new THREE.Vector2(spec.normalScale, spec.normalScale),
-      roughness: spec.roughness,
-      metalness: spec.metalness,
-      color: '#ffffff', // white, so the map's own colour comes through untinted
-    };
-  }, [store, key, rx, ry, spec]);
+  return useMemo(
+    () =>
+      variant === null
+        ? null
+        : {
+          map: variant.map,
+          normalMap: variant.normalMap,
+          normalScale: new THREE.Vector2(spec.normalScale, spec.normalScale),
+          roughness: spec.roughness,
+          metalness: spec.metalness,
+          color: '#ffffff', // white, so the map's own colour comes through untinted
+        },
+    [variant, spec],
+  );
 }
 
 /**

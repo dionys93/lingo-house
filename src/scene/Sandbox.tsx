@@ -17,6 +17,9 @@ import { compileGrid, roofFor } from '../core/grid';
 import { defineRoom, type Grid, type RoomLabels } from '../core/blocks';
 import { LOCALES, type Locale } from '../core/labels';
 import { Ground } from './Ground';
+import { SurfaceProvider } from './surfaces/SurfaceProvider';
+import { HouseLights } from './HouseLights';
+import { EXTERIOR_RIG } from './lights';
 import { Floor } from './Floor';
 import { Walls } from './Walls';
 import { Roof } from './Roof';
@@ -72,18 +75,24 @@ export function Sandbox() {
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
-      <Canvas camera={{ position: [3, 2.4, 3.6], fov: 50 }}>
+      <Canvas shadows dpr={[1, 2]} camera={{ position: [3, 2.4, 3.6], fov: 50 }}>
         <color attach="background" args={['#dce8f5']} />
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[5, 8, 5]} intensity={1} />
-        <Ground />
-        {compiled && (
-          <>
-            <Floor grid={compiled} />
-            <Walls grid={compiled} />
-            {roof && <Roof roof={roof} />}
-          </>
-        )}
+        {/* The same rig HouseScene and the lab use. This scene had its own third
+            copy — ambient 0.6 and a sun at [5,8,5] — so it was judging roof
+            shapes under light the house hasn't used since rigFor landed. */}
+        <HouseLights rig={EXTERIOR_RIG} />
+        {/* Ground is the only consumer of the `grass` surface and was rendering
+            outside the provider, so this scene alone showed flat green. */}
+        <SurfaceProvider>
+          <Ground />
+          {compiled && (
+            <>
+              <Floor grid={compiled} />
+              <Walls grid={compiled} />
+              {roof && <Roof roof={roof} />}
+            </>
+          )}
+        </SurfaceProvider>
         <OrbitControls
           enablePan={false}
           target={[0, 0.5, 0]}
