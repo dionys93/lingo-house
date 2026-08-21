@@ -11,6 +11,7 @@ import type { Vec3 } from '../core/grid';
 import type { Gable, MeshData, RoofMesh } from '../core/roof';
 import { WALL_THICKNESS, HOUSE_SIDING } from './wallMaterials';
 import { pickable } from './pickable';
+import { SOLID } from './shadows';
 
 const ROOF_COLOR = '#a86b4c'; // terracotta
 
@@ -67,10 +68,10 @@ export function Roof({ roof, onPick }: { roof: RoofMesh; onPick?: (at: Vec3) => 
 
   return (
     <>
-      <mesh geometry={slopeGeo} {...picks}>
+      <mesh geometry={slopeGeo} {...SOLID} {...picks}>
         <meshStandardMaterial color={ROOF_COLOR} side={THREE.DoubleSide} roughness={0.9} />
       </mesh>
-      <mesh geometry={gableGeo} {...picks}>
+      <mesh geometry={gableGeo} {...SOLID} {...picks}>
         <meshStandardMaterial color={HOUSE_SIDING} side={THREE.DoubleSide} roughness={0.9} />
       </mesh>
     </>

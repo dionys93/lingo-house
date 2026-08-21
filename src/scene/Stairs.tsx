@@ -32,6 +32,7 @@ import type { CompiledStair } from '../core/house';
 import { CELL, type Vec3 } from '../core/grid';
 import { pickable } from './pickable';
 import { useSurfaceMaterial } from './surfaces/SurfaceProvider';
+import { SOLID } from './shadows';
 
 type Triple = [number, number, number];
 
@@ -148,6 +149,7 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
           to centre it on the stringer line. */}
       {(['left', 'right'] as const).map((side) => (
         <mesh
+          {...SOLID}
           key={side}
           geometry={profile}
           position={[sideX(side) + STRINGER_T / 2, 0, 0]}
@@ -165,7 +167,7 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
       {steps.map(({ i, top, front }) => (
         <group key={i}>
           {/* Tread, overhanging its riser: the overhang is the shadow line. */}
-          <mesh position={[0, top - TREAD_T / 2, front + (going - NOSING) / 2]} {...picks}>
+          <mesh position={[0, top - TREAD_T / 2, front + (going - NOSING) / 2]} {...SOLID} {...picks}>
             <boxGeometry args={[WIDTH, TREAD_T, going + NOSING]} />
             {tread ? (
               <meshStandardMaterial {...tread} />
@@ -175,7 +177,7 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
           </mesh>
 
           {/* Riser, set back behind the nose so the tread reads as a board. */}
-          <mesh position={[0, top - riser / 2 - TREAD_T / 2, front + NOSING]} {...picks}>
+          <mesh position={[0, top - riser / 2 - TREAD_T / 2, front + NOSING]} {...SOLID} {...picks}>
             <boxGeometry args={[WIDTH, riser - TREAD_T, 0.018]} />
             <meshStandardMaterial color={RISER_COLOR} roughness={0.95} />
           </mesh>
@@ -188,6 +190,7 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
         return (
           <group key={side}>
             <mesh
+              {...SOLID}
               position={[
                 x,
                 stair.rise / 2 + RAIL_H * Math.cos(pitch),
@@ -208,7 +211,7 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
             {steps
               .filter(({ i }) => i % 2 === 0)
               .map(({ i, top, front }) => (
-                <mesh key={i} position={[x, top + RAIL_H / 2 - TREAD_T, front + going / 2]}>
+                <mesh key={i} position={[x, top + RAIL_H / 2 - TREAD_T, front + going / 2]} {...SOLID}>
                   <boxGeometry args={[POST * 0.4, RAIL_H, POST * 0.4]} />
                   <meshStandardMaterial color={METAL} roughness={0.5} metalness={0.35} />
                 </mesh>
@@ -219,7 +222,7 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
               { y: RAIL_H / 2, z: 0 },
               { y: stair.rise + RAIL_H / 2 - TREAD_T, z: runLen },
             ].map((p, k) => (
-              <mesh key={k} position={[x, p.y, p.z]}>
+              <mesh key={k} position={[x, p.y, p.z]} {...SOLID}>
                 <boxGeometry args={[POST, RAIL_H, POST]} />
                 <meshStandardMaterial color={METAL} roughness={0.5} metalness={0.35} />
               </mesh>

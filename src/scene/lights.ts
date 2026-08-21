@@ -26,6 +26,29 @@ export interface LightRig {
   readonly sunCastsShadow: boolean;
 }
 
+// Where the sun stands. This is DATA, not a detail of the light component,
+// because it's coupled to the default camera and to the shadow frustum, and
+// those three have to be reasoned about together.
+//
+// It used to be [5, 8, 5], which is azimuth 45° — only 6° from the default
+// camera's own azimuth of 39°. That is front lighting, and it has two effects
+// that look unrelated but are the same fact:
+//
+//   - Every face you can see is a face pointing at the sun, so shading looks
+//     bright and confident.
+//   - Every shadow falls DIRECTLY BEHIND the thing casting it. The house is
+//     ~3.2 units tall and 3 wide, so from the camera's 29° elevation the line
+//     of sight to its own ground shadow passes straight through the building.
+//     The shadows were rendering; the house was standing in front of all of
+//     them.
+//
+// [-6, 7, 2] is azimuth -72°, about 110° off the camera. Three-quarter lighting:
+// the front face stays lit, the right face falls into shade, and the ground
+// shadow swings out to the side where you can actually see it. Elevation is
+// nearly unchanged at 48°, so the shading character is the same — only the
+// direction moved.
+export const SUN_POSITION: readonly [number, number, number] = [-6, 7, 2];
+
 // Sun-first. Relief and edges read hard; shadows ground the house on the grass.
 export const EXTERIOR_RIG: LightRig = {
   ambient: 0.15,

@@ -16,6 +16,7 @@ import type { JSX } from 'react';
 import type { CompiledGrid, CompiledItem } from '../core/grid';
 import { ITEM_SPECS } from '../core/grid';
 import type { ItemKind } from '../core/blocks';
+import { IGNORED, SOLID } from './shadows';
 
 const TABLE_TOP = '#8a6a4f'; // walnut
 const TABLE_LEG = '#6f523c';
@@ -29,7 +30,7 @@ function Table(): JSX.Element {
   const lx = w / 2 - inset - legS / 2;
   const lz = d / 2 - inset - legS / 2;
   const legAt = ([sx, sz]: readonly [number, number]): JSX.Element => (
-    <mesh key={`${sx},${sz}`} position={[sx * lx, legH / 2, sz * lz]}>
+    <mesh key={`${sx},${sz}`} position={[sx * lx, legH / 2, sz * lz]} {...SOLID}>
       <boxGeometry args={[legS, legH, legS]} />
       <meshStandardMaterial color={TABLE_LEG} roughness={0.85} />
     </mesh>
@@ -37,7 +38,7 @@ function Table(): JSX.Element {
   const corners: readonly (readonly [number, number])[] = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
   return (
     <>
-      <mesh position={[0, h - topT / 2, 0]}>
+      <mesh position={[0, h - topT / 2, 0]} {...SOLID}>
         <boxGeometry args={[w, topT, d]} />
         <meshStandardMaterial color={TABLE_TOP} roughness={0.7} />
       </mesh>
@@ -59,21 +60,21 @@ function Laptop(): JSX.Element {
   const lidTilt = -0.28; // radians past upright, leaning away from the viewer
   return (
     <>
-      <mesh position={[0, baseT / 2, 0]}>
+      <mesh position={[0, baseT / 2, 0]} {...SOLID}>
         <boxGeometry args={[w, baseT, d]} />
         <meshStandardMaterial color={LAPTOP_BODY} roughness={0.5} metalness={0.25} />
       </mesh>
-      <mesh position={[0, baseT + 0.001, 0.008]}>
+      <mesh position={[0, baseT + 0.001, 0.008]} {...SOLID}>
         <boxGeometry args={[w * 0.82, 0.002, d * 0.62]} />
         <meshStandardMaterial color={LAPTOP_KEYS} roughness={0.8} />
       </mesh>
       {/* Hinged at the back edge: the group pivots, the lid hangs off it. */}
       <group position={[0, baseT, -d / 2]} rotation={[lidTilt, 0, 0]}>
-        <mesh position={[0, (h - baseT) / 2, lidT / 2]}>
+        <mesh position={[0, (h - baseT) / 2, lidT / 2]} {...SOLID}>
           <boxGeometry args={[w, h - baseT, lidT]} />
           <meshStandardMaterial color={LAPTOP_BODY} roughness={0.5} metalness={0.25} />
         </mesh>
-        <mesh position={[0, (h - baseT) / 2, lidT]}>
+        <mesh position={[0, (h - baseT) / 2, lidT]} {...SOLID}>
           <boxGeometry args={[w * 0.88, (h - baseT) * 0.84, 0.001]} />
           <meshStandardMaterial
             color={LAPTOP_SCREEN}
@@ -97,11 +98,11 @@ function Tv(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.tv;
   return (
     <>
-      <mesh position={[0, h / 2, 0]}>
+      <mesh position={[0, h / 2, 0]} {...SOLID}>
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={TV_BEZEL} roughness={0.45} />
       </mesh>
-      <mesh position={[0, h / 2, d / 2 + 0.001]}>
+      <mesh position={[0, h / 2, d / 2 + 0.001]} {...SOLID}>
         <boxGeometry args={[w * 0.93, h * 0.88, 0.002]} />
         <meshStandardMaterial
           color={TV_SCREEN}
@@ -146,6 +147,7 @@ function ClickProxy({
   const size: [number, number, number] = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
   return (
     <mesh
+      {...IGNORED}
       position={centre}
       onClick={(e) => {
         e.stopPropagation();

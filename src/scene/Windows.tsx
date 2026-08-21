@@ -12,6 +12,7 @@ import { pickable } from './pickable';
 import { openingFloorY } from '../core/grid';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
 import { roomOf, styleForRoom } from './windowStyles';
+import { IGNORED, SOLID } from './shadows';
 
 type WindowOpening = Extract<CompiledOpening, { kind: 'window' }>;
 
@@ -41,7 +42,7 @@ function Infill({
   const pos: Triple = [axis === 'z' ? a[0] : midX, (y0 + y1) / 2, axis === 'z' ? midZ : a[2]];
   const colors = faceColors(axis, sides, colorOf);
   return (
-    <mesh position={pos}>
+    <mesh position={pos} {...SOLID}>
       <boxGeometry args={size} />
       {colors.map((c, i) => (
         <meshStandardMaterial key={i} attach={`material-${i}`} color={c} />
@@ -54,7 +55,7 @@ function Infill({
 // y = up, z = wall normal), then the whole group is oriented per axis.
 function Bar({ w, h, x, y, color }: { w: number; h: number; x: number; y: number; color: string }) {
   return (
-    <mesh position={[x, y, 0]}>
+    <mesh position={[x, y, 0]} {...SOLID}>
       <boxGeometry args={[w, h, FRAME_DEPTH]} />
       <meshStandardMaterial color={color} />
     </mesh>
@@ -96,7 +97,7 @@ function WindowInstance({
 
       <group position={position} rotation={[0, rotationY, 0]} {...(onPick ? pickable(onPick) : {})}>
         {/* glass */}
-        <mesh position={[0, midY, 0]}>
+        <mesh position={[0, midY, 0]} {...IGNORED}>
           <boxGeometry args={[innerW, innerH, GLASS_DEPTH]} />
           <meshStandardMaterial
             color={style.glass}

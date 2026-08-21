@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { CELL, type CompiledGrid, type Vec3 } from '../core/grid';
 import type { Cell } from '../core/errors';
 import { pickable } from './pickable';
+import { BLOCKS, CATCHES } from './shadows';
 
 export function RoomTiles({
   grid,
@@ -33,6 +34,9 @@ export function RoomTiles({
   // Undefined onPick = not pickable at all, rather than a no-op handler that
   // would still swallow clicks meant for whatever is behind the tile.
   const picks = onPick ? pickable(onPick) : {};
+  // Derived from faceUp, not a second prop: a floor faces up and catches, a
+  // ceiling faces down and blocks. Two props could disagree; one cannot.
+  const shadow = faceUp ? CATCHES : BLOCKS;
   return (
     <>
       {grid.rooms.flatMap((room) =>
@@ -44,6 +48,7 @@ export function RoomTiles({
             key={`${room.key}-${i}`}
             position={[centre[0], y, centre[2]]}
             rotation={[rotX, 0, 0]}
+            {...shadow}
             {...picks}
           >
             <planeGeometry args={[CELL, CELL]} />

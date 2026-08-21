@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { openingFloorY, type CompiledGrid, type CompiledOpening } from '../core/grid';
 import type { NavState } from '../core/nav';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
+import { SOLID } from './shadows';
 
 type DoorOpening = Extract<CompiledOpening, { kind: 'door' }>;
 
@@ -68,7 +69,7 @@ function DoorInstance({
 
   return (
     <group>
-      <mesh position={lintelPos}>
+      <mesh position={lintelPos} {...SOLID}>
         <boxGeometry args={lintelSize} />
         {lintelColors.map((c, i) => (
           <meshStandardMaterial key={i} attach={`material-${i}`} color={c} />
@@ -77,6 +78,7 @@ function DoorInstance({
 
       <group ref={hinge} position={[a[0], floorY, a[2]]}>
         <mesh
+          {...SOLID}
           position={panelOffset}
           onClick={(e) => {
             e.stopPropagation();
