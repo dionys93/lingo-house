@@ -92,7 +92,12 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
     const base = new Map<SurfaceKey, Built>();
     const disposables: THREE.Texture[] = [];
     const publish = () => {
-      if (live) setStore({ base: new Map(base), variants: new Map(), disposables });
+      if (live) {
+        // A surface that never arrives is invisible: the mesh keeps its fallback
+        // colour and looks like a styling choice. Say what actually got built.
+        console.info('[surfaces] built:', [...base.keys()]);
+        setStore({ base: new Map(base), variants: new Map(), disposables });
+      }
     };
 
     const remember = (key: SurfaceKey, built: Built) => {
@@ -114,11 +119,11 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
           normalMap:
             spec.normalStrength > 0
               ? canvasTexture(
-                  normalFromLuminance(rgba, size, size, spec.normalStrength),
-                  size,
-                  size,
-                  false,
-                )
+                normalFromLuminance(rgba, size, size, spec.normalStrength),
+                size,
+                size,
+                false,
+              )
               : null,
         });
         continue;
@@ -131,24 +136,37 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
 
       // Image: the texture itself is ready when three says so, and only then can
       // its pixels be read back to derive relief.
-      loader.load(spec.source.url, (tex) => {
-        if (!live) {
-          tex.dispose();
-          return;
-        }
-        configure(tex, true);
-        let normalMap: THREE.Texture | null = null;
-        if (spec.normalStrength > 0 && tex.image) {
-          const w = tex.image.width as number;
-          const h = tex.image.height as number;
-          const rgba = pixelsOf(tex.image as TexImageSource, w, h);
-          // A cross-origin image would taint the canvas and getImageData throws;
-          // ours is bundled, but losing relief beats losing the whole surface.
-          if (rgba) normalMap = canvasTexture(normalFromLuminance(rgba, w, h, spec.normalStrength), w, h, false);
-        }
-        remember(key, { map: tex, normalMap });
-        publish();
-      });
+      loader.load(
+        spec.source.url,
+        (tex) => {
+          if (!live) {
+            tex.dispose();
+            return;
+          }
+          configure(tex, true);
+          let normalMap: THREE.Texture | null = null;
+          if (spec.normalStrength > 0 && tex.image) {
+            const w = tex.image.width as number;
+            const h = tex.image.height as number;
+            const rgba = pixelsOf(tex.image as TexImageSource, w, h);
+            // A cross-origin image would taint the canvas and getImageData throws;
+            // ours is bundled, but losing relief beats losing the whole surface.
+            if (rgba) normalMap = canvasTexture(normalFromLuminance(rgba, w, h, spec.normalStrength), w, h, false);
+          }
+          remember(key, { map: tex, normalMap });
+          publish();
+        },
+        // onProgress: nothing useful to report for a bundled asset, but the
+        // slot has to be filled to reach onError — `load` takes them positionally.
+        undefined,
+        // A failed load was previously SILENT: no throw, no log, no state change.
+        // The mesh just kept its fallback colour forever, which is indistinguishable
+        // from the texture having loaded and simply looking plain. That is the
+        // whole reason a missing surface is so expensive to diagnose.
+        (err) => {
+          console.error(`[surfaces] ${key} FAILED to load: ${spec.source.url}`, err);
+        },
+      );
     }
 
     publish();

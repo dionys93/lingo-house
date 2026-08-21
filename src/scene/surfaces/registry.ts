@@ -16,6 +16,36 @@
 //
 // The CORE never sees any of this. It deals in ItemKind and room keys, exactly
 // as it deals in room `color`; what oak looks like is the shell's business.
+//
+// ── ON TUNING THESE NUMBERS ─────────────────────────────────────────────────
+//
+// Every surface here was previously tuned by eye and every one of them came out
+// invisible. Measured, before this pass:
+//
+//   wood.walnut  128px  colour std  9.0   derived relief  4.5°
+//   wood.oak     512px  colour std 10.9   derived relief  2.0°
+//
+// A colour std of ~10/255 is ±4% variation: at any real viewing distance that
+// reads as a flat fill, which is indistinguishable from the flat-colour fallback
+// each consumer draws when a surface fails to load. That equivalence is why a
+// working texture pipeline looked for a long time like a broken one.
+//
+// Two things follow, and both are counter-intuitive enough to write down:
+//
+// 1. RELIEF CARRIES WOOD, NOT COLOUR. Real timber has modest albedo variation.
+//    What makes it read as timber is grain catching a moving light. Pushing
+//    `base`/`grain` far apart to compensate gives painted stripes, not wood —
+//    so contrast goes up only moderately and `normalStrength` does the work.
+//
+// 2. `normalStrength` IS RESOLUTION-DEPENDENT. `normalFromLuminance` takes
+//    central differences over ADJACENT PIXELS, so the same strength on a 512px
+//    tile yields roughly a quarter of the relief it does on a 128px one. The
+//    numbers below are solved for ~12° of mean surface tilt at each tile's own
+//    resolution, NOT copied between surfaces. If you change `size`, this number
+//    is no longer valid.
+//
+// Both numbers are checkable rather than felt: render the tile, take the mean
+// luminance gradient, take the arctangent.
 
 import * as THREE from 'three';
 import type { Pattern } from './pattern';
@@ -36,7 +66,9 @@ export interface SurfaceSpec {
   // squashing them equally in both directions is what makes a stair tread read
   // like a scaled-down wall instead of a plank.
   readonly worldScale: readonly [u: number, v: number];
-  // Relief for the derived normal map. 0 = flat colour, ~3 = pronounced.
+  // Relief for the derived normal map. Solved per surface AT ITS OWN `size` —
+  // see the resolution note in the header before copying a value between two
+  // surfaces of different resolutions.
   readonly normalStrength: number;
   readonly normalScale: number; // how hard the renderer leans on that relief
   readonly size?: number; // pattern resolution; ignored by image/generator
@@ -45,19 +77,33 @@ export interface SurfaceSpec {
 export type SurfaceKey = 'wood.oak' | 'wood.walnut' | 'grass';
 
 export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
-  // Photographed oak, cropped out of the uploaded tile's white field and
-  // offset-blended so it wraps. The source image is ONE BOARD: its long axis is
-  // v, and the horizontal wrap is deliberately left un-blended because that edge
-  // IS the join between two boards — blending it away would give one endless
-  // sheet of wood instead of a floor of planks.
+  // Photographed oak, cropped down to the single board that was floating in the
+  // source file's transparent field — that field sampled as BLACK, because a
+  // `map`'s alpha is discarded unless the material is `transparent`, so every
+  // oak face was drawing a black frame. The tile now IS the board, opaque, with
+  // no alpha channel at all.
+  //
+  // It wraps along v (the board's length). The horizontal wrap is deliberately
+  // left un-blended: that edge IS the join between two boards, and blending it
+  // gives one endless sheet of wood instead of a floor of planks.
+  //
+  // Be aware of what this asset is: a smooth veneer render, colour std 10.9.
+  // There is very little grain in it to find, and no `normalStrength` recovers
+  // detail that was never photographed. If oak ever needs to look better than
+  // "clean pale board", replace the file — the `source` union means that is a
+  // one-line change here and touches no component.
   'wood.oak': {
     source: { kind: 'image', url: oakPlankUrl },
     roughness: 0.78,
     metalness: 0,
-    // The tile is one board: ~0.2 world units across, ~0.8 along. Matching those
-    // proportions is what stops a stair tread showing four boards side by side.
-    worldScale: [0.2, 0.8],
-    normalStrength: 2.2,
+    // The board measures 191 × 730px, i.e. 1 : 3.35. worldScale must hold that
+    // ratio or the grain comes out squashed; 0.2 is the free knob (plank width
+    // in world units) and 0.67 = 0.2 × 3.35 follows from it.
+    worldScale: [0.2, 0.67],
+    // Was 2.2, which yielded 2.0° of relief — flat. 14 is solved for ~12° at
+    // this tile's 512px resolution. High ONLY because the tile is large and
+    // low-contrast; it is not a number to copy to a 128px pattern.
+    normalStrength: 14,
     normalScale: 0.5,
   },
 
@@ -68,17 +114,26 @@ export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
       kind: 'pattern',
       pattern: {
         kind: 'woodGrain',
-        base: [126, 94, 66],
-        grain: [78, 55, 38],
-        rings: 7,
-        waviness: 0.8,
+        // Base and grain were 48/255 apart, which caps the tile's contrast no
+        // matter what else is tuned: the blend runs between exactly these two
+        // colours. ~90 apart lifts colour std from 9.0 to 16.1 while still
+        // reading as timber rather than as stripes.
+        base: [150, 112, 78],
+        grain: [62, 42, 28],
+        // 7 rings across a 128px tile put a ring every 18px. On a face smaller
+        // than one tile — the handrail is 34mm thick — that aliases into flat
+        // grey, which is most of why the rail has never shown grain. 4 rings
+        // survives being squeezed onto a small face.
+        rings: 4,
+        waviness: 0.9,
         seed: 611,
       },
     },
     roughness: 0.7,
     metalness: 0,
     worldScale: [0.4, 0.16],
-    normalStrength: 3.0,
+    // Was 3.0 → 4.5° of relief. 8 is solved for ~12° at size 128.
+    normalStrength: 8,
     normalScale: 0.8,
     size: 128,
   },
