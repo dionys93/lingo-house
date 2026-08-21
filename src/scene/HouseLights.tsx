@@ -6,7 +6,7 @@
 // differently from the house is a lab that stops predicting the house, which is
 // the only thing a lab is for.
 
-import { SUN_POSITION } from './lights';
+import { GROUND_BOUNCE, SKY_COLOR, SUN_POSITION } from './lights';
 import type { LightRig } from './lights';
 
 // Half-width of the sun's orthographic shadow box. See the comment on the light.
@@ -16,6 +16,11 @@ export function HouseLights({ rig }: { rig: LightRig }) {
   return (
     <>
       <ambientLight intensity={rig.ambient} />
+      {/* Fills shadow without flattening it. A hemisphere light still varies
+          with the surface normal — up-facing gets sky, down-facing gets grass —
+          so unlike raising `ambient` it lifts the dark side WITHOUT washing out
+          the normal maps. Turn skyFill, not ambient, when the scene is too dark. */}
+      <hemisphereLight color={SKY_COLOR} groundColor={GROUND_BOUNCE} intensity={rig.skyFill} />
       <directionalLight
         position={[SUN_POSITION[0], SUN_POSITION[1], SUN_POSITION[2]]}
         intensity={rig.sun}

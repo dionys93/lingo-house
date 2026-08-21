@@ -22,6 +22,8 @@ import { Walls } from './Walls';
 import { Roof } from './Roof';
 import { Stairs } from './Stairs';
 import { SurfaceProvider } from './surfaces/SurfaceProvider';
+import { HouseLights } from './HouseLights';
+import { rigFor } from './lights';
 import { vantageFrom, type Vantage } from './vantage';
 import { Items } from './Items';
 import { Doors } from './Doors';
@@ -133,6 +135,10 @@ export function HouseScene() {
 
   const outside = nav.tag === 'in' && nav.location === 'outside';
 
+  // Derived from nav exactly as `described` is below. Cheap and pure, so no
+  // memo: rigFor is two comparisons.
+  const rig = rigFor(nav);
+
   // DERIVED, not synced: the popup exists only while you're standing still in a
   // place, and describe() resolves the words from that place. Walk through a
   // door and it's gone; no effect watching nav, nothing to forget to clear, and
@@ -161,39 +167,48 @@ export function HouseScene() {
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
-      <Canvas camera={{ position: [4, 3.5, 5], fov: 50 }}>
+      {/* `shadows` enables the shadow map. Without it every castShadow and
+          receiveShadow flag in the scene is inert — which is exactly what was
+          wrong here while the lab looked fine. */}
+      <Canvas shadows dpr={[1, 2]} camera={{ position: [4, 3.5, 5], fov: 50 }}>
         <color attach="background" args={['#dce8f5']} />
         <fog attach="fog" args={['#dce8f5', 18, 38]} />
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[5, 8, 5]} intensity={1} />
-        <Ground />
-        {house && (
-          <SurfaceProvider>
-            {house.storeys.map((storey) => (
-              <Storey
-                key={storey.level}
-                storey={storey}
-                nav={nav}
-                selectedItemId={explorer.selected?.on === 'item' ? explorer.selected.id : null}
-                select={select}
-              />
-            ))}
-            {/* Once, on top — the roof belongs to the house, not to a storey. */}
-            <Stairs stairs={house.stairs} onPick={(id) => select({ on: 'stair', id })} />
-            <Roof roof={house.roof} onPick={(at) => select({ on: 'part', part: 'roof', at })} />
-            <CameraRig nav={nav} dispatch={dispatch} vantages={vantages} />
-            <InteriorControls nav={nav} vantages={vantages} />
-            {described && (
-              <SelectionPopup
-                described={described}
-                from={explorer.from}
-                to={explorer.to}
-                onAct={onAct}
-                onDismiss={onDismiss}
-              />
-            )}
-          </SurfaceProvider>
-        )}
+        <HouseLights rig={rig} />
+        {/* SurfaceProvider hoisted ABOVE Ground and outside the `house &&` guard.
+            It used to sit below both, so Ground — the only consumer of the grass
+            surface — rendered outside the provider and fell back to flat colour.
+            Unconditional now, so a plan that fails to compile still shows ground
+            rather than empty sky. */}
+        <SurfaceProvider>
+          <Ground />
+          {house && (
+            <>
+              {house.storeys.map((storey) => (
+                <Storey
+                  key={storey.level}
+                  storey={storey}
+                  nav={nav}
+                  selectedItemId={explorer.selected?.on === 'item' ? explorer.selected.id : null}
+                  select={select}
+                />
+              ))}
+              {/* Once, on top — the roof belongs to the house, not to a storey. */}
+              <Stairs stairs={house.stairs} onPick={(id) => select({ on: 'stair', id })} />
+              <Roof roof={house.roof} onPick={(at) => select({ on: 'part', part: 'roof', at })} />
+              <CameraRig nav={nav} dispatch={dispatch} vantages={vantages} />
+              <InteriorControls nav={nav} vantages={vantages} />
+              {described && (
+                <SelectionPopup
+                  described={described}
+                  from={explorer.from}
+                  to={explorer.to}
+                  onAct={onAct}
+                  onDismiss={onDismiss}
+                />
+              )}
+            </>
+          )}
+        </SurfaceProvider>
         <OrbitControls
           enabled={outside}
           enablePan={false}

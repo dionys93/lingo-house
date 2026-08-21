@@ -49,13 +49,15 @@ import { Floor } from './Floor';
 import { Ceiling } from './Ceiling';
 import { Walls } from './Walls';
 import { Roof } from './Roof';
+import { HouseLights } from './HouseLights';
+import { EXTERIOR_RIG, INTERIOR_RIG, type LightRig } from './lights';
 
 // ── State ───────────────────────────────────────────────────────────────────
 //
 // A reducer rather than six useStates: the toggles are one thing with six
 // fields, and a pure reducer is testable in the same way core/nav's is.
 
-type RigKey = 'shipping' | 'sun' | 'shared';
+type RigKey = 'shipping' | 'exterior' | 'interior';
 type ViewKey = 'exterior' | 'interior';
 
 interface LabState {
@@ -106,32 +108,34 @@ export function labReducer(state: LabState, action: LabAction): LabState {
 }
 
 // ── Rigs ────────────────────────────────────────────────────────────────────
+//
+// The presets wrap the ACTUAL rigs from lights.ts, so what you compare here is
+// what rigFor(nav) hands HouseScene — not a lookalike. Only `shipping` is local,
+// because it's the baseline being argued against and nothing should import it.
 
-interface RigSpec {
+const SHIPPING_RIG: LightRig = { ambient: 0.6, skyFill: 0, sun: 1.0, sunCastsShadow: false };
+
+interface RigPreset {
   readonly label: string;
-  readonly ambient: number;
-  readonly sun: number;
+  readonly rig: LightRig;
   readonly note: string;
 }
 
-const RIGS: Record<RigKey, RigSpec> = {
+const RIGS: Record<RigKey, RigPreset> = {
   shipping: {
     label: 'Shipping',
-    ambient: 0.6,
-    sun: 1.0,
-    note: 'What HouseScene runs today. 60% of the light is directionless, so normal maps have almost nothing to modulate.',
+    rig: SHIPPING_RIG,
+    note: 'What HouseScene ran before rigFor. 60% of the light is directionless, so normal maps have almost nothing to modulate.',
   },
-  sun: {
-    label: 'Sun-first',
-    ambient: 0.15,
-    sun: 2.2,
-    note: 'Exterior-tuned. Relief and chamfers read hard. Turn shadows on and step inside: the interior is nearly black, because the ceiling is opaque and the roof is over it.',
+  exterior: {
+    label: 'Exterior',
+    rig: EXTERIOR_RIG,
+    note: 'EXTERIOR_RIG, what rigFor returns outside. Relief and chamfers read hard. Turn shadows on and step inside: near-black, because the ceiling is opaque and the roof is over it.',
   },
-  shared: {
-    label: 'Shared',
-    ambient: 0.35,
-    sun: 1.6,
-    note: 'One rig that has to serve both views, so it serves neither well. This is the compromise you get if you refuse to derive the rig from nav.',
+  interior: {
+    label: 'Interior',
+    rig: INTERIOR_RIG,
+    note: 'INTERIOR_RIG, what rigFor returns in a room. Fill-first, sun shadows off — nothing reaches in through the roof anyway. An environment map should take this job over later.',
   },
 };
 
@@ -287,7 +291,7 @@ const note: CSSProperties = {
 
 // Explicit rather than Object.keys(RIGS) — no cast, and the order is an argument:
 // what ships, then what the exterior wants, then the compromise that serves neither.
-const RIG_ORDER: readonly RigKey[] = ['shipping', 'sun', 'shared'];
+const RIG_ORDER: readonly RigKey[] = ['shipping', 'exterior', 'interior'];
 
 const TOGGLES: readonly { readonly of: 'shadows' | 'ceiling' | 'roof' | 'chamfer'; readonly label: string }[] = [
   { of: 'shadows', label: 'Shadows' },
@@ -320,14 +324,11 @@ export function LightingLab() {
         camera={{ position: inside ? [0.5, 0.7, 0.5] : [3, 2.4, 3.6], fov: 50 }}
       >
         <color attach="background" args={['#dce8f5']} />
-        <ambientLight intensity={rig.ambient} />
-        <directionalLight
-          position={[5, 8, 5]}
-          intensity={rig.sun}
-          castShadow={state.shadows}
-          shadow-mapSize={[2048, 2048]}
-          shadow-normalBias={0.02}
-        />
+        {/* The SAME component HouseScene renders, so the lab can't light its
+            scene differently from the house — including the sun's position,
+            which lives in lights.ts now. The shadow toggle overrides the
+            preset's own value so shadows stay an independent variable here. */}
+        <HouseLights rig={{ ...rig.rig, sunCastsShadow: state.shadows }} />
         <Ground />
         <SurfaceProvider>
           {compiled && (

@@ -19,8 +19,14 @@ import { assertNever } from '../core/errors';
 import type { NavState } from '../core/nav';
 
 export interface LightRig {
-  /** Directionless fill. Every point of this is a point a normal map cannot modulate. */
+  /** Flat fill. Every point of this is a point a normal map cannot modulate,
+   *  so it stays as low as the scene will tolerate. */
   readonly ambient: number;
+  /** Hemisphere fill: sky colour from above, ground colour from below. Unlike
+   *  `ambient` this still varies with surface normal, so it lifts shadows
+   *  WITHOUT flattening relief. A crude stand-in for the skylight an
+   *  environment map should eventually provide. */
+  readonly skyFill: number;
   readonly sun: number;
   /** Off indoors: the roof would block the sun anyway, and the shadow pass isn't free. */
   readonly sunCastsShadow: boolean;
@@ -49,9 +55,22 @@ export interface LightRig {
 // direction moved.
 export const SUN_POSITION: readonly [number, number, number] = [-6, 7, 2];
 
+// Hemisphere colours, matched to what's already on screen: the Canvas clear
+// colour above, the grass below. Shadowed faces near the ground pick up a little
+// green, which is what actually happens and costs nothing to have.
+export const SKY_COLOR = '#dce8f5';
+export const GROUND_BOUNCE = '#6f8f4e';
+
 // Sun-first. Relief and edges read hard; shadows ground the house on the grass.
+//
+// ambient 0.15 was calibrated in the lab BEFORE any mesh cast a shadow — in a
+// scene where nothing was ever fully occluded, 0.15 of flat fill was plenty.
+// Turning shadows on moved a large set of surfaces onto that fill alone, and
+// moving the sun from front lighting to three-quarter put a visible face into
+// shade by design. Both changes pushed the same way, hence the skyFill below.
 export const EXTERIOR_RIG: LightRig = {
-  ambient: 0.15,
+  ambient: 0.12,
+  skyFill: 0.55,
   sun: 2.2,
   sunCastsShadow: true,
 };
@@ -59,7 +78,8 @@ export const EXTERIOR_RIG: LightRig = {
 // Fill-first. Nothing reaches in through the roof, so the fill IS the light until
 // an environment map lands (see the todo, Tier 1) and takes over this job properly.
 export const INTERIOR_RIG: LightRig = {
-  ambient: 0.3,
+  ambient: 0.22,
+  skyFill: 0.35,
   sun: 0.9,
   sunCastsShadow: false,
 };
