@@ -99,17 +99,6 @@ function canvasTexture(
   return configure(new THREE.CanvasTexture(canvas), srgb, anisotropy);
 }
 
-/** Read a loaded image's pixels back out, so a normal map can be derived. */
-function pixelsOf(image: TexImageSource, w: number, h: number): Uint8ClampedArray | null {
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (ctx === null) return null;
-  ctx.drawImage(image as CanvasImageSource, 0, 0);
-  return ctx.getImageData(0, 0, w, h).data;
-}
-
 export function SurfaceProvider({ children }: { children: ReactNode }) {
   // The renderer knows its own limit; we were guessing 4.
   const maxAnisotropy = useThree((s) => s.gl.capabilities.getMaxAnisotropy());
@@ -157,9 +146,9 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
         remember(key, {
           map: canvasTexture(rgba, size, size, true, maxAnisotropy),
           normalMap:
-            spec.normalStrength > 0
+            spec.source.relief > 0
               ? canvasTexture(
-                normalFromLuminance(rgba, size, size, spec.normalStrength),
+                normalFromLuminance(rgba, size, size, spec.source.relief),
                 size,
                 size,
                 false,
@@ -175,11 +164,10 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
         continue;
       }
 
-      // Image: the texture itself is ready when three says so, and only then can
-      // its pixels be read back to derive relief.
-      // Hoisted: inside the deferred onError callback TypeScript has dropped the
-      // `kind === 'image'` narrowing on spec.source, so reading .url there is a
-      // strict-mode error. Capturing it here keeps the message and the type.
+      // Image: nothing to derive. Relief lives on the pattern variant of
+      // SurfaceSource, so a photograph structurally cannot ask for it — which
+      // is why the pixel readback that used to happen here is gone, along with
+      // the cross-origin taint it could hit.
       const url = spec.source.url;
       loader.load(
         url,
@@ -189,23 +177,7 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
             return;
           }
           configure(tex, true, maxAnisotropy);
-          let normalMap: THREE.Texture | null = null;
-          if (spec.normalStrength > 0 && tex.image) {
-            const w = tex.image.width as number;
-            const h = tex.image.height as number;
-            const rgba = pixelsOf(tex.image as TexImageSource, w, h);
-            // A cross-origin image would taint the canvas and getImageData throws;
-            // ours is bundled, but losing relief beats losing the whole surface.
-            if (rgba)
-              normalMap = canvasTexture(
-                normalFromLuminance(rgba, w, h, spec.normalStrength),
-                w,
-                h,
-                false,
-                maxAnisotropy,
-              );
-          }
-          remember(key, { map: tex, normalMap });
+          remember(key, { map: tex, normalMap: null });
           publish();
         },
         // onProgress: nothing useful to report for a bundled asset, but the

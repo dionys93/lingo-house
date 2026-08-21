@@ -20,6 +20,7 @@ import { Ground } from './Ground';
 import { SurfaceProvider } from './surfaces/SurfaceProvider';
 import { HouseLights } from './HouseLights';
 import { EXTERIOR_RIG } from './lights';
+import { ScenePost } from './ScenePost';
 import { Floor } from './Floor';
 import { Walls } from './Walls';
 import { Roof } from './Roof';
@@ -93,6 +94,7 @@ export function Sandbox() {
             </>
           )}
         </SurfaceProvider>
+        <ScenePost ao={EXTERIOR_RIG.ao} />
         <OrbitControls
           enablePan={false}
           target={[0, 0.5, 0]}

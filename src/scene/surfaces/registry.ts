@@ -35,9 +35,11 @@
 // 1. RELIEF CARRIES WOOD, NOT COLOUR. Real timber has modest albedo variation.
 //    What makes it read as timber is grain catching a moving light. Pushing
 //    `base`/`grain` far apart to compensate gives painted stripes, not wood —
-//    so contrast goes up only moderately and `normalStrength` does the work.
+//    so contrast goes up only moderately and `relief` does the work. Which is
+//    also why a PHOTOGRAPH cannot borrow this trick: see the note on
+//    SurfaceSource, where `relief` now lives on the pattern variant only.
 //
-// 2. `normalStrength` IS RESOLUTION-DEPENDENT. `normalFromLuminance` takes
+// 2. `relief` IS RESOLUTION-DEPENDENT. `normalFromLuminance` takes
 //    central differences over ADJACENT PIXELS, so the same strength on a 512px
 //    tile yields roughly a quarter of the relief it does on a 128px one. The
 //    numbers below are solved for ~12° of mean surface tilt at each tile's own
@@ -53,7 +55,28 @@ import { createGrassTexture } from '../textures/grass';
 import oakPlankUrl from '../textures/oak-plank.png';
 
 export type SurfaceSource =
-  | { readonly kind: 'pattern'; readonly pattern: Pattern }
+  | {
+      readonly kind: 'pattern';
+      readonly pattern: Pattern;
+      /**
+       * Relief derived from this pattern's own luminance. 0 for none.
+       *
+       * It lives HERE, on the pattern variant alone, and the placement is the
+       * whole point. Deriving a normal map from luminance assumes DARK MEANS
+       * DEEP. For a generated pattern that assumption is exact — one function
+       * drew the colour and the grooves, so its dark bands ARE its grooves. For
+       * a photograph it is simply false: dark means pigment. A stain becomes a
+       * pit, a pale knot becomes a bump, and compression noise becomes fuzz.
+       *
+       * This used to be `normalStrength` on SurfaceSpec, where every source
+       * could reach it. Moving it into the union makes the unsound case
+       * unrepresentable instead of merely discouraged.
+       *
+       * Resolution-dependent — see the tuning note in the header. Solve it,
+       * don't copy it between tiles of different sizes.
+       */
+      readonly relief: number;
+    }
   | { readonly kind: 'image'; readonly url: string }
   | { readonly kind: 'generator'; readonly make: () => THREE.Texture };
 
@@ -66,10 +89,6 @@ export interface SurfaceSpec {
   // squashing them equally in both directions is what makes a stair tread read
   // like a scaled-down wall instead of a plank.
   readonly worldScale: readonly [u: number, v: number];
-  // Relief for the derived normal map. Solved per surface AT ITS OWN `size` —
-  // see the resolution note in the header before copying a value between two
-  // surfaces of different resolutions.
-  readonly normalStrength: number;
   readonly normalScale: number; // how hard the renderer leans on that relief
   readonly size?: number; // pattern resolution; ignored by image/generator
 }
@@ -100,11 +119,18 @@ export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
     // ratio or the grain comes out squashed; 0.2 is the free knob (plank width
     // in world units) and 0.67 = 0.2 × 3.35 follows from it.
     worldScale: [0.2, 0.67],
-    // Was 2.2, which yielded 2.0° of relief — flat. 14 is solved for ~12° at
-    // this tile's 512px resolution. High ONLY because the tile is large and
-    // low-contrast; it is not a number to copy to a 128px pattern.
-    normalStrength: 14,
-    normalScale: 0.5,
+    // No relief, and the header's own measurements are why: this tile is
+    // colour std 10.9 and derived relief came out at 2.0°, against the ~12°
+    // every other number here is solved for. The 14 that used to sit here was
+    // the third attempt at cranking a signal out of an image that has none —
+    // a smooth veneer render, photographed flat. What 14 actually amplified
+    // was the file's own compression noise, and it amplified it as GEOMETRY:
+    // dark stain read as a pit, pale figure as a bump.
+    //
+    // Flat is the honest answer for a smooth veneer. If oak needs to look like
+    // sawn timber, that is a new asset with real grain in it — one line, here,
+    // per the note above.
+    normalScale: 0,
   },
 
   // Still procedural — nothing has needed a second photographed wood, and this
@@ -128,12 +154,14 @@ export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
         waviness: 0.9,
         seed: 611,
       },
+      // Sound here in a way it never was on the photo: renderPattern drew both
+      // the colour and the relief from the same grain field. Was 3.0 → 4.5°;
+      // 8 is solved for ~12° at size 128.
+      relief: 8,
     },
     roughness: 0.7,
     metalness: 0,
     worldScale: [0.4, 0.16],
-    // Was 3.0 → 4.5° of relief. 8 is solved for ~12° at size 128.
-    normalStrength: 8,
     normalScale: 0.8,
     size: 128,
   },
@@ -143,7 +171,6 @@ export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
     roughness: 1,
     metalness: 0,
     worldScale: [1.25, 1.25], // 40-unit ground plane ⇒ the 32 repeats it had
-    normalStrength: 0,
     normalScale: 0,
   },
 };

@@ -24,6 +24,7 @@ import { Stairs } from './Stairs';
 import { SurfaceProvider } from './surfaces/SurfaceProvider';
 import { HouseLights } from './HouseLights';
 import { rigFor } from './lights';
+import { ScenePost } from './ScenePost';
 import { vantageFrom, type Vantage } from './vantage';
 import { Items } from './Items';
 import { Doors } from './Doors';
@@ -209,6 +210,7 @@ export function HouseScene() {
             </>
           )}
         </SurfaceProvider>
+        <ScenePost ao={rig.ao} />
         <OrbitControls
           enabled={outside}
           enablePan={false}

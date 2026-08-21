@@ -51,6 +51,7 @@ import { Walls } from './Walls';
 import { Roof } from './Roof';
 import { HouseLights } from './HouseLights';
 import { EXTERIOR_RIG, INTERIOR_RIG, type LightRig } from './lights';
+import { ScenePost } from './ScenePost';
 
 // ── State ───────────────────────────────────────────────────────────────────
 //
@@ -58,6 +59,7 @@ import { EXTERIOR_RIG, INTERIOR_RIG, type LightRig } from './lights';
 // fields, and a pure reducer is testable in the same way core/nav's is.
 
 type RigKey = 'shipping' | 'exterior' | 'interior';
+type ToggleKey = 'shadows' | 'ceiling' | 'roof' | 'chamfer' | 'ao';
 type ViewKey = 'exterior' | 'interior';
 
 interface LabState {
@@ -67,12 +69,13 @@ interface LabState {
   readonly ceiling: boolean;
   readonly roof: boolean;
   readonly chamfer: boolean;
+  readonly ao: boolean;
 }
 
 type LabAction =
   | { readonly tag: 'rig'; readonly rig: RigKey }
   | { readonly tag: 'view'; readonly view: ViewKey }
-  | { readonly tag: 'toggle'; readonly of: 'shadows' | 'ceiling' | 'roof' | 'chamfer' };
+  | { readonly tag: 'toggle'; readonly of: ToggleKey };
 
 const START: LabState = {
   rig: 'shipping',
@@ -81,6 +84,7 @@ const START: LabState = {
   ceiling: true,
   roof: true,
   chamfer: false,
+  ao: true,
 };
 
 export function labReducer(state: LabState, action: LabAction): LabState {
@@ -99,6 +103,8 @@ export function labReducer(state: LabState, action: LabAction): LabState {
           return { ...state, roof: !state.roof };
         case 'chamfer':
           return { ...state, chamfer: !state.chamfer };
+        case 'ao':
+          return { ...state, ao: !state.ao };
         default:
           return assertNever(action.of);
       }
@@ -113,7 +119,15 @@ export function labReducer(state: LabState, action: LabAction): LabState {
 // what rigFor(nav) hands HouseScene — not a lookalike. Only `shipping` is local,
 // because it's the baseline being argued against and nothing should import it.
 
-const SHIPPING_RIG: LightRig = { ambient: 0.6, skyFill: 0, sun: 1.0, sunCastsShadow: false };
+const SHIPPING_RIG: LightRig = {
+  ambient: 0.6,
+  skyFill: 0,
+  sun: 1.0,
+  sunCastsShadow: false,
+  env: null, // no environment, so this really is the before picture
+  envIntensity: 0,
+  ao: null,
+};
 
 interface RigPreset {
   readonly label: string;
@@ -293,11 +307,13 @@ const note: CSSProperties = {
 // what ships, then what the exterior wants, then the compromise that serves neither.
 const RIG_ORDER: readonly RigKey[] = ['shipping', 'exterior', 'interior'];
 
-const TOGGLES: readonly { readonly of: 'shadows' | 'ceiling' | 'roof' | 'chamfer'; readonly label: string }[] = [
+const TOGGLES: readonly { readonly of: ToggleKey; readonly label: string }[] = [
   { of: 'shadows', label: 'Shadows' },
   { of: 'ceiling', label: 'Ceiling' },
   { of: 'roof', label: 'Roof' },
   { of: 'chamfer', label: 'Chamfer' },
+  // No-op on Shipping, which has ao: null — that preset is the before picture.
+  { of: 'ao', label: 'AO' },
 ];
 
 export function LightingLab() {
@@ -343,6 +359,7 @@ export function LightingLab() {
           )}
           <ShadowFlagProbe on={state.shadows} />
         </SurfaceProvider>
+        <ScenePost ao={state.ao ? rig.rig.ao : null} />
         <OrbitControls
           enablePan={false}
           target={[0, inside ? 0.6 : 0.5, 0]}
