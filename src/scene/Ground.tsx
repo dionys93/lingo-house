@@ -6,7 +6,7 @@
 // you physically can't see under anything because the ground is in the way and
 // the camera can't dip below the horizon.
 
-import { useSurfaceMaterial } from './surfaces/SurfaceProvider';
+import { SurfaceMaterialSlot, useSurfaceMaterial } from './surfaces/SurfaceProvider';
 import { CATCHES } from './shadows';
 
 const GROUND_SIZE = 40; // world units — large enough that its edges sit off-screen
@@ -20,7 +20,7 @@ export function Ground() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} {...CATCHES}>
       <planeGeometry args={[GROUND_SIZE, GROUND_SIZE]} />
-      {grass ? <meshStandardMaterial {...grass} /> : <meshStandardMaterial color="#6f8f4e" />}
+      <SurfaceMaterialSlot material={grass} color="#6f8f4e" />
     </mesh>
   );
 }

@@ -245,3 +245,41 @@ export function useSurfaceMaterial(
     };
   }, [store, key, rx, ry, spec]);
 }
+
+/**
+ * A `<meshStandardMaterial>` for a surface, falling back to a flat colour until
+ * the surface is ready.
+ *
+ * THE `key` IS THE WHOLE POINT — do not remove it as redundant.
+ *
+ * Both branches are `<meshStandardMaterial>` in the same slot, so without
+ * distinct keys React reconciles them as ONE element and R3F assigns `map` onto
+ * the material instance it already built. But `USE_MAP` is a #define compiled
+ * into the shader program: a material first built without a map has no sampler,
+ * and setting `.map` later does nothing until something sets `.needsUpdate` and
+ * forces a rebuild. Distinct keys make React construct a NEW material once the
+ * surface arrives, so it compiles with the map present.
+ *
+ * The symptom this fixes: ground stayed untextured on load and only came good
+ * after walking through a door — because stepping inside flips
+ * `rig.sunCastsShadow`, which changes three's lighting-state hash and recompiles
+ * every program in the scene. Every surface had the bug; only the ground was
+ * visible before the first navigation.
+ */
+export function SurfaceMaterialSlot({
+  material,
+  color,
+  roughness,
+  metalness,
+}: {
+  material: SurfaceMaterial | null;
+  color: string;
+  roughness?: number;
+  metalness?: number;
+}) {
+  return material ? (
+    <meshStandardMaterial key="surfaced" {...material} />
+  ) : (
+    <meshStandardMaterial key="flat" color={color} roughness={roughness} metalness={metalness} />
+  );
+}

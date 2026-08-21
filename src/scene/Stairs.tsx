@@ -31,7 +31,7 @@ import * as THREE from 'three';
 import type { CompiledStair } from '../core/house';
 import { CELL, type Vec3 } from '../core/grid';
 import { pickable } from './pickable';
-import { useSurfaceMaterial } from './surfaces/SurfaceProvider';
+import { SurfaceMaterialSlot, useSurfaceMaterial } from './surfaces/SurfaceProvider';
 import { SOLID } from './shadows';
 
 type Triple = [number, number, number];
@@ -156,11 +156,7 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
           rotation={[0, -Math.PI / 2, 0]}
           {...picks}
         >
-          {stringer ? (
-            <meshStandardMaterial {...stringer} />
-          ) : (
-            <meshStandardMaterial color="#8a7757" roughness={0.9} />
-          )}
+          <SurfaceMaterialSlot material={stringer} color="#8a7757" roughness={0.9} />
         </mesh>
       ))}
 
@@ -169,11 +165,7 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
           {/* Tread, overhanging its riser: the overhang is the shadow line. */}
           <mesh position={[0, top - TREAD_T / 2, front + (going - NOSING) / 2]} {...SOLID} {...picks}>
             <boxGeometry args={[WIDTH, TREAD_T, going + NOSING]} />
-            {tread ? (
-              <meshStandardMaterial {...tread} />
-            ) : (
-              <meshStandardMaterial color="#b09a72" roughness={0.85} />
-            )}
+            <SurfaceMaterialSlot material={tread} color="#b09a72" roughness={0.85} />
           </mesh>
 
           {/* Riser, set back behind the nose so the tread reads as a board. */}
@@ -199,11 +191,7 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
               rotation={[-pitch, 0, 0]}
             >
               <boxGeometry args={[RAIL_R * 2, RAIL_R * 2, flightLen]} />
-              {rail ? (
-                <meshStandardMaterial {...rail} />
-              ) : (
-                <meshStandardMaterial color="#7e5e42" roughness={0.6} />
-              )}
+              <SurfaceMaterialSlot material={rail} color="#7e5e42" roughness={0.6} />
             </mesh>
 
             {/* Balusters every other step — one per step is a picket fence at
