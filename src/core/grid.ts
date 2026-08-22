@@ -19,8 +19,8 @@ import { ok, err, type Result } from './result';
 import { assertNever, type Cell, type HouseError, type RoomKey, type Side } from './errors';
 import { isRoom, type Facing, type Grid, type ItemDef, type ItemKind, type Opening, type RoomDef, type RoomLabels } from './blocks';
 import type { Locale } from './labels';
+import { boundaries, indexOf, uncoveredBy } from './cells';
 import { gableRoof, type RoofMesh, type RoofBox } from './roof';
-import { pairs, range } from './seq';
 
 // ── World-scale knobs. One cell is CELL units on a side; walls rise WALL_HEIGHT.
 // Tunable and cosmetic — the roof will read wall-top height from here later. ────
@@ -186,11 +186,10 @@ export function uncoveredRects(
   below: Grid,
   above: Grid | null,
 ): readonly { readonly r0: number; readonly c0: number; readonly r1: number; readonly c1: number }[] {
-  const filled = (g: Grid | null, r: number, c: number): boolean => g?.[r]?.[c] != null;
-
-  const rows = below.length;
-  const cols = below.reduce((m, row) => Math.max(m, row.length), 0);
-  const open = (r: number, c: number) => filled(below, r, c) && !filled(above, r, c);
+  const lower = indexOf(below);
+  const rows = lower.rows;
+  const cols = lower.cols;
+  const open = uncoveredBy(lower, indexOf(above));
 
   type Rect = { r0: number; c0: number; r1: number; c1: number };
   const out: Rect[] = [];
@@ -251,7 +250,8 @@ export function abutsOf(
   rect: { readonly r0: number; readonly c0: number; readonly r1: number; readonly c1: number },
   above: Grid | null,
 ): { x0: boolean; x1: boolean; z0: boolean; z1: boolean } {
-  const covered = (r: number, c: number) => above?.[r]?.[c] != null;
+  const upper = indexOf(above);
+  const covered = (r: number, c: number) => upper.filled(r, c);
   const anyRow = (c: number) => {
     for (let r = rect.r0; r <= rect.r1; r += 1) if (covered(r, c)) return true;
     return false;
@@ -343,11 +343,11 @@ export function compileGrid(
   // single room — so return it rather than accumulate alongside other errors.
   if (roomCells.length === 0) return err([{ tag: 'EmptyGrid' }]);
 
-  // "r,c" -> key, for O(1) neighbour lookups; anything absent reads as exterior.
-  const keyByCell = new Map<string, RoomKey>(
-    roomCells.map(({ r, c, def }) => [`${r},${c}`, def.key] as const),
-  );
-  const keyAt = (r: number, c: number): WallSide => keyByCell.get(`${r},${c}`) ?? 'outside';
+  // One index for the whole compile. `null` from it means "no cell drawn";
+  // `outward` is where that becomes the name a WALL uses for its far side.
+  const index = indexOf(grid);
+  const outward = (o: RoomKey | null): WallSide => o ?? 'outside';
+  const keyAt = (r: number, c: number): WallSide => outward(index.at(r, c));
 
   // Group cells by room key. Grouping is a fold — inherently stateful — so it
   // stays an explicit accumulation, but over the flat list, not a re-traversal.
@@ -407,12 +407,20 @@ export function compileGrid(
   // Wall boundaries, MINUS any edge a valid opening claimed. Each is "every
   // boundary line × every cell along it, kept where the two sides differ" — a
   // flat pipeline over the cartesian product, not a nested loop.
-  const vSegs: readonly Seg[] = pairs(range(0, C + 1), range(0, R))
-    .map(([c, r]): Seg => ({ fixed: c, varying: r, neg: keyAt(r, c - 1), pos: keyAt(r, c) }))
-    .filter((s) => s.neg !== s.pos && !claimed.has(`v:${s.fixed}:${s.varying}`));
-  const hSegs: readonly Seg[] = pairs(range(0, R + 1), range(0, C))
-    .map(([r, c]): Seg => ({ fixed: r, varying: c, neg: keyAt(r - 1, c), pos: keyAt(r, c) }))
-    .filter((s) => s.neg !== s.pos && !claimed.has(`h:${s.fixed}:${s.varying}`));
+  // `boundaries` already keeps only the lines where the two sides differ, so all
+  // that's left here is dropping the ones an opening claimed and naming the
+  // absent side 'outside'.
+  const edges = boundaries(index).filter(
+    (b) => !claimed.has(`${b.orient}:${b.fixed}:${b.varying}`),
+  );
+  const asSeg = (b: (typeof edges)[number]): Seg => ({
+    fixed: b.fixed,
+    varying: b.varying,
+    neg: outward(b.neg),
+    pos: outward(b.pos),
+  });
+  const vSegs: readonly Seg[] = edges.filter((b) => b.orient === 'v').map(asSeg);
+  const hSegs: readonly Seg[] = edges.filter((b) => b.orient === 'h').map(asSeg);
 
   // Runs first, then walls — so we can find CORNERS (a grid vertex where an
   // exterior vertical run and an exterior horizontal run both END) and extend

@@ -10,7 +10,7 @@
 //   corners don't leak, and degenerate input doesn't produce NaN
 
 import { describe, expect, it } from 'vitest';
-import { blockersFor, blocksDoorway, boxSegments, closestOn, cutOpenings, doorwayOf, segmentsCross, slide, stairwellOf, type Segment2, type Vec2 } from '../core/collide';
+import { blockersFor, blocksDoorway, boxSegments, closestOn, doorwayOf, segmentsCross, slide, solidOpenings, stairwellOf, type Segment2, type Vec2 } from '../core/collide';
 import type { AABB, CompiledOpening, CompiledWall } from '../core/grid';
 
 const R = 0.18; // player radius, ~36cm across at 1 unit = 2m
@@ -152,39 +152,50 @@ describe('segmentsCross', () => {
   });
 });
 
-describe('cutOpenings', () => {
-  const w = wall([-1, 0], [1, 0]);
+describe('solidOpenings', () => {
+  // TWO runs, not one. compileGrid excludes an opening's edge from the wall it
+  // sits in, so a wall with a door in it arrives as the pieces either side. A
+  // fixture that spans the whole line is modelling the old, wrong shape — and
+  // would make an open door look impassable for the wrong reason.
+  const left = wall([-1, 0], [-0.25, 0]);
+  const right = wall([0.25, 0], [1, 0]);
   const d = door('d1', [-0.25, 0], [0.25, 0]);
+  const win = window_('w1', [-0.25, 0], [0.25, 0]);
 
-  it('leaves a wall whole when its door is shut', () => {
-    expect(cutOpenings(w, [d], new Set())).toEqual([{ a: [-1, 0], b: [1, 0] }]);
+  // The inversion this replaced `cutOpenings` for: compileGrid EXCLUDES an
+  // opening's edge from the wall runs, so the wall geometry already has a hole
+  // at every door and window. Cutting gaps for open doors out of walls that
+  // never covered them left windows and shut doors exactly as passable as an
+  // open one.
+
+  it('emits a segment for a shut door', () => {
+    expect(solidOpenings([d], new Set())).toEqual([{ a: [-0.25, 0], b: [0.25, 0] }]);
   });
 
-  it('cuts a real gap when the door is open', () => {
-    const parts = cutOpenings(w, [d], new Set(['d1']));
-    expect(parts).toEqual([
-      { a: [-1, 0], b: [-0.25, 0] },
-      { a: [0.25, 0], b: [1, 0] },
-    ]);
+  it('emits nothing for an open one', () => {
+    expect(solidOpenings([d], new Set(['d1']))).toEqual([]);
   });
 
-  it('never cuts for a window — the wall under a sill is solid', () => {
-    const win = window_('w1', [-0.25, 0], [0.25, 0]);
-    expect(cutOpenings(w, [win], new Set(['w1']))).toEqual([{ a: [-1, 0], b: [1, 0] }]);
+  it('always emits for a window, open doors notwithstanding', () => {
+    // A window is a hole from sill height UP; the wall beneath it is solid, and
+    // nothing here models climbing.
+    expect(solidOpenings([win], new Set(['w1']))).toHaveLength(1);
   });
 
-  it('ignores a door on a different wall line', () => {
-    const elsewhere = door('d2', [-0.25, 3], [0.25, 3]);
-    expect(cutOpenings(w, [elsewhere], new Set(['d2']))).toHaveLength(1);
+  it('closes the wall against a shut door', () => {
+    const blockers = blockersFor([left, right], [d], [], new Set());
+    expect(slide([0, -0.5], [0, 0.5], blockers, R)[1]).toBeLessThan(0);
   });
 
-  it('lets you walk through the gap it cut, and not through the wall beside it', () => {
-    const open = blockersFor([w], [d], [], new Set(['d1']));
-    const through = slide([0, -0.5], [0, 0.5], open, R);
-    expect(through[1]).toBeGreaterThan(0); // crossed the wall line
+  it('opens it when the door opens, and only there', () => {
+    const blockers = blockersFor([left, right], [d], [], new Set(['d1']));
+    expect(slide([0, -0.5], [0, 0.5], blockers, R)[1]).toBeGreaterThan(0); // through the gap
+    expect(slide([0.7, -0.5], [0.7, 0.5], blockers, R)[1]).toBeLessThan(0); // not beside it
+  });
 
-    const beside = slide([0.7, -0.5], [0.7, 0.5], open, R);
-    expect(beside[1]).toBeLessThan(0); // did not
+  it('never opens for a window', () => {
+    const blockers = blockersFor([left, right], [win], [], new Set(['w1']));
+    expect(slide([0, -0.5], [0, 0.5], blockers, R)[1]).toBeLessThan(0);
   });
 });
 

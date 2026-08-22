@@ -38,50 +38,27 @@ export const boxSegments = (min: Vec2, max: Vec2): readonly Segment2[] => [
 ];
 
 /**
- * Split a wall run around the doorways in it, so an open door is a real gap.
+ * Openings you cannot walk through: every window, and every shut door.
  *
- * A wall and its openings are separate compiled records that happen to share a
- * line, and the gap has to be cut here rather than at render time: "the door is
- * open" has to be a fact collision can see, not a visual state the geometry
- * doesn't know about.
+ * This ADDS segments; it does not cut them. That inversion was the bug.
  *
- * Windows never cut a gap. A window opening is a hole in the wall from about
- * sill height up, and the wall below it is solid — flattening to 2D would
- * otherwise let you stroll through one.
+ * `compileGrid` excludes an opening's edge from the wall runs — an opening
+ * CLAIMS its edge and is emitted separately — so the wall geometry already has a
+ * hole at every door and every window. The old `cutOpenings` cut gaps for open
+ * doors out of walls that had never covered them, which meant a window and a
+ * closed door were exactly as passable as an open one.
+ *
+ * A window is always solid. It's a hole in the wall from sill height up, and the
+ * wall beneath it is not going anywhere; at eye level you'd be climbing, which
+ * nothing here models.
  */
-export const cutOpenings = (
-  wall: CompiledWall,
+export const solidOpenings = (
   openings: readonly CompiledOpening[],
   openDoors: ReadonlySet<string>,
-): readonly Segment2[] => {
-  const along = wall.axis === 'x' ? 0 : 1;
-  const a = flat(wall.a);
-  const b = flat(wall.b);
-
-  // Only doors that are open, that lie on this wall's line, and that fall
-  // within its run. Sorted so the walk below can march along it.
-  const gaps = openings
-    .filter((o) => o.kind === 'door' && openDoors.has(o.id) && o.axis === wall.axis)
-    .map((o) => ({ lo: Math.min(flat(o.a)[along], flat(o.b)[along]), hi: Math.max(flat(o.a)[along], flat(o.b)[along]), off: flat(o.a)[1 - along] }))
-    .filter((g) => Math.abs(g.off - a[1 - along]) < 1e-6 && g.hi > Math.min(a[along], b[along]) && g.lo < Math.max(a[along], b[along]))
-    .sort((p, q) => p.lo - q.lo);
-
-  if (gaps.length === 0) return [{ a, b }];
-
-  const fixed = a[1 - along];
-  const lo = Math.min(a[along], b[along]);
-  const hi = Math.max(a[along], b[along]);
-  const at = (t: number): Vec2 => (along === 0 ? [t, fixed] : [fixed, t]);
-
-  const out: Segment2[] = [];
-  let cursor = lo;
-  for (const g of gaps) {
-    if (g.lo > cursor) out.push({ a: at(cursor), b: at(g.lo) });
-    cursor = Math.max(cursor, g.hi);
-  }
-  if (cursor < hi) out.push({ a: at(cursor), b: at(hi) });
-  return out;
-};
+): readonly Segment2[] =>
+  openings
+    .filter((o) => o.kind !== 'door' || !openDoors.has(o.id))
+    .map((o) => ({ a: flat(o.a), b: flat(o.b) }));
 
 /**
  * The rectangle a stair run occupies, as blockers.
@@ -118,7 +95,9 @@ export const blockersFor = (
   itemBounds: readonly AABB[],
   openDoors: ReadonlySet<string>,
 ): readonly Segment2[] => [
-  ...walls.flatMap((w) => cutOpenings(w, openings, openDoors)),
+  // Walls are already opening-free, so they pass through untouched.
+  ...walls.map((w) => ({ a: flat(w.a), b: flat(w.b) })),
+  ...solidOpenings(openings, openDoors),
   ...itemBounds.flatMap((b) => boxSegments(flat(b.min), flat(b.max))),
 ];
 

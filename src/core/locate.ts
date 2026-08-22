@@ -38,6 +38,22 @@ export function locationAt(pos: Vec2, grid: CompiledGrid): Location {
   return 'outside';
 }
 
+/*
+ * NOT routed through core/cells: this one asks a different question.
+ *
+ * `CellIndex` is keyed by (row, col) and everything else here starts from cells.
+ * This starts from a WORLD POSITION, and turning that back into a cell needs the
+ * origin the grid was centred on — which is the house's extent, not the storey's,
+ * and isn't carried on CompiledGrid. Forcing it through the index would mean
+ * either threading extent into every caller or reconstructing it from the bbox
+ * and hoping the rounding agrees.
+ *
+ * It's a linear scan over floor tiles, called once per frame only when the
+ * position actually changed, over ~54 cells. If a plan ever gets big enough to
+ * notice, the fix is to put the extent on CompiledGrid and index by cell — not
+ * to cache, because a cache is a stored location again.
+ */
+
 const contains = (centre: Vec3, p: Vec2): boolean =>
   p[0] >= centre[0] - HALF &&
   p[0] < centre[0] + HALF &&

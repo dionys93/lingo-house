@@ -13,6 +13,7 @@
 
 import { abutsOf, boxOfCells, compileGrid, roofOver, uncoveredRects, WALL_HEIGHT, type CompiledGrid, type Vec3, type WallSide } from './grid';
 import type { RoofMesh } from './roof';
+import { indexOf } from './cells';
 import type { Storey } from './blocks';
 import type { Cell, HouseError } from './errors';
 import { err, ok, type Result } from './result';
@@ -202,11 +203,16 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
       }
 
       // Every tread must stand in a room on the lower storey…
-      // null for anything that isn't inside a room on that storey — including
-      // cells off the grid entirely, which is what makes the flank test work.
-      const roomAt = (g: CompiledGrid, cell: Cell): WallSide | null =>
-        g.rooms.find((r) => r.cells.some((c) => sameCell(c, cell)))?.key ?? null;
-      const bad = run.find((c) => roomAt(below, c) === null);
+      //
+      // Was a scan over every room's every cell, per lookup — and `flankOpen`
+      // below calls it once per tread per flank. The shared index answers the
+      // same question in O(1), and answers it the same way `boundaries` does,
+      // which is the point of having extracted it.
+      const belowIx = indexOf(s.grid);
+      const aboveIx = indexOf(storeys.find((o) => o.level === s.level + 1)?.grid ?? null);
+      const roomAt = (ix: ReturnType<typeof indexOf>, cell: Cell): WallSide | null =>
+        ix.at(cell[0], cell[1]);
+      const bad = run.find((c) => roomAt(belowIx, c) === null);
       if (bad !== undefined) {
         fail({ tag: 'StairCellInvalid', id: stair.id, cell: bad });
         continue;
@@ -217,7 +223,7 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
       const [pr, pc] = run[run.length - 2];
       const [tr, tc] = stair.to;
       const arrivalCell: Cell = [tr + (tr - pr), tc + (tc - pc)];
-      const upperRoom = roomAt(above, arrivalCell);
+      const upperRoom = roomAt(aboveIx, arrivalCell);
       if (upperRoom === null) {
         fail({ tag: 'StairArrivalInvalid', id: stair.id, cell: arrivalCell });
         continue;
@@ -230,7 +236,7 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
       const [sr, sc] = run[1] ?? stair.to;
       const [fr, fc] = run[0];
       const departureCell: Cell = [fr - (sr - fr), fc - (sc - fc)];
-      if (roomAt(below, departureCell) === null) {
+      if (roomAt(belowIx, departureCell) === null) {
         fail({ tag: 'StairDepartureInvalid', id: stair.id, cell: departureCell });
         continue;
       }
@@ -252,7 +258,7 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
       const dr = Math.sign(br - ar);
       const dc = Math.sign(bc - ac);
       const flankOpen = (sign: 1 | -1): boolean =>
-        run.every((c) => roomAt(below, [c[0] - sign * dc, c[1] + sign * dr]) !== null);
+        run.every((c) => roomAt(belowIx, [c[0] - sign * dc, c[1] + sign * dr]) !== null);
       const openSides: ('left' | 'right')[] = [];
       if (flankOpen(1)) openSides.push('left');
       if (flankOpen(-1)) openSides.push('right');
@@ -269,7 +275,7 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
         arrival: centreOf(above, arrivalCell),
         departure: centreOf(below, departureCell),
         rise: WALL_HEIGHT,
-        connects: [roomAt(below, stair.from)!, upperRoom],
+        connects: [roomAt(belowIx, stair.from)!, upperRoom],
         openSides,
       });
     }
