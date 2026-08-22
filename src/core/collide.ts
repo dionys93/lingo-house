@@ -83,6 +83,34 @@ export const cutOpenings = (
   return out;
 };
 
+/**
+ * The rectangle a stair run occupies, as blockers.
+ *
+ * TWO volumes share one footprint, and both need it:
+ *   - on the storey the flight LEAVES, it's the flight itself — solid, because
+ *     you climb it by clicking, never by stepping onto a tread.
+ *   - on the storey ABOVE, it's the stairwell hole, which has no floor. Nothing
+ *     here simulates falling, so an unblocked hole is just a patch of room you
+ *     stroll across on nothing.
+ *
+ * Expanded to CELL edges rather than the flight's own 0.43 width. The 3.5cm
+ * either side is the gap between a stringer and the wall, and a gap a body
+ * cannot fit through is better closed than defended.
+ *
+ * Axis-aligned because a run always follows a row or a column, so an AABB over
+ * the tread centres is exact rather than an approximation.
+ */
+export const stairwellOf = (treads: readonly Vec3[], cell: number): readonly Segment2[] => {
+  if (treads.length === 0) return [];
+  const xs = treads.map((t) => t[0]);
+  const zs = treads.map((t) => t[2]);
+  const half = cell / 2;
+  return boxSegments(
+    [Math.min(...xs) - half, Math.min(...zs) - half],
+    [Math.max(...xs) + half, Math.max(...zs) + half],
+  );
+};
+
 /** Everything on this storey you can walk into. */
 export const blockersFor = (
   walls: readonly CompiledWall[],

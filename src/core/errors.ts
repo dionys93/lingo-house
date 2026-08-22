@@ -68,7 +68,6 @@ export type HouseError =
   | { readonly tag: 'DuplicateStorey'; readonly level: number }
   | { readonly tag: 'FloatingStorey'; readonly level: number; readonly missing: number }
   | { readonly tag: 'DuplicateRoomKey'; readonly key: string }
-  | { readonly tag: 'FootprintMismatch'; readonly level: number }
   | { readonly tag: 'UnreachableStorey'; readonly level: number }
 
   // ── Stairs ────────────────────────────
@@ -152,8 +151,6 @@ export function describeError(e: HouseError): string {
       return `Level ${e.level} floats: there's no level ${e.missing} beneath it.`;
     case 'DuplicateRoomKey':
       return `Two rooms share the key '${e.key}'. Keys are unique across the whole house, storeys included — give one a distinct key (they can still share a name).`;
-    case 'FootprintMismatch':
-      return `Level ${e.level} doesn't cover the same footprint as the storey below. Setback roofs aren't supported yet, so every storey must have the same outline.`;
     case 'UnreachableStorey':
       return `Level ${e.level} can't be reached — no stairs connect it to the rest of the house.`;
     case 'DuplicateStairId':

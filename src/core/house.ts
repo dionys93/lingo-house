@@ -11,7 +11,7 @@
 // so they genuinely cannot run until phase one succeeded. Everything within a
 // phase still accumulates; you never fix one storey to discover the next.
 
-import { compileGrid, roofFor, WALL_HEIGHT, type CompiledGrid, type Vec3, type WallSide } from './grid';
+import { abutsOf, boxOfCells, compileGrid, roofOver, uncoveredRects, WALL_HEIGHT, type CompiledGrid, type Vec3, type WallSide } from './grid';
 import type { RoofMesh } from './roof';
 import type { Storey } from './blocks';
 import type { Cell, HouseError } from './errors';
@@ -53,7 +53,15 @@ export interface CompiledStorey {
 export interface CompiledHouse {
   readonly storeys: readonly CompiledStorey[]; // ascending by level
   readonly stairs: readonly CompiledStair[];
-  readonly roof: RoofMesh; // on the top storey's footprint
+  /**
+   * One roof per uncovered rectangle, at the height of the storey it caps.
+   *
+   * Was a single mesh on the top storey's footprint, which only worked because
+   * every storey was forced to share one outline. With setbacks a house has
+   * several roofs at several heights: the top storey's own, plus whatever each
+   * lower storey leaves exposed.
+   */
+  readonly roofs: readonly RoofMesh[];
 }
 
 const vec3 = (x: number, y: number, z: number): Vec3 => [x, y, z];
@@ -94,12 +102,26 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
   }
 
   const ordered = [...storeys].sort((a, b) => a.level - b.level);
+
+  // The union of every storey's grid. Computed before any of them compile,
+  // because they all have to agree on it.
+  const extent = {
+    rows: ordered.reduce((m, s) => Math.max(m, s.grid.length), 0),
+    cols: ordered.reduce(
+      (m, s) => Math.max(m, s.grid.reduce((n, row) => Math.max(n, row.length), 0)),
+      0,
+    ),
+  };
   const compiled = new Map<number, CompiledGrid>();
   for (const s of ordered) {
     const r = compileGrid(s.grid, {
       openings: s.openings ?? [],
       items: s.items ?? [],
       baseY: s.level * WALL_HEIGHT,
+      // Every storey centres on the WHOLE house, not on itself, so cell [0][0]
+      // is the same world corner on all of them and a smaller storey aligns to
+      // the corner it was drawn from instead of floating in the middle.
+      extent,
     });
     // An opening's id is `${orient}:${fixed}:${varying}` — unique per GRID, but
     // the same edge exists at the same coordinates on every storey, so across a
@@ -140,17 +162,11 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
     }
   }
 
-  // Every storey must share one outline. The roof goes on the top footprint; a
-  // smaller upper storey is a setback, whose exposed lower roof is deferred, and
-  // silently roofing only part of the house is exactly the wrongness the
-  // compiler exists to prevent.
-  const base = compiled.get(ordered[0].level)!.footprint.bbox;
-  for (const s of ordered.slice(1)) {
-    const b = compiled.get(s.level)!.footprint.bbox;
-    if (b.x0 !== base.x0 || b.x1 !== base.x1 || b.z0 !== base.z0 || b.z1 !== base.z1) {
-      phase2.push({ tag: 'FootprintMismatch', level: s.level });
-    }
-  }
+  // The FootprintMismatch check used to live here, refusing any storey whose
+  // outline differed from the ground floor's. It existed because the roof was a
+  // single gable on one footprint and half-roofing a house silently is exactly
+  // the wrongness the compiler exists to prevent. Roofs are now derived per
+  // uncovered rectangle, so the constraint has nothing left to protect.
 
   // ── Stairs, and the holes they cut ────────────────────────────────────────
   const stairs: CompiledStair[] = [];
@@ -308,8 +324,17 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
     openCeiling: holes.get(s.level + 1) ?? [],
   }));
 
-  // The roof sits on whatever the topmost walls are — add a storey and it
-  // recomputes up there, over the new blocks.
-  const top = out[out.length - 1];
-  return ok({ storeys: out, stairs, roof: roofFor(top.grid.footprint) });
+  // One roof per storey per uncovered rectangle. A storey with another directly
+  // over every cell contributes nothing; the top storey contributes its whole
+  // outline, because there is never anything above it.
+  const roofs: RoofMesh[] = [];
+  for (const s of ordered) {
+    const above = ordered.find((o) => o.level === s.level + 1)?.grid ?? null;
+    const wallTopY = compiled.get(s.level)!.footprint.wallTopY;
+    for (const rect of uncoveredRects(s.grid, above)) {
+      roofs.push(roofOver(boxOfCells(rect, extent), wallTopY, abutsOf(rect, above)));
+    }
+  }
+
+  return ok({ storeys: out, stairs, roofs });
 }

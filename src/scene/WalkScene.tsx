@@ -99,7 +99,9 @@ export function WalkScene() {
                 />
               ))}
               <Stairs stairs={house.stairs} />
-              <Roof roof={house.roof} />
+              {house.roofs.map((rf, i) => (
+                <Roof key={i} roof={rf} />
+              ))}
             </>
           )}
         </SurfaceProvider>

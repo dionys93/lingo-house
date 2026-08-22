@@ -10,7 +10,7 @@
 //   corners don't leak, and degenerate input doesn't produce NaN
 
 import { describe, expect, it } from 'vitest';
-import { blockersFor, blocksDoorway, boxSegments, closestOn, cutOpenings, doorwayOf, segmentsCross, slide, type Segment2, type Vec2 } from '../core/collide';
+import { blockersFor, blocksDoorway, boxSegments, closestOn, cutOpenings, doorwayOf, segmentsCross, slide, stairwellOf, type Segment2, type Vec2 } from '../core/collide';
 import type { AABB, CompiledOpening, CompiledWall } from '../core/grid';
 
 const R = 0.18; // player radius, ~36cm across at 1 unit = 2m
@@ -225,5 +225,33 @@ describe('blocksDoorway', () => {
     for (const to of [[0, 0.2], [0, -0.2], [0.2, 0], [-0.2, 0]] as const) {
       expect(slide(stuck, to, sealed, R)).toEqual(stuck);
     }
+  });
+});
+
+describe('stairwellOf', () => {
+  // A three-cell run along z at x = 0, tread centres half a cell apart.
+  const treads = [
+    [0, 0.4, 0.5],
+    [0, 0.8, 0],
+    [0, 1.2, -0.5],
+  ] as const;
+  const well = stairwellOf(treads, 0.5);
+
+  it('closes the flight from every side', () => {
+    const inside = (p: Vec2) => p[0] > -0.25 && p[0] < 0.25 && p[1] > -0.75 && p[1] < 0.75;
+    const approaches: readonly Vec2[] = [[0, 1.5], [0, -1.5], [1.5, 0], [-1.5, 0]];
+    for (const from of approaches) expect(inside(slide(from, [0, 0], well, R))).toBe(false);
+  });
+
+  it('covers the whole CELL, not just the flight width', () => {
+    // The 3.5cm between a stringer and the wall is a gap no body fits through;
+    // leaving it open only creates somewhere to get wedged.
+    const xs = well.flatMap((s) => [s.a[0], s.b[0]]);
+    expect(Math.min(...xs)).toBeCloseTo(-0.25);
+    expect(Math.max(...xs)).toBeCloseTo(0.25);
+  });
+
+  it('is empty for a run with no treads rather than throwing', () => {
+    expect(stairwellOf([], 0.5)).toEqual([]);
   });
 });

@@ -89,12 +89,17 @@ export const GROUND_FLOOR: Grid = [
   // two cells over a 1.2 rise is a 50° pitch, which is a ship's ladder. Real
   // stairs sit at 30-37° and this one is already steep at 38.7°.
   /* row 6 */ [L, L, L, L, L, L],
+  // Rows 7-8 are the SETBACK: the ground floor now reaches two cells further
+  // forward than the upper storey, so the front of the house is single-height
+  // and gets its own lower roof.
+  /* row 7 */ [L, L, L, L, L, L],
+  /* row 8 */ [L, L, L, L, L, L],
 ];
 
 // ── Doors. `swing` is which way the panel opens. Open plan means few doors:
 // the front door, one between the two big rooms, and one to the bathroom. ──
 export const DOORS: readonly Opening[] = [
-  { kind: 'door', cell: [6, 2], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] },
+  { kind: 'door', cell: [8, 2], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] },
   { kind: 'door', cell: [3, 1], side: 'back', swing: 'in', between: ['livingRoom', 'kitchen'] },
   { kind: 'door', cell: [3, 4], side: 'front', swing: 'in', between: ['bathroom', 'livingRoom'] },
 ];
@@ -108,8 +113,8 @@ export const WINDOWS: readonly Opening[] = [
   { kind: 'window', cell: [1, 0], side: 'left', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
   { kind: 'window', cell: [1, 5], side: 'right', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
   { kind: 'window', cell: [2, 5], side: 'right', sill: 0.6, head: 1.0, between: ['bathroom', 'outside'] },
-  { kind: 'window', cell: [6, 3], side: 'front', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
-  { kind: 'window', cell: [6, 4], side: 'front', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
+  { kind: 'window', cell: [8, 3], side: 'front', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
+  { kind: 'window', cell: [8, 4], side: 'front', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
   { kind: 'window', cell: [4, 5], side: 'right', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
 ];
 
@@ -174,9 +179,10 @@ const U = defineRoom({
   },
 });
 
-// Same 6×6 outline as the ground floor — REQUIRED, not stylistic: the roof sits
-// on the top storey's footprint, and a smaller upper storey is a setback whose
-// exposed lower roof isn't supported yet. The compiler enforces it.
+// SMALLER than the ground floor, on purpose. It stops at row 6 while the ground
+// floor runs to row 8, so the front two rows are single-storey and carry their
+// own lower roof. Storeys align at cell [0][0], not on their centres — see the
+// `extent` option in compileGrid.
 //
 // The landing's three front cells sit directly over the staircase; their floor
 // is cut away automatically, derived from the stair below.

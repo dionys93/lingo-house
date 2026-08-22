@@ -13,9 +13,15 @@ import { room } from './support';
 const A = room('down', 'Downstairs');
 const B = room('up', 'Upstairs');
 
-// 3 rows × 2 cols, one room per storey. Three rows so a stair has somewhere to
-// run and still land on a cell that exists.
+// 4 rows × 2 cols, one room per storey.
+//
+// Was three rows, which is one short: a two-cell run starting at the last row
+// has its DEPARTURE cell — the floor you stand on before the bottom step — off
+// the grid entirely. compileHouse rejects that now, and it is the same defect
+// the authored house had, where the bottom step landed on the exterior wall.
+// The fixture wasn't wrong before the rule existed; it is wrong now.
 const GRID_A = [
+  [A, A],
   [A, A],
   [A, A],
   [A, A],
@@ -24,9 +30,13 @@ const GRID_B = [
   [B, B],
   [B, B],
   [B, B],
+  [B, B],
 ];
 
-const FRONT_DOOR: Opening = { kind: 'door', cell: [2, 0], side: 'front', swing: 'out' };
+// Row 3, not row 2: adding a row moved the front wall, and row 2's front edge is
+// now an interior seam between two cells of the same room — no wall to hang a
+// door on.
+const FRONT_DOOR: Opening = { kind: 'door', cell: [3, 0], side: 'front', swing: 'out' };
 // Bottom tread at the front, climbing back; arrival is derived as [0,0].
 const STAIR: Stair = { id: 's1', from: [2, 0], to: [1, 0] };
 
@@ -64,7 +74,7 @@ describe('compileHouse — stacking', () => {
     const oneStorey = compiled([{ level: 0, grid: GRID_A, openings: [FRONT_DOOR] }]);
     const twoStorey = compiled(house());
     const ridge = (h: ReturnType<typeof compiled>) =>
-      Math.max(...h.roof.slopes.positions.map((p) => p[1]));
+      Math.max(...h.roofs.flatMap((r) => r.slopes.positions.map((p) => p[1])));
     expect(ridge(twoStorey) - ridge(oneStorey)).toBeCloseTo(WALL_HEIGHT);
   });
 });
@@ -92,8 +102,8 @@ describe('compileHouse — the stairwell is DERIVED', () => {
       }
     }
     const tiles = (i: number) => h.storeys[i].grid.rooms.reduce((n, r) => n + r.floor.length, 0);
-    expect(tiles(0)).toBe(6);
-    expect(tiles(1)).toBe(6); // NOT 4 — the hole lives in openFloor, not here
+    expect(tiles(0)).toBe(8); // 4 rows × 2 cols
+    expect(tiles(1)).toBe(8); // NOT 6 — the two-cell hole lives in openFloor, not here
   });
 
   it('opens the ceiling below to match, so the stairs do not run into a lid', () => {
@@ -157,9 +167,32 @@ describe('compileHouse — house-level errors', () => {
     expect(tags(house({}, { grid: GRID_A }))).toContain('DuplicateRoomKey');
   });
 
-  it('rejects a storey whose outline differs — setback roofs are not supported', () => {
-    const narrow = [[B], [B], [B]];
-    expect(tags(house({}, { grid: narrow }))).toContain('FootprintMismatch');
+  it('ACCEPTS a storey whose outline differs, and roofs the part it leaves bare', () => {
+    // The inverse of what this used to assert. FootprintMismatch existed to stop
+    // a single gable silently half-roofing a house; roofs are derived per
+    // uncovered rectangle now, so a setback has nothing left to reject.
+    const narrow = [[B], [B], [B], [B]]; // one column instead of two
+    const h = compiled(house({}, { grid: narrow }));
+
+    // Two roofs at two heights: the upper storey's own, and a lower one over the
+    // column the upper storey doesn't cover.
+    expect(h.roofs).toHaveLength(2);
+    const ridges = h.roofs
+      .map((r) => Math.max(...r.slopes.positions.map((p) => p[1])))
+      .sort((x, y) => x - y);
+    expect(ridges[1] - ridges[0]).toBeCloseTo(WALL_HEIGHT);
+  });
+
+  it('aligns storeys at cell [0][0], not on their own centres', () => {
+    // A smaller storey centred on ITSELF would float inboard of where it was
+    // drawn. Sharing the house's extent is what makes a setback land on the
+    // corner it was authored from.
+    const narrow = [[B], [B], [B], [B]];
+    const h = compiled(house({}, { grid: narrow }));
+    const [ground, upper] = h.storeys;
+    expect(upper.grid.footprint.bbox.x0).toBeCloseTo(ground.grid.footprint.bbox.x0);
+    expect(upper.grid.footprint.bbox.z0).toBeCloseTo(ground.grid.footprint.bbox.z0);
+    expect(upper.grid.footprint.bbox.x1).toBeLessThan(ground.grid.footprint.bbox.x1);
   });
 
   it('rejects a storey nobody can reach', () => {
@@ -191,8 +224,19 @@ describe('compileHouse — stair errors', () => {
   });
 
   it('rejects an arrival that lands nowhere upstairs', () => {
-    // Climbing the wrong way: the derived arrival falls off the grid.
-    expect(withStair({ id: 's1', from: [0, 0], to: [2, 0] })).toContain('StairArrivalInvalid');
+    // Runs to the LAST row, so the derived arrival — one step past the top
+    // tread — falls off the grid. Was [0,0]→[2,0], which stopped isolating this
+    // once the fixture grew a fourth row: the arrival then landed on row 3 and
+    // the DEPARTURE fell off instead, so the assertion caught the wrong error.
+    expect(withStair({ id: 's1', from: [1, 0], to: [3, 0] })).toContain('StairArrivalInvalid');
+  });
+
+  it('rejects a departure that lands nowhere on this storey', () => {
+    // The mirror of the case above, and the one that has no floor at the FOOT.
+    // Running from row 0 means the cell you stand on before the bottom step is
+    // row -1 — which is how a staircase ends up starting inside an exterior
+    // wall with nowhere to approach it from.
+    expect(withStair({ id: 's1', from: [0, 0], to: [2, 0] })).toContain('StairDepartureInvalid');
   });
 
   it('rejects a stair with no storey above it', () => {

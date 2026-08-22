@@ -61,6 +61,25 @@ export interface RoofShape {
   readonly pitch: number; // rise per unit of horizontal run (a ratio)
   readonly rakeOverhang: number;
   readonly eaveOverhang: number;
+  /**
+   * Sides that run into a taller wall instead of ending in open air.
+   *
+   * A lower roof over a setback does NOT overhang where it meets the storey
+   * above — it runs into that wall and gets flashed. Left overhanging, the eave
+   * reaches back UNDER the taller part and comes out below its ceiling, which is
+   * what a roof cutting through an interior looks like.
+   *
+   * An abutting side stops at the wall centreline (so it's buried in the wall)
+   * and, on an eave, keeps its full height there instead of dropping by the
+   * overhang. That makes the two slopes asymmetric, which is correct: a
+   * lean-to's high side is against the wall.
+   */
+  readonly abuts?: {
+    readonly x0?: boolean;
+    readonly x1?: boolean;
+    readonly z0?: boolean;
+    readonly z1?: boolean;
+  };
   readonly bearingOffset: number; // half the wall thickness, supplied by the shell
 }
 
@@ -87,21 +106,28 @@ function slopeMesh(quads: readonly Quad[]): MeshData {
 // ridge), never poking through.
 export function gableRoof(box: RoofBox, wallTop: number, shape: RoofShape): RoofMesh {
   const { x0, x1, z0, z1 } = box;
-  const { pitch, rakeOverhang, eaveOverhang, bearingOffset } = shape;
+  const { pitch, rakeOverhang, eaveOverhang, bearingOffset, abuts = {} } = shape;
   const eaveY = wallTop - pitch * eaveOverhang; // low edge, below wall-top
+  // An abutting eave stops at the wall line, so it never descends the pitch and
+  // sits at wall-top rather than below it.
+  const rake = (side: boolean | undefined) => (side ? 0 : rakeOverhang);
+  const eaveOut = (side: boolean | undefined) => (side ? 0 : bearingOffset + eaveOverhang);
+  const eaveHeight = (side: boolean | undefined) => (side ? wallTop : eaveY);
 
   if (x1 - x0 >= z1 - z0) {
     // ridge along X — slopes face front/back (±Z eaves), gable ends face ±X
     const midZ = (z0 + z1) / 2;
     const ridgeY = wallTop + pitch * ((z1 - z0) / 2 + bearingOffset);
-    const xa = x0 - rakeOverhang; // slopes hang past the gable ends
-    const xb = x1 + rakeOverhang;
-    const zFront = z1 + bearingOffset + eaveOverhang; // past the wall's outer face…
-    const zBack = z0 - bearingOffset - eaveOverhang; // …continuing down the pitch line
+    const xa = x0 - rake(abuts.x0); // slopes hang past the gable ends
+    const xb = x1 + rake(abuts.x1);
+    const zFront = z1 + eaveOut(abuts.z1); // past the wall's outer face…
+    const zBack = z0 - eaveOut(abuts.z0); // …continuing down the pitch line
+    const yFront = eaveHeight(abuts.z1);
+    const yBack = eaveHeight(abuts.z0);
     return {
       slopes: slopeMesh([
-        [[xa, eaveY, zFront], [xb, eaveY, zFront], [xb, ridgeY, midZ], [xa, ridgeY, midZ]], // front
-        [[xb, eaveY, zBack], [xa, eaveY, zBack], [xa, ridgeY, midZ], [xb, ridgeY, midZ]], // back
+        [[xa, yFront, zFront], [xb, yFront, zFront], [xb, ridgeY, midZ], [xa, ridgeY, midZ]], // front
+        [[xb, yBack, zBack], [xa, yBack, zBack], [xa, ridgeY, midZ], [xb, ridgeY, midZ]], // back
       ]),
       gables: [
         { base0: [x0, wallTop, z0], base1: [x0, wallTop, z1], apex: [x0, ridgeY, midZ], axis: 'x' },
@@ -113,14 +139,16 @@ export function gableRoof(box: RoofBox, wallTop: number, shape: RoofShape): Roof
   // ridge along Z — slopes face left/right (±X eaves), gable ends face ±Z
   const midX = (x0 + x1) / 2;
   const ridgeY = wallTop + pitch * ((x1 - x0) / 2 + bearingOffset);
-  const za = z0 - rakeOverhang;
-  const zb = z1 + rakeOverhang;
-  const xRight = x1 + bearingOffset + eaveOverhang;
-  const xLeft = x0 - bearingOffset - eaveOverhang;
+  const za = z0 - rake(abuts.z0);
+  const zb = z1 + rake(abuts.z1);
+  const xRight = x1 + eaveOut(abuts.x1);
+  const xLeft = x0 - eaveOut(abuts.x0);
+  const yRight = eaveHeight(abuts.x1);
+  const yLeft = eaveHeight(abuts.x0);
   return {
     slopes: slopeMesh([
-      [[xRight, eaveY, za], [xRight, eaveY, zb], [midX, ridgeY, zb], [midX, ridgeY, za]], // right
-      [[xLeft, eaveY, zb], [xLeft, eaveY, za], [midX, ridgeY, za], [midX, ridgeY, zb]], // left
+      [[xRight, yRight, za], [xRight, yRight, zb], [midX, ridgeY, zb], [midX, ridgeY, za]], // right
+      [[xLeft, yLeft, zb], [xLeft, yLeft, za], [midX, ridgeY, za], [midX, ridgeY, zb]], // left
     ]),
     gables: [
       { base0: [x0, wallTop, z0], base1: [x1, wallTop, z0], apex: [midX, ridgeY, z0], axis: 'z' },

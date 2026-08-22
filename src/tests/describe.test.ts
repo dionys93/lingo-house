@@ -188,11 +188,14 @@ suite('describe — stairs', () => {
     const r = compileHouse([
       {
         level: 0,
-        grid: [[K], [K], [K]],
-        openings: [{ kind: 'door', cell: [2, 0], side: 'front', swing: 'out' }],
+        // Four rows, not three: the stair's departure cell — the floor at the
+        // foot of the flight — has to exist, and on a three-row grid it falls
+        // off the end.
+        grid: [[K], [K], [K], [K]],
+        openings: [{ kind: 'door', cell: [3, 0], side: 'front', swing: 'out' }],
         stairs: [{ id: 'st', from: [2, 0], to: [1, 0] }],
       },
-      { level: 1, grid: [[L], [L], [L]] },
+      { level: 1, grid: [[L], [L], [L], [L]] },
     ]);
     if (!r.ok) throw new Error(JSON.stringify(r.error));
     return r;

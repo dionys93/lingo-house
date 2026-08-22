@@ -8,11 +8,12 @@
 import { useCallback, useMemo, useReducer, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { compileHouse } from '../core/house';
+import { CELL } from '../core/grid';
 import { describeError, type HouseError } from '../core/errors';
 import { buildNavGraph } from '../core/nav';
 import { locationOf, startWalking, walkReducer, type Stance } from '../core/walk';
 import { locationAt } from '../core/locate';
-import { blocksDoorway, blockersFor, doorwayOf, type Vec2 } from '../core/collide';
+import { blocksDoorway, blockersFor, doorwayOf, stairwellOf, type Vec2 } from '../core/collide';
 import { explorerReducer, START_EXPLORER, type Selection } from '../core/explorer';
 import { describe as describeSelection } from '../core/describe';
 import { HOUSE } from '../authoring/rooms';
@@ -117,15 +118,22 @@ export function HouseScene() {
   // which is the only thing that changes them.
   const blockers = useMemo(
     () =>
-      standingOn
-        ? blockersFor(
-          standingOn.grid.walls,
-          standingOn.grid.openings,
-          standingOn.grid.items.map((i) => i.bounds),
-          walk.openDoors,
-        )
+      standingOn && house
+        ? [
+          ...blockersFor(
+            standingOn.grid.walls,
+            standingOn.grid.openings,
+            standingOn.grid.items.map((i) => i.bounds),
+            walk.openDoors,
+          ),
+          // A stair blocks the storey it rises from AND the one it rises into —
+          // the flight below, the hole above. Same footprint, two reasons.
+          ...house.stairs
+            .filter((st) => st.level === walkLevel || st.level + 1 === walkLevel)
+            .flatMap((st) => stairwellOf(st.treads, CELL)),
+        ]
         : [],
-    [standingOn, walk.openDoors],
+    [standingOn, house, walkLevel, walk.openDoors],
   );
 
   // Mirrored in a ref, not state: onAct needs to know where you're standing, and
@@ -265,7 +273,16 @@ export function HouseScene() {
               ))}
               {/* Once, on top — the roof belongs to the house, not to a storey. */}
               <Stairs stairs={house.stairs} onPick={(id) => select({ on: 'stair', id })} />
-              <Roof roof={house.roof} onPick={(at) => select({ on: 'part', part: 'roof', at })} />
+              {/* One per uncovered rectangle: the top storey's own, plus the
+                  lower roof over anything it doesn't cover. Keyed by index
+                  because a roof has no identity of its own — it's derived. */}
+              {house.roofs.map((rf, i) => (
+                <Roof
+                  key={i}
+                  roof={rf}
+                  onPick={(at) => select({ on: 'part', part: 'roof', at })}
+                />
+              ))}
               {described && (
                 <SelectionPopup
                   described={described}
