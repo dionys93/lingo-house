@@ -80,12 +80,21 @@ export const GROUND_FLOOR: Grid = [
   /* row 3 */ [L, L, L, L, B, B],
   /* row 4 */ [L, L, L, L, L, L],
   /* row 5 */ [L, L, L, L, L, L],
+  // Row 6 exists so the STAIRCASE HAS A FOOT. The flight occupies rows 5-3 of
+  // column 0, and a run's cells reach the far edge of the first one — so with
+  // six rows the bottom step landed on the exterior wall centreline and you
+  // arrived at the stairs already inside them.
+  //
+  // The alternative was shortening the flight, and the arithmetic ruled it out:
+  // two cells over a 1.2 rise is a 50° pitch, which is a ship's ladder. Real
+  // stairs sit at 30-37° and this one is already steep at 38.7°.
+  /* row 6 */ [L, L, L, L, L, L],
 ];
 
 // ── Doors. `swing` is which way the panel opens. Open plan means few doors:
 // the front door, one between the two big rooms, and one to the bathroom. ──
 export const DOORS: readonly Opening[] = [
-  { kind: 'door', cell: [5, 2], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] },
+  { kind: 'door', cell: [6, 2], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] },
   { kind: 'door', cell: [3, 1], side: 'back', swing: 'in', between: ['livingRoom', 'kitchen'] },
   { kind: 'door', cell: [3, 4], side: 'front', swing: 'in', between: ['bathroom', 'livingRoom'] },
 ];
@@ -99,8 +108,8 @@ export const WINDOWS: readonly Opening[] = [
   { kind: 'window', cell: [1, 0], side: 'left', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
   { kind: 'window', cell: [1, 5], side: 'right', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
   { kind: 'window', cell: [2, 5], side: 'right', sill: 0.6, head: 1.0, between: ['bathroom', 'outside'] },
-  { kind: 'window', cell: [5, 3], side: 'front', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
-  { kind: 'window', cell: [5, 4], side: 'front', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
+  { kind: 'window', cell: [6, 3], side: 'front', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
+  { kind: 'window', cell: [6, 4], side: 'front', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
   { kind: 'window', cell: [4, 5], side: 'right', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
 ];
 
@@ -180,6 +189,9 @@ export const UPPER_FLOOR: Grid = [
   /* row 3 */ [U, M, M, M, M, M],
   /* row 4 */ [U, M, M, M, M, M],
   /* row 5 */ [U, M, M, M, M, M],
+  // Matches the ground floor's new row. The landing column continues over the
+  // stair's approach rather than stopping short of it.
+  /* row 6 */ [U, M, M, M, M, M],
 ];
 
 export const UPPER_DOORS: readonly Opening[] = [
@@ -193,7 +205,7 @@ export const UPPER_WINDOWS: readonly Opening[] = [
   { kind: 'window', cell: [0, 4], side: 'back', sill: 0.6, head: 1.0, between: ['bathroomUp', 'outside'] },
   { kind: 'window', cell: [1, 5], side: 'right', sill: 0.6, head: 1.0, between: ['bathroomUp', 'outside'] },
   { kind: 'window', cell: [4, 5], side: 'right', sill: 0.35, head: 1.0, between: ['bedroom', 'outside'] },
-  { kind: 'window', cell: [5, 3], side: 'front', sill: 0.35, head: 1.0, between: ['bedroom', 'outside'] },
+  { kind: 'window', cell: [6, 3], side: 'front', sill: 0.35, head: 1.0, between: ['bedroom', 'outside'] },
 ];
 
 export const UPPER_ITEMS: readonly ItemDef[] = [

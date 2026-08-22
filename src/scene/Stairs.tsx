@@ -47,6 +47,18 @@ const NOSING = 0.022; // tread overhang — this is what casts the step's shadow
 const STRINGER_T = 0.028;
 const STRINGER_DROP = 0.075; // how far the profile hangs below the nose line
 const RAIL_H = 0.4;
+/**
+ * Steps left clear at the FOOT of the flight, before the balustrade starts.
+ *
+ * Counted in STEPS rather than world units, and that's the point: a newel landing
+ * exactly on a nosing is what makes the start of a rail read as deliberate. Half
+ * a cell happened to be two steps on this flight and would land mid-tread on a
+ * flight with any other proportions — Blondel picks the step count from the rise
+ * and run, so it isn't a number to hardcode against.
+ *
+ * Set to 0 for a rail that runs the whole flight.
+ */
+const RAIL_ENTRY_STEPS = 3;
 const RAIL_R = 0.017;
 const POST = 0.028;
 
@@ -137,6 +149,17 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
   const sideX = (side: 'left' | 'right') =>
     (side === 'left' ? 1 : -1) * (WIDTH / 2 + STRINGER_T / 2);
 
+  // The balustrade's own span, clear of the foot. Kept as plain numbers in the
+  // flight's local frame so the rail, its newels and its balusters all read from
+  // one description instead of each re-deriving the slope.
+  // Clamped in steps, not distance, so the clamp can't put the newel mid-tread
+  // on a short flight either.
+  const railStartZ = Math.min(RAIL_ENTRY_STEPS, Math.floor(n * 0.4)) * going;
+  const railMidZ = (railStartZ + runLen) / 2;
+  const railLen = Math.hypot(runLen - railStartZ, stair.rise * (1 - railStartZ / runLen));
+  /** Rail height at a point along the run — vertical offset above the nosing line. */
+  const railY = (z: number) => RAIL_H - TREAD_T / 2 + (stair.rise * z) / runLen;
+
   return (
     <group position={origin} rotation={[0, yaw, 0]}>
       {/* Stringers: the sawtooth silhouette that makes a flight of the steps.
@@ -181,23 +204,31 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
         const x = sideX(side) + (side === 'left' ? 1 : -1) * 0.012;
         return (
           <group key={side}>
+            {/*
+              Offset VERTICALLY above the nosing line, not perpendicular to the
+              slope. Perpendicular was the bug: displacing the centre normal to
+              the slope translates the rail ALONG the slope as well as away from
+              it, by RAIL_H·sin(pitch). At this pitch that's 0.25 — so the rail
+              began a quarter-unit BELOW the bottom nose and ended a quarter-unit
+              short of the top. The flight's origin sits on the wall centreline,
+              which is how that overhang ended up outside the house.
+
+              A real handrail is measured vertically from the nosing anyway, so
+              the fix is also the more correct construction.
+            */}
             <mesh
               {...SOLID}
-              position={[
-                x,
-                stair.rise / 2 + RAIL_H * Math.cos(pitch),
-                runLen / 2 - RAIL_H * Math.sin(pitch),
-              ]}
+              position={[x, railY(railMidZ), (railStartZ + runLen) / 2]}
               rotation={[-pitch, 0, 0]}
             >
-              <boxGeometry args={[RAIL_R * 2, RAIL_R * 2, flightLen]} />
+              <boxGeometry args={[RAIL_R * 2, RAIL_R * 2, railLen]} />
               <SurfaceMaterialSlot material={rail} color="#7e5e42" roughness={0.6} />
             </mesh>
 
             {/* Balusters every other step — one per step is a picket fence at
                 this count, and the rhythm is what reads, not the number. */}
             {steps
-              .filter(({ i }) => i % 2 === 0)
+              .filter(({ i, front }) => i % 2 === 0 && front + going / 2 >= railStartZ)
               .map(({ i, top, front }) => (
                 <mesh key={i} position={[x, top + RAIL_H / 2 - TREAD_T, front + going / 2]} {...SOLID}>
                   <boxGeometry args={[POST * 0.4, RAIL_H, POST * 0.4]} />
@@ -207,7 +238,9 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
 
             {/* Newels: stouter, one at each end of the run. */}
             {[
-              { y: RAIL_H / 2, z: 0 },
+              // Bottom newel moves up to where the rail now starts, so the post
+              // isn't standing in the doorway of its own staircase.
+              { y: railY(railStartZ) - (RAIL_H - TREAD_T) / 2, z: railStartZ },
               { y: stair.rise + RAIL_H / 2 - TREAD_T, z: runLen },
             ].map((p, k) => (
               <mesh key={k} position={[x, p.y, p.z]} {...SOLID}>
