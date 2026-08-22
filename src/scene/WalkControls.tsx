@@ -83,8 +83,15 @@ const MAX_DT = 0.05;
 
 const HELD = new Set<string>();
 
-/** Seconds for a stair climb. Long enough to read as travel, short enough not to nag. */
-const CLIMB_SECONDS = 1.1;
+/**
+ * Seconds for a stair climb.
+ *
+ * Was 1.1, which read as a jump cut rather than a journey — a storey is 2.4m of
+ * rise and 3m of run, so 1.1s is about 3.5 m/s, five times a walking pace. 2.4
+ * is still generous against the ~4s it would take on foot, but it lets the
+ * treads pass under you instead of past you.
+ */
+const CLIMB_SECONDS = 2.4;
 
 /** Smoothstep — eases both ends, so a climb doesn't start or stop with a jolt. */
 const ease = (t: number): number => t * t * (3 - 2 * t);
@@ -96,6 +103,7 @@ export function WalkControls({
   level,
   baseYOf,
   climbTo = null,
+  climbVia = null,
   onArrived,
   onMoved,
 }: {
@@ -109,6 +117,8 @@ export function WalkControls({
   baseYOf: (level: number) => number;
   /** Non-null hands the camera over: input is ignored until the climb lands. */
   climbTo?: Stance | null;
+  /** The near end of the flight — walked to first, so leg 2 runs ALONG the stair. */
+  climbVia?: Stance | null;
   onArrived?: () => void;
   /** Called only when the position actually changes, not every frame. */
   onMoved?: (pos: Vec2) => void;
@@ -120,7 +130,11 @@ export function WalkControls({
   const pitch = useRef(0);
   // A climb is animated here rather than in a reducer: it's a camera movement,
   // and the camera has never been React's to hold.
-  const climb = useRef<{ from: Stance; to: Stance; t: number } | null>(null);
+  const climb = useRef<{
+    readonly legs: readonly { from: Stance; to: Stance; secs: number }[];
+    leg: number;
+    t: number;
+  } | null>(null);
   const lastReported = useRef<Vec2>(start);
 
   useEffect(() => {
@@ -226,44 +240,73 @@ export function WalkControls({
   // why it can't be computed in the reducer — only the shell knows where you
   // were standing when you clicked.
   useEffect(() => {
-    if (climbTo === null) {
+    if (climbTo === null || climbVia === null) {
       climb.current = null;
       return;
     }
+    // LEVEL COMES FROM `via`, NOT FROM THE `level` PROP, and that's the whole
+    // fix for the launch-then-fall glitch.
+    //
+    // `level` is walkLevel, which reads walk.to.level the moment the state
+    // becomes 'climbing' — so by the time this effect runs it already names the
+    // DESTINATION storey. Leg 1 was therefore interpolating height from the top
+    // of the stairs down to the bottom before leg 2 climbed back up.
+    //
+    // Leg 1 is a flat walk across the storey the flight leaves from, by
+    // definition, so its level is via's. Taking it from anywhere else is asking
+    // a question that already has an answer.
+    const here: Stance = { level: climbVia.level, pos: pos.current, yaw: yaw.current };
+    // Leg 1 is an ordinary walk, so it's timed like one — a click from across
+    // the room takes longer to reach the stairs than a click from beside them,
+    // which is what stops the approach reading as a teleport. Floored, or a
+    // click while already standing on the mat produces a zero-length leg and a
+    // divide by zero.
+    const approach = Math.hypot(climbVia.pos[0] - here.pos[0], climbVia.pos[1] - here.pos[1]);
     climb.current = {
-      from: { level, pos: pos.current, yaw: yaw.current },
-      to: climbTo,
+      legs: [
+        { from: here, to: climbVia, secs: Math.max(0.3, approach / WALK_SPEED) },
+        { from: climbVia, to: climbTo, secs: CLIMB_SECONDS },
+      ],
+      leg: 0,
       t: 0,
     };
-  }, [climbTo, level]);
+  }, [climbTo, climbVia]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, MAX_DT);
 
     const c = climb.current;
     if (c !== null) {
-      c.t = Math.min(1, c.t + dt / CLIMB_SECONDS);
+      const leg = c.legs[c.leg]!;
+      c.t = Math.min(1, c.t + dt / leg.secs);
+      // Eased per LEG, so the camera settles at the foot before starting up. The
+      // beat there is doing work: it's the difference between walking to the
+      // stairs and being flung at them.
       const k = ease(c.t);
       pos.current = [
-        c.from.pos[0] + (c.to.pos[0] - c.from.pos[0]) * k,
-        c.from.pos[1] + (c.to.pos[1] - c.from.pos[1]) * k,
+        leg.from.pos[0] + (leg.to.pos[0] - leg.from.pos[0]) * k,
+        leg.from.pos[1] + (leg.to.pos[1] - leg.from.pos[1]) * k,
       ];
-      // Shortest way round, or a climb that crosses the -π/π seam spins the
-      // long way about.
-      let d = c.to.yaw - c.from.yaw;
-      d = Math.atan2(Math.sin(d), Math.cos(d));
-      yaw.current = c.from.yaw + d * k;
-      pitch.current += (0 - pitch.current) * k * 0.25; // level out on the way up
+      // Shortest way round, or a turn that crosses the -π/π seam spins the long
+      // way about.
+      const d = Math.atan2(Math.sin(leg.to.yaw - leg.from.yaw), Math.cos(leg.to.yaw - leg.from.yaw));
+      yaw.current = leg.from.yaw + d * k;
+      pitch.current += (0 - pitch.current) * k * 0.25; // level out on the way
       // Y rises with the storey, so the climb is a climb rather than a glide
-      // through a floor.
-      const y0 = baseYOf(c.from.level);
-      const y1 = baseYOf(c.to.level);
+      // through a floor. Leg 1 has from.level === to.level, so it stays flat.
+      const y0 = baseYOf(leg.from.level);
+      const y1 = baseYOf(leg.to.level);
       camera.position.set(pos.current[0], EYE + y0 + (y1 - y0) * k, pos.current[1]);
       camera.rotation.order = 'YXZ';
       camera.rotation.set(pitch.current, yaw.current, 0);
       if (c.t >= 1) {
-        climb.current = null;
-        onArrived?.();
+        if (c.leg < c.legs.length - 1) {
+          c.leg += 1;
+          c.t = 0;
+        } else {
+          climb.current = null;
+          onArrived?.();
+        }
       }
       return; // input is ignored while the camera is not yours
     }

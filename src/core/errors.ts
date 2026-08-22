@@ -77,6 +77,7 @@ export type HouseError =
   | { readonly tag: 'StairTooShort'; readonly id: string }
   | { readonly tag: 'StairCellInvalid'; readonly id: string; readonly cell: Cell }
   | { readonly tag: 'StairArrivalInvalid'; readonly id: string; readonly cell: Cell }
+  | { readonly tag: 'StairDepartureInvalid'; readonly id: string; readonly cell: Cell }
   | { readonly tag: 'StairWithoutStoreyAbove'; readonly id: string; readonly level: number }
 
   // ── Textures ──────────────────────────
@@ -165,6 +166,8 @@ export function describeError(e: HouseError): string {
       return `Stair '${e.id}' runs through ${fmtCell(e.cell)}, which isn't inside a room on that storey.`;
     case 'StairArrivalInvalid':
       return `Stair '${e.id}' would arrive at ${fmtCell(e.cell)} upstairs, which isn't inside a room. Extend the room, or move the stair.`;
+    case 'StairDepartureInvalid':
+      return `Stair '${e.id}' has no floor at its foot — ${fmtCell(e.cell)} isn't inside a room on this storey. Extend the plan past the bottom step rather than shortening the run, which only steepens the pitch.`;
     case 'StairWithoutStoreyAbove':
       return `Stair '${e.id}' climbs out of level ${e.level}, but there's no level ${e.level + 1} to arrive on.`;
     case 'UnknownTextureKey':

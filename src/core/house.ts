@@ -23,6 +23,12 @@ export interface CompiledStair {
   readonly run: readonly Cell[]; // tread cells on the lower storey, bottom first
   readonly treads: readonly Vec3[]; // world centre of each tread cell, at its own height
   readonly arrival: Vec3; // world point you step onto, upstairs
+  // …and its mirror at the foot. Every stair is climbable in two directions and
+  // only one of them had a landing point, which is why descending didn't exist:
+  // the shell had nowhere to send you. Derived here rather than in the renderer
+  // because only the compiler has the CELLS — the shell would be guessing half a
+  // cell back from treads[0] and hoping it landed in a room.
+  readonly departure: Vec3; // world point you step onto, downstairs
   readonly rise: number; // total climb — one storey
   readonly connects: readonly [WallSide, WallSide]; // [lower room, upper room]
   // Which flanks of the flight are open floor rather than wall, as seen by
@@ -201,6 +207,18 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
         continue;
       }
 
+      // And the DEPARTURE, one step before the bottom tread on the same line, in
+      // a room on THIS storey. Refusing a flight with no floor at its foot is the
+      // compile-time form of a bug that otherwise only shows up visually: the
+      // bottom step landing on an exterior wall with nowhere to stand.
+      const [sr, sc] = run[1] ?? stair.to;
+      const [fr, fc] = run[0];
+      const departureCell: Cell = [fr - (sr - fr), fc - (sc - fc)];
+      if (roomAt(below, departureCell) === null) {
+        fail({ tag: 'StairDepartureInvalid', id: stair.id, cell: departureCell });
+        continue;
+      }
+
       // The hole is exactly the run's cells, cut from the floor ABOVE. Derived,
       // never authored, so it can't drift out of line with the stair.
       const holeCells = holes.get(s.level + 1) ?? [];
@@ -233,6 +251,7 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
           return vec3(x, baseY + (WALL_HEIGHT * (i + 1)) / run.length, z);
         }),
         arrival: centreOf(above, arrivalCell),
+        departure: centreOf(below, departureCell),
         rise: WALL_HEIGHT,
         connects: [roomAt(below, stair.from)!, upperRoom],
         openSides,

@@ -197,7 +197,22 @@ export const UPPER_FLOOR: Grid = [
 export const UPPER_DOORS: readonly Opening[] = [
   { kind: 'door', cell: [2, 1], side: 'back', swing: 'in', between: ['landing', 'bedroomSmall'] },
   { kind: 'door', cell: [2, 2], side: 'right', swing: 'in', between: ['landing', 'bathroomUp'] },
-  { kind: 'door', cell: [3, 1], side: 'left', swing: 'in', between: ['bedroom', 'landing'] },
+  // Was [3,1] side 'left' — the c0/c1 boundary, which is exactly the flank the
+  // staircase's balustrade runs down. On 'back' it sits on the r2/r3 line
+  // instead, so you step off the top of the stairs with the bedroom in front of
+  // you rather than behind your shoulder.
+  // 'out', not 'in', and the two are not symmetric the way they read.
+  //
+  // `swing` is a ROTATION SIGN, not a destination: the compiler orders an
+  // opening's sides geometrically as [negative, positive], so which room a given
+  // sign points at depends on where that room sits relative to the wall. This
+  // door and the bedroomSmall door two lines up are both axis-x walls, but the
+  // landing is on the negative side of one and the positive side of the other —
+  // so they need OPPOSITE swing values to do the same visible thing.
+  //
+  // Measured, rather than reasoned: with 'in' the panel tip lands in the
+  // landing, swinging out at whoever just climbed the stairs.
+  { kind: 'door', cell: [3, 1], side: 'back', swing: 'out', between: ['bedroom', 'landing'] },
 ];
 
 export const UPPER_WINDOWS: readonly Opening[] = [

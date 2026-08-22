@@ -74,6 +74,8 @@ export function HouseScene() {
   // Doors AND stairs — one graph, so climbing is the same kind of move as
   // walking through a doorway.
   const graph = useMemo(() => buildNavGraph(openings, house?.stairs ?? []), [openings, house]);
+  // The GROUND floor, used only for where you spawn. Everything that should
+  // follow you around the house uses `standingOn` below.
   const ground = house?.storeys[0] ?? null;
 
   // Spawn on the lawn, in front of the house, facing it. Doors open on click
@@ -89,20 +91,41 @@ export function HouseScene() {
 
   // Derived from POSITION now, not stored. Cheap and pure, so no memo.
   const rig = rigFor(locationOf(walk));
+  const walkLevel = walk.tag === 'walking' ? walk.level : walk.to.level;
+
+  /**
+   * The storey you're actually on.
+   *
+   * This was `ground` in three places and each one was wrong the moment you
+   * climbed the stairs. The visible symptom was that upstairs doors wouldn't
+   * open, and the chain is worth writing down because it's four steps long and
+   * none of them looks like a door bug:
+   *
+   *   locationAt(pos, ground.grid) reports a GROUND-FLOOR room while you stand
+   *   on the landing → describe() asks graph.traverse(thatRoom, upstairsDoorId)
+   *   → no edge, because that door doesn't touch a downstairs room → describe
+   *   returns the subject with NO action → the popup names the door and offers
+   *   nothing to click.
+   *
+   * Two quieter bugs shared the same cause: upstairs had no collision at all
+   * (blockersFor read the ground floor's walls), and the light rig was picking
+   * the room underneath you.
+   */
+  const standingOn = house?.storeys.find((st) => st.level === walkLevel) ?? null;
 
   // Walls, shut doors and furniture, flattened to 2D. Rebuilt when a door opens,
   // which is the only thing that changes them.
   const blockers = useMemo(
     () =>
-      ground
+      standingOn
         ? blockersFor(
-          ground.grid.walls,
-          ground.grid.openings,
-          ground.grid.items.map((i) => i.bounds),
+          standingOn.grid.walls,
+          standingOn.grid.openings,
+          standingOn.grid.items.map((i) => i.bounds),
           walk.openDoors,
         )
         : [],
-    [ground, walk.openDoors],
+    [standingOn, walk.openDoors],
   );
 
   // Mirrored in a ref, not state: onAct needs to know where you're standing, and
@@ -113,10 +136,10 @@ export function HouseScene() {
   const onMoved = useCallback(
     (pos: Vec2) => {
       here.current = pos;
-      if (!ground) return;
-      dispatch({ tag: 'entered', location: locationAt(pos, ground.grid) });
+      if (!standingOn) return;
+      dispatch({ tag: 'entered', location: locationAt(pos, standingOn.grid) });
     },
-    [ground],
+    [standingOn],
   );
 
   const baseYOf = useCallback(
@@ -153,11 +176,44 @@ export function HouseScene() {
     (edgeId: string) => {
       const stair = house?.stairs.find((st) => st.id === edgeId);
       if (stair) {
+        // WHICH WAY. `stair.level` is the storey it climbs OUT of, so standing on
+        // it means up and standing above it means down. This used to be hardcoded
+        // to `level + 1`, so clicking a stair from the landing sent you upstairs
+        // again — descending didn't exist rather than being merely unpolished.
+        const goingUp = walkLevel === stair.level;
+        const land = goingUp ? stair.arrival : stair.departure;
+
+        // Face the way you travelled. `yaw: 0` meant you always arrived looking
+        // down -Z, which upstairs put your back to the landing you'd just
+        // climbed to. The camera looks along -Z at yaw 0, so a heading (dx, dz)
+        // is atan2(-dx, -dz).
+        const first = stair.treads[0];
+        const last = stair.treads[stair.treads.length - 1];
+        const dx = (last[0] - first[0]) * (goingUp ? 1 : -1);
+        const dz = (last[2] - first[2]) * (goingUp ? 1 : -1);
+
+        // The NEAR end of the flight — the foot going up, the top landing
+        // coming down. Walked to first so the climb itself runs along the stair
+        // instead of cutting through it.
+        const near = goingUp ? stair.departure : stair.arrival;
+        const heading = Math.atan2(-dx, -dz);
+
         dispatch({
           tag: 'climb',
           edgeId,
-          to: { level: stair.level + 1, pos: [stair.arrival[0], stair.arrival[2]], yaw: 0 },
-          toLocation: stair.connects[1],
+          via: {
+            level: walkLevel,
+            pos: [near[0], near[2]],
+            // Already facing up the flight by the time you get there, so leg 2
+            // is pure travel and the turn happens while you're still walking.
+            yaw: heading,
+          },
+          to: {
+            level: goingUp ? stair.level + 1 : stair.level,
+            pos: [land[0], land[2]],
+            yaw: heading,
+          },
+          toLocation: goingUp ? stair.connects[1] : stair.connects[0],
         });
       } else {
         // Opening never traps. CLOSING can: sealing the gap you're standing in
@@ -165,7 +221,7 @@ export function HouseScene() {
         // path that starts on a segment as blocked in every direction — you'd
         // stop being able to move at all. So a door you're standing in refuses
         // to shut, which is also how doors work.
-        const door = ground?.grid.openings.find((o) => o.id === edgeId);
+        const door = standingOn?.grid.openings.find((o) => o.id === edgeId);
         const shutting = walk.openDoors.has(edgeId);
         const inTheWay =
           shutting && door !== undefined && blocksDoorway(here.current, doorwayOf(door), BODY_RADIUS);
@@ -173,11 +229,12 @@ export function HouseScene() {
       }
       explore({ tag: 'dismiss' });
     },
-    [house, ground, walk.openDoors],
+    [house, standingOn, walk.openDoors, walkLevel],
   );
 
   const onArrived = useCallback(() => dispatch({ tag: 'arrived' }), []);
   const climbTo: Stance | null = walk.tag === 'climbing' ? walk.to : null;
+  const climbVia: Stance | null = walk.tag === 'climbing' ? walk.via : null;
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -226,9 +283,10 @@ export function HouseScene() {
           blockers={blockers}
           start={start}
           startYaw={Math.PI}
-          level={walk.tag === 'walking' ? walk.level : walk.to.level}
+          level={walkLevel}
           baseYOf={baseYOf}
           climbTo={climbTo}
+          climbVia={climbVia}
           onArrived={onArrived}
           onMoved={onMoved}
         />

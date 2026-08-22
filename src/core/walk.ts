@@ -36,6 +36,16 @@ export type WalkState =
   | {
       readonly tag: 'climbing';
       readonly edgeId: string;
+      /**
+       * The foot of the flight, on the storey you're leaving.
+       *
+       * A climb is two legs, not one. Interpolating straight from wherever you
+       * clicked to the far landing draws a line THROUGH the staircase — you sink
+       * into the middle of the flight and rise out of it diagonally, never
+       * touching a tread. Going to the near end first means the second leg runs
+       * along the stair rather than across it.
+       */
+      readonly via: Stance;
       readonly to: Stance;
       readonly toLocation: Location;
       readonly openDoors: ReadonlySet<string>;
@@ -48,6 +58,7 @@ export type WalkEvent =
   | {
       readonly tag: 'climb';
       readonly edgeId: string;
+      readonly via: Stance;
       readonly to: Stance;
       readonly toLocation: Location;
     }
@@ -86,6 +97,7 @@ export function walkReducer(state: WalkState, event: WalkEvent): WalkState {
       return {
         tag: 'climbing',
         edgeId: event.edgeId,
+        via: event.via,
         to: event.to,
         toLocation: event.toLocation,
         openDoors: state.openDoors,
