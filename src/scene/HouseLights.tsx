@@ -29,8 +29,8 @@ const SUN_RADIUS = 8;
 // hemisphere light was telling. ~100-200kb each, which is what makes two
 // affordable at all.
 const HDRI: Record<EnvKey, Promise<string>> = {
-  outdoor: import('@pmndrs/assets/hdri/city.exr').then((m) => m.default),
-  indoor: import('@pmndrs/assets/hdri/apartment.exr').then((m) => m.default),
+  outdoor: import('@pmndrs/assets/hdri/city.exr.js').then((m) => m.default),
+  indoor: import('@pmndrs/assets/hdri/apartment.exr.js').then((m) => m.default),
 };
 
 function SceneEnvironment({ env, intensity }: { env: EnvKey; intensity: number }) {

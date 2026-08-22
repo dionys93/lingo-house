@@ -5,34 +5,29 @@
 // OrbitControls outside / InteriorControls in a room). App toggles between this
 // and the sandbox.
 
-import { useCallback, useMemo, useReducer } from 'react';
+import { useCallback, useMemo, useReducer, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import { compileHouse, type CompiledStorey } from '../core/house';
+import { compileHouse } from '../core/house';
 import { describeError, type HouseError } from '../core/errors';
-import { buildNavGraph, makeNavReducer, START_OUTSIDE, type NavState } from '../core/nav';
+import { buildNavGraph } from '../core/nav';
+import { locationOf, startWalking, walkReducer, type Stance } from '../core/walk';
+import { locationAt } from '../core/locate';
+import { blocksDoorway, blockersFor, doorwayOf, type Vec2 } from '../core/collide';
 import { explorerReducer, START_EXPLORER, type Selection } from '../core/explorer';
 import { describe as describeSelection } from '../core/describe';
 import { HOUSE } from '../authoring/rooms';
 import { LABELS } from '../authoring/labels';
 import { Ground } from './Ground';
-import { Floor } from './Floor';
-import { Ceiling } from './Ceiling';
-import { Walls } from './Walls';
 import { Roof } from './Roof';
 import { Stairs } from './Stairs';
 import { SurfaceProvider } from './surfaces/SurfaceProvider';
 import { HouseLights } from './HouseLights';
 import { rigFor } from './lights';
+import { BODY_RADIUS, EYE, WalkControls } from './WalkControls';
 import { ScenePost } from './ScenePost';
-import { vantageFrom, type Vantage } from './vantage';
-import { Items } from './Items';
-import { Doors } from './Doors';
+import { Storey } from './Storey';
 import { SelectionPopup } from './SelectionPopup';
 import { LanguageBar } from './LanguageBar';
-import { Windows } from './Windows';
-import { CameraRig } from './CameraRig';
-import { InteriorControls } from './InteriorControls';
 
 function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
   return (
@@ -61,47 +56,6 @@ function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
   );
 }
 
-// Everything that repeats per floor. Each storey draws its own walls, floors,
-// ceilings, openings and items, all already in world space — the only thing it
-// needs to be told about its level is where the stairwell leaves a gap.
-function Storey({
-  storey,
-  nav,
-  selectedItemId,
-  select,
-}: {
-  storey: CompiledStorey;
-  nav: NavState;
-  selectedItemId: string | null;
-  select: (selection: Selection) => void;
-}) {
-  const { grid, baseY, openFloor, openCeiling } = storey;
-  return (
-    <>
-      <Floor
-        grid={grid}
-        baseY={baseY}
-        skip={openFloor}
-        onPick={(at) => select({ on: 'part', part: 'floor', at })}
-      />
-      <Ceiling
-        grid={grid}
-        baseY={baseY}
-        skip={openCeiling}
-        onPick={(at) => select({ on: 'part', part: 'ceiling', at })}
-      />
-      <Walls grid={grid} onPick={(at) => select({ on: 'part', part: 'wall', at })} />
-      <Items
-        grid={grid}
-        selectedId={selectedItemId}
-        onSelect={(id) => select({ on: 'item', id })}
-      />
-      <Doors grid={grid} nav={nav} onPick={(id) => select({ on: 'opening', id })} />
-      <Windows grid={grid} onPick={(id) => select({ on: 'opening', id })} />
-    </>
-  );
-}
-
 export function HouseScene() {
   const result = useMemo(() => compileHouse(HOUSE), []);
   const house = result.ok ? result.value : null;
@@ -114,46 +68,77 @@ export function HouseScene() {
   // Where the camera may stand in each room, derived from the tiles it can
   // actually stand on — the room's floor minus the stairwell. Computed here
   // because only the storey knows which cells are open.
-  const vantages = useMemo(() => {
-    const out = new Map<string, Vantage>();
-    for (const storey of house?.storeys ?? []) {
-      const open = new Set(storey.openFloor.map((c) => `${c[0]},${c[1]}`));
-      for (const room of storey.grid.rooms) {
-        const tiles = room.floor.filter((_, i) => !open.has(`${room.cells[i][0]},${room.cells[i][1]}`));
-        const v = vantageFrom(tiles);
-        if (v) out.set(room.key, v);
-      }
-    }
-    return out;
-  }, [house]);
+  // `vantages` deleted with the teleport: per-room camera positions only meant
+  // something when arriving at a room WAS the movement.
 
   // Doors AND stairs — one graph, so climbing is the same kind of move as
   // walking through a doorway.
   const graph = useMemo(() => buildNavGraph(openings, house?.stairs ?? []), [openings, house]);
-  const reducer = useMemo(() => makeNavReducer(graph), [graph]);
-  const [nav, dispatch] = useReducer(reducer, START_OUTSIDE);
+  const ground = house?.storeys[0] ?? null;
+
+  // Spawn on the lawn, in front of the house, facing it. Doors open on click
+  // now, so arriving at your own front door is possible in a way it wasn't
+  // while they were all shut.
+  const start = useMemo<Vec2>(() => {
+    const b = ground?.grid.footprint.bbox;
+    return b ? [(b.x0 + b.x1) / 2, b.z1 + 1.2] : [0, 2];
+  }, [ground]);
+
+  const [walk, dispatch] = useReducer(walkReducer, 'outside', startWalking);
   const [explorer, explore] = useReducer(explorerReducer, START_EXPLORER);
 
-  const outside = nav.tag === 'in' && nav.location === 'outside';
+  // Derived from POSITION now, not stored. Cheap and pure, so no memo.
+  const rig = rigFor(locationOf(walk));
 
-  // Derived from nav exactly as `described` is below. Cheap and pure, so no
-  // memo: rigFor is two comparisons.
-  const rig = rigFor(nav);
+  // Walls, shut doors and furniture, flattened to 2D. Rebuilt when a door opens,
+  // which is the only thing that changes them.
+  const blockers = useMemo(
+    () =>
+      ground
+        ? blockersFor(
+          ground.grid.walls,
+          ground.grid.openings,
+          ground.grid.items.map((i) => i.bounds),
+          walk.openDoors,
+        )
+        : [],
+    [ground, walk.openDoors],
+  );
+
+  // Mirrored in a ref, not state: onAct needs to know where you're standing, and
+  // a door click is far too rare to justify re-rendering the house at 60Hz to
+  // keep a copy fresh.
+  const here = useRef<Vec2>(start);
+
+  const onMoved = useCallback(
+    (pos: Vec2) => {
+      here.current = pos;
+      if (!ground) return;
+      dispatch({ tag: 'entered', location: locationAt(pos, ground.grid) });
+    },
+    [ground],
+  );
+
+  const baseYOf = useCallback(
+    (level: number) => house?.storeys.find((st) => st.level === level)?.baseY ?? 0,
+    [house],
+  );
 
   // DERIVED, not synced: the popup exists only while you're standing still in a
   // place, and describe() resolves the words from that place. Walk through a
   // door and it's gone; no effect watching nav, nothing to forget to clear, and
   // no way for the two reducers to disagree.
   const described =
-    house && explorer.selected !== null && nav.tag === 'in'
+    house && explorer.selected !== null && walk.tag === 'walking'
       ? describeSelection(
           explorer.selected,
-          nav.location,
+          walk.location,
           house,
           graph,
           LABELS,
           explorer.from,
           explorer.to,
+          walk.openDoors,
         )
       : null;
 
@@ -161,17 +146,45 @@ export function HouseScene() {
   const onDismiss = useCallback(() => explore({ tag: 'dismiss' }), []);
   // Traversal is now an ACT OF READING: it happens from the popup's phrase
   // button, and closes the popup so the next room starts clean.
-  const onAct = useCallback((edgeId: string) => {
-    dispatch({ tag: 'traverse', edgeId });
-    explore({ tag: 'dismiss' });
-  }, []);
+  // The click that used to fly the camera through a doorway now just unlatches
+  // it. Everything upstream of this line — pickable, select, describe, the popup
+  // — is untouched; only what the popup's action DOES has changed.
+  const onAct = useCallback(
+    (edgeId: string) => {
+      const stair = house?.stairs.find((st) => st.id === edgeId);
+      if (stair) {
+        dispatch({
+          tag: 'climb',
+          edgeId,
+          to: { level: stair.level + 1, pos: [stair.arrival[0], stair.arrival[2]], yaw: 0 },
+          toLocation: stair.connects[1],
+        });
+      } else {
+        // Opening never traps. CLOSING can: sealing the gap you're standing in
+        // restores a wall segment through your own position, and `slide` reads a
+        // path that starts on a segment as blocked in every direction — you'd
+        // stop being able to move at all. So a door you're standing in refuses
+        // to shut, which is also how doors work.
+        const door = ground?.grid.openings.find((o) => o.id === edgeId);
+        const shutting = walk.openDoors.has(edgeId);
+        const inTheWay =
+          shutting && door !== undefined && blocksDoorway(here.current, doorwayOf(door), BODY_RADIUS);
+        if (!inTheWay) dispatch({ tag: 'toggleDoor', doorId: edgeId });
+      }
+      explore({ tag: 'dismiss' });
+    },
+    [house, ground, walk.openDoors],
+  );
+
+  const onArrived = useCallback(() => dispatch({ tag: 'arrived' }), []);
+  const climbTo: Stance | null = walk.tag === 'climbing' ? walk.to : null;
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
       {/* `shadows` enables the shadow map. Without it every castShadow and
           receiveShadow flag in the scene is inert — which is exactly what was
           wrong here while the lab looked fine. */}
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [4, 3.5, 5], fov: 50 }}>
+      <Canvas shadows dpr={[1, 2]} camera={{ position: [start[0], EYE, start[1]], fov: 65 }}>
         <color attach="background" args={['#dce8f5']} />
         <fog attach="fog" args={['#dce8f5', 18, 38]} />
         <HouseLights rig={rig} />
@@ -188,7 +201,7 @@ export function HouseScene() {
                 <Storey
                   key={storey.level}
                   storey={storey}
-                  nav={nav}
+                  openDoors={walk.openDoors}
                   selectedItemId={explorer.selected?.on === 'item' ? explorer.selected.id : null}
                   select={select}
                 />
@@ -196,8 +209,6 @@ export function HouseScene() {
               {/* Once, on top — the roof belongs to the house, not to a storey. */}
               <Stairs stairs={house.stairs} onPick={(id) => select({ on: 'stair', id })} />
               <Roof roof={house.roof} onPick={(at) => select({ on: 'part', part: 'roof', at })} />
-              <CameraRig nav={nav} dispatch={dispatch} vantages={vantages} />
-              <InteriorControls nav={nav} vantages={vantages} />
               {described && (
                 <SelectionPopup
                   described={described}
@@ -211,13 +222,15 @@ export function HouseScene() {
           )}
         </SurfaceProvider>
         <ScenePost ao={rig.ao} />
-        <OrbitControls
-          enabled={outside}
-          enablePan={false}
-          target={[0, 0.4, 0]}
-          minDistance={2}
-          maxDistance={30}
-          maxPolarAngle={Math.PI / 2 - 0.1}
+        <WalkControls
+          blockers={blockers}
+          start={start}
+          startYaw={Math.PI}
+          level={walk.tag === 'walking' ? walk.level : walk.to.level}
+          baseYOf={baseYOf}
+          climbTo={climbTo}
+          onArrived={onArrived}
+          onMoved={onMoved}
         />
       </Canvas>
       <LanguageBar from={explorer.from} to={explorer.to} dispatch={explore} />

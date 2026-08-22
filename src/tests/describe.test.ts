@@ -54,9 +54,9 @@ const nounsIn = (l: Locale): Record<NounKey, string> =>
   >;
 
 const LABELS: LabelTable = {
-  en: { nouns: nounsIn('en'), outside: 'outside', goOutside: 'Go outside' },
-  es: { nouns: nounsIn('es'), outside: 'afuera', goOutside: 'Sal afuera' },
-  de: { nouns: nounsIn('de'), outside: 'draußen', goOutside: 'Geh nach draußen' },
+  en: { nouns: nounsIn('en'), outside: 'outside', goOutside: 'Go outside', closeDoor: 'Close the door' },
+  es: { nouns: nounsIn('es'), outside: 'afuera', goOutside: 'Sal afuera', closeDoor: 'Cierra la puerta' },
+  de: { nouns: nounsIn('de'), outside: 'draußen', goOutside: 'Geh nach draußen', closeDoor: 'Schließ die Tür' },
 };
 
 // Kitchen left, living room right, an interior door between them, and a front
@@ -83,8 +83,13 @@ const graph = buildNavGraph(compiled.openings);
 const doorIds = compiled.openings.filter((o) => o.kind === 'door').map((o) => o.id);
 const [interiorDoor, frontDoor] = doorIds;
 
-const at = (sel: Selection, where: 'kitchen' | 'livingRoom' | 'outside') =>
-  describe(sel, where, house, graph, LABELS, 'en', 'es');
+const SHUT: ReadonlySet<string> = new Set();
+
+const at = (
+  sel: Selection,
+  where: 'kitchen' | 'livingRoom' | 'outside',
+  openDoors: ReadonlySet<string> = SHUT,
+) => describe(sel, where, house, graph, LABELS, 'en', 'es', openDoors);
 
 suite('describe — the word chain', () => {
   it('names what you clicked, with the room you are in as context', () => {
@@ -138,6 +143,7 @@ suite('describe — the traversal phrase', () => {
       LABELS,
       'en',
       'es',
+      SHUT,
     )!;
     expect(d.subject).toEqual({ from: 'the window', to: 'la ventana' });
     expect(d.action).toBeUndefined();
@@ -168,6 +174,7 @@ suite('describe — popup placement', () => {
       LABELS,
       'en',
       'es',
+      SHUT,
     )!;
     expect(d.anchor[1]).toBeCloseTo(0.65); // (0.4 + 0.9) / 2
   });
@@ -195,7 +202,7 @@ suite('describe — stairs', () => {
     twoStorey.stairs,
   );
   const atStair = (where: 'kitchen' | 'livingRoom' | 'outside') =>
-    describe({ on: 'stair', id: 'st' }, where, twoStorey, stairGraph, LABELS, 'en', 'es');
+    describe({ on: 'stair', id: 'st' }, where, twoStorey, stairGraph, LABELS, 'en', 'es', SHUT);
 
   it('names the stairs and hangs the popup partway UP the flight', () => {
     const d = atStair('kitchen')!;
@@ -222,5 +229,34 @@ suite('describe — stairs', () => {
 
   it('offers no climb from a room the stair does not touch', () => {
     expect(atStair('outside')!.action).toBeUndefined();
+  });
+});
+
+suite('describe — a door that is already open', () => {
+  it('offers closing it, in both languages', () => {
+    const d = at({ on: 'opening', id: interiorDoor }, 'kitchen', new Set([interiorDoor]))!;
+    expect(d.action).toEqual({
+      label: { from: 'Close the door', to: 'Cierra la puerta' },
+      edgeId: interiorDoor,
+    });
+  });
+
+  it('still names the destination while it is shut', () => {
+    const d = at({ on: 'opening', id: interiorDoor }, 'kitchen')!;
+    expect(d.action?.label.from).toContain('living room');
+  });
+
+  it('names no room when closing — you close a door, not a destination', () => {
+    // The point of skipping the graph: the phrase holds even from a side the
+    // graph doesn't join, and it is identical from either side of the door.
+    const fromKitchen = at({ on: 'opening', id: interiorDoor }, 'kitchen', new Set([interiorDoor]))!;
+    const fromLiving = at({ on: 'opening', id: interiorDoor }, 'livingRoom', new Set([interiorDoor]))!;
+    expect(fromKitchen.action).toEqual(fromLiving.action);
+  });
+
+  it('subject stays the door either way', () => {
+    const open = at({ on: 'opening', id: frontDoor }, 'outside', new Set([frontDoor]))!;
+    const shut = at({ on: 'opening', id: frontDoor }, 'outside')!;
+    expect(open.subject).toEqual(shut.subject);
   });
 });

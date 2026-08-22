@@ -14,8 +14,9 @@ import { useState, type ComponentType, type CSSProperties } from 'react';
 import { HouseScene } from './scene/HouseScene';
 import { Sandbox } from './scene/Sandbox';
 import { LightingLab } from './scene/LightingLab';
+import { WalkScene } from './scene/WalkScene';
 
-type Mode = 'house' | 'sandbox' | 'lab';
+type Mode = 'house' | 'sandbox' | 'lab' | 'walk';
 
 interface ModeSpec {
   readonly label: string;
@@ -28,10 +29,11 @@ const MODES: Record<Mode, ModeSpec> = {
   house: { label: 'House', Scene: HouseScene },
   sandbox: { label: 'Sandbox', Scene: Sandbox },
   lab: { label: 'Lights', Scene: LightingLab },
+  walk: { label: 'Walk', Scene: WalkScene },
 };
 
 // Order is presentation, not data: the real thing first, scratch scenes after.
-const ORDER: readonly Mode[] = ['house', 'sandbox', 'lab'];
+const ORDER: readonly Mode[] = ['house', 'sandbox', 'lab', 'walk'];
 
 const bar: CSSProperties = {
   position: 'absolute',

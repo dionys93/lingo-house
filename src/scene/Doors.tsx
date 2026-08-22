@@ -3,14 +3,13 @@
 // Renders each kind:'door' opening, and is now the navigation trigger. Clicking a
 // door dispatches `traverse` — the reducer decides if the move is legal and, if
 // so, the CameraRig walks you through. A door swings open when it's the one being
-// traversed (nav.edgeId), so open/close is DERIVED from nav state, not a local
+// opened (openDoors), so open/close is DERIVED from walk state, not a local
 // toggle — one source of truth for "which door is open".
 
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { openingFloorY, type CompiledGrid, type CompiledOpening } from '../core/grid';
-import type { NavState } from '../core/nav';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
 import { SOLID } from './shadows';
 
@@ -102,11 +101,11 @@ function DoorInstance({
 
 export function Doors({
   grid,
-  nav,
+  openDoors,
   onPick,
 }: {
   grid: CompiledGrid;
-  nav: NavState;
+  openDoors: ReadonlySet<string>;
   // Clicking a door SELECTS it — traversal now happens from the popup's action
   // button, so that moving through the house means reading the phrase for it.
   onPick: (id: string) => void;
@@ -120,7 +119,7 @@ export function Doors({
           key={o.id}
           opening={o}
           colorOf={colorOf}
-          open={nav.tag === 'moving' && nav.edgeId === o.id}
+          open={openDoors.has(o.id)}
           onPick={() => onPick(o.id)}
         />
       ))}

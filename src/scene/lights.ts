@@ -15,8 +15,7 @@
 // `described`. There is no rig state, no effect watching nav, and no way for the
 // lights and the camera to disagree about where you are.
 
-import { assertNever } from '../core/errors';
-import type { NavState } from '../core/nav';
+import type { Location } from '../core/nav';
 
 /**
  * Which HDRI lights the scene. `null` means no environment at all — not an
@@ -133,18 +132,10 @@ export const INTERIOR_RIG: LightRig = {
   ao: { intensity: 2.6, radius: 0.15 },
 };
 
-export function rigFor(nav: NavState): LightRig {
-  switch (nav.tag) {
-    case 'in':
-      return nav.location === 'outside' ? EXTERIOR_RIG : INTERIOR_RIG;
-    case 'moving':
-      // The DESTINATION, not the origin. Switching at the start of a traverse
-      // puts the change under the camera's own motion, which hides it; switching
-      // on arrival pops it at the exact moment you stop and look. A cross-fade
-      // would be better than either — deferred until the pop is actually visible,
-      // because it needs a useFrame lerp and this does not.
-      return nav.to === 'outside' ? EXTERIOR_RIG : INTERIOR_RIG;
-    default:
-      return assertNever(nav);
-  }
+export function rigFor(location: Location): LightRig {
+  // Was a NavState switch. Continuous movement deleted the stored location it
+  // read, so this takes the DERIVED one — locationAt(pos, grid) — instead.
+  // Nothing to keep in sync now: the rig cannot disagree with the camera about
+  // which side of a wall it is on.
+  return location === 'outside' ? EXTERIOR_RIG : INTERIOR_RIG;
 }

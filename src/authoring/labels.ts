@@ -31,6 +31,7 @@ export const LABELS: LabelTable = {
     },
     outside: 'outside',
     goOutside: 'Go outside',
+    closeDoor: 'Close the door',
   },
   es: {
     nouns: {
@@ -47,6 +48,7 @@ export const LABELS: LabelTable = {
     },
     outside: 'afuera',
     goOutside: 'Sal afuera',
+    closeDoor: 'Cierra la puerta',
   },
   de: {
     nouns: {
@@ -63,5 +65,6 @@ export const LABELS: LabelTable = {
     },
     outside: 'draußen',
     goOutside: 'Geh nach draußen',
+    closeDoor: 'Schließ die Tür',
   },
 };

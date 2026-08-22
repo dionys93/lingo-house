@@ -42,6 +42,10 @@ export interface LocaleLabels {
   // live here rather than on a RoomDef that doesn't exist.
   readonly outside: string;
   readonly goOutside: string;
+  // A door that's already open offers the opposite action, and unlike "go to the
+  // kitchen" it names no room — so there's no RoomDef to carry it. Same reason
+  // goOutside is here.
+  readonly closeDoor: string;
 }
 
 export type LabelTable = Record<Locale, LocaleLabels>;

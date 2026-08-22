@@ -47,6 +47,10 @@ export function describe(
   labels: LabelTable,
   from: Locale,
   to: Locale,
+  // Which doors are already open. Seven positional parameters was already the
+  // edge of reasonable and this is the eighth — if a ninth ever shows up, this
+  // wants to become an options object rather than growing again.
+  openDoors: ReadonlySet<string>,
 ): Described | null {
   // Room keys are unique across the WHOLE house (see the M2 gate decision), so
   // a flat search over every storey is unambiguous — no level needed, which is
@@ -109,6 +113,20 @@ export function describe(
       // the destination, so it comes from the destination's own labels — which
       // is why every door leading to the kitchen says the same thing, and why
       // adding a door costs no new text.
+      // An OPEN door offers the opposite action, and that action names no room:
+      // you close a door, you don't close it "to the kitchen". So it skips the
+      // graph entirely — no destination to look up, and it works even from a
+      // side the graph doesn't join.
+      if (openDoors.has(opening.id)) {
+        return {
+          ...base,
+          action: {
+            label: { from: labels[from].closeDoor, to: labels[to].closeDoor },
+            edgeId: opening.id,
+          },
+        };
+      }
+
       const edge = graph.traverse(where, opening.id);
       if (edge === undefined) return base; // door doesn't touch this side
       return { ...base, action: { label: roomLabel(edge.to, 'enter'), edgeId: opening.id } };
