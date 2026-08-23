@@ -14,26 +14,40 @@ import { useState, type ComponentType, type CSSProperties } from 'react';
 import { HouseScene } from './scene/HouseScene';
 import { Sandbox } from './scene/Sandbox';
 import { LightingLab } from './scene/LightingLab';
-import { WalkScene } from './scene/WalkScene';
-
-type Mode = 'house' | 'sandbox' | 'lab' | 'walk';
 
 interface ModeSpec {
   readonly label: string;
   readonly Scene: ComponentType;
 }
 
-// A Record over the union, so a fourth mode won't compile until it has a label
-// and a scene here — the same trick describeError uses to stay exhaustive.
+/**
+ * THE ROSTER — one list, and `Mode` is derived from it.
+ *
+ * This used to be three declarations of the same set: a `Mode` union, this
+ * array, and MODES. The record was checked against the union, so ADDING a mode
+ * was safe — that's what the old comment here promised, and it was true.
+ * REMOVING one wasn't. Deleting WalkScene's entry from MODES left 'walk' in
+ * both the union and this array, and the bar rendered a button whose label read
+ * `MODES['walk'].label`. Not a click-time crash — a mount-time one, because the
+ * map runs for every entry on first paint. White screen.
+ *
+ * Deriving the union from the array closes it both ways. Add an entry here and
+ * MODES won't compile until it has a spec; delete one and the orphaned spec is
+ * an excess property, reported on the line that is actually wrong rather than
+ * on the Record header. A mode can no longer exist without a button, or a
+ * button without a mode.
+ *
+ * Order is presentation too: the real thing first, scratch scenes after.
+ */
+const ORDER = ['house', 'sandbox', 'lab'] as const;
+
+type Mode = (typeof ORDER)[number];
+
 const MODES: Record<Mode, ModeSpec> = {
   house: { label: 'House', Scene: HouseScene },
   sandbox: { label: 'Sandbox', Scene: Sandbox },
   lab: { label: 'Lights', Scene: LightingLab },
-  walk: { label: 'Walk', Scene: WalkScene },
 };
-
-// Order is presentation, not data: the real thing first, scratch scenes after.
-const ORDER: readonly Mode[] = ['house', 'sandbox', 'lab', 'walk'];
 
 const bar: CSSProperties = {
   position: 'absolute',
