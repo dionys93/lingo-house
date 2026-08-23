@@ -221,14 +221,31 @@ export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
         kind: 'clayPantile',
         base: [178, 94, 62],
         shade: [78, 38, 28],
-        across: 3,
-        courses: 2,
-        stagger: 0.5,
+        // 6 × 4 rather than 3 × 2, and the reason is variety, not scale. The
+        // per-tile firing colour can only vary with the pattern's own period, so
+        // 3 × 2 gave SIX distinct tiles repeating every three columns — which
+        // the eye reads as a pattern, not as variation. 6 × 4 gives 24.
+        // Still square in world units: 6 × 0.1 = 4 × 0.15 = 0.6.
+        across: 6,
+        courses: 4,
+        // STRAIGHT BOND — no offset between courses, and that is not laziness.
+        // Broken bond is for plain tiles and slates, which are double-lapped and
+        // interlock with nothing. A pantile's side lap has to register with the
+        // tile beside it, so the columns must run true from eave to ridge; the
+        // Roof Tile Association's guidance is to strike perpendicular lines
+        // before laying them.
+        //
+        // It was 0.5, and once `corrugate` arrived that became a contradiction:
+        // the geometry lays its rolls on multiples of the cover width from world
+        // zero, identically on every course, while the texture claimed alternate
+        // courses were offset half a tile. The per-tile colour would have jumped
+        // sideways across a roll that ran straight through it.
+        stagger: 0,
         // Both of these are COLOUR ONLY and cannot reach the height field —
         // which is exactly what the height-field change bought. Through the old
         // luminance path, `grit` came out as gravel and `batch` turned a merely
         // darker tile into a sunken one.
-        batch: 0.2,
+        batch: 0.34,
         grit: 0.14,
         seed: 4127,
       },
@@ -245,13 +262,13 @@ export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
     // Clay is matte but not chalk; a weathered pantile keeps a faint sheen.
     roughness: 0.82,
     metalness: 0,
-    worldScale: [0.3, 0.3],
+    worldScale: [0.6, 0.6],
     normalScale: 1,
     // 0.1 = one tile's 200mm cover width; 0.035 = its 70mm profile depth. 16
     // subdivisions puts ~7 across the roll itself, which is enough for vertex
     // normals to round it into a barrel. Costs ~2,400 triangles on the tall
     // roof and ~2,000 on the low one.
-    corrugation: { period: 0.1, depth: 0.035, segments: 16, profile: pantileRoll },
+    corrugation: { period: 0.1, depth: 0.035, segments: 24, profile: pantileRoll },
     // 512 rather than 128: this is seen at a grazing angle from ground level,
     // where the eave is the dominant read, and 3 × 2 tiles across 128px would
     // put a whole tile in 42 pixels.

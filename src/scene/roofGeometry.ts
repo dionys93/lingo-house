@@ -42,7 +42,7 @@ export interface Corrugation {
 }
 
 /**
- * Stations along `[uMin, uMax]`, on multiples of `step` measured from WORLD
+ * Stations across `[uMin, uMax]`, on multiples of `step` measured from WORLD
  * ZERO, plus the two ends.
  *
  * Anchoring to world zero rather than dividing the span evenly is what keeps
@@ -104,20 +104,35 @@ export function corrugate(data: MeshData, c: Corrugation): MeshData {
     const u1 = data.uvs[q + 1][0];
     const vTop = data.uvs[q + 2][1];
 
-    const base = positions.length;
-    const us = stations(Math.min(u0, u1), Math.max(u0, u1), step);
-    for (const u of us) {
-      const s = (u - u0) / (u1 - u0); // u1 === u0 is impossible: a quad has width
-      const lift = c.depth * c.profile(u / c.period);
-      const up = (p: Vec3): Vec3 => [p[0], p[1] + lift, p[2]];
-      positions.push(up(mix(e0, e1, s)), up(mix(r3, r2, s)));
-      uvs.push([u, 0], [u, vTop]);
-    }
+    // ONE VERTEX RUN PER TILE, not per panel. Within a tile the stations share
+    // vertices, so computeVertexNormals averages across them and the roll comes
+    // out as a barrel rather than a row of facets. ACROSS a tile boundary
+    // nothing is shared, so the lap edge stays a hard crease with a shadow.
+    //
+    // Welding the whole panel was the second half of why this read as corrugated
+    // iron: even with a steep drop in the profile, averaged normals rounded it
+    // into just another part of the wave.
+    const uLo = Math.min(u0, u1);
+    const uHi = Math.max(u0, u1);
+    for (let k = Math.floor(uLo / c.period); k * c.period < uHi - 1e-9; k++) {
+      const a = Math.max(uLo, k * c.period);
+      const b = Math.min(uHi, (k + 1) * c.period);
+      if (b - a < step * 1e-3) continue; // a sliver at the rake overhang
 
-    for (let i = 0; i < us.length - 1; i++) {
-      const a = base + i * 2;
-      // Same winding as the flat quad it replaces: (e0,e1,r2) then (e0,r2,r3).
-      indices.push(a, a + 2, a + 3, a, a + 3, a + 1);
+      const base = positions.length;
+      const us = stations(a, b, step);
+      for (const u of us) {
+        const s = (u - u0) / (u1 - u0); // u1 === u0 is impossible: a quad has width
+        const lift = c.depth * c.profile(u / c.period);
+        const up = (p: Vec3): Vec3 => [p[0], p[1] + lift, p[2]];
+        positions.push(up(mix(e0, e1, s)), up(mix(r3, r2, s)));
+        uvs.push([u, 0], [u, vTop]);
+      }
+      for (let i = 0; i < us.length - 1; i++) {
+        const v = base + i * 2;
+        // Same winding as the flat quad it replaces: (e0,e1,r2) then (e0,r2,r3).
+        indices.push(v, v + 2, v + 3, v, v + 3, v + 1);
+      }
     }
   }
 

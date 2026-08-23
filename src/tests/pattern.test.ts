@@ -19,15 +19,15 @@ const PANTILE: Pattern = {
   kind: 'clayPantile',
   base: [178, 94, 62],
   shade: [78, 38, 28],
-  across: 3,
-  courses: 2,
-  stagger: 0.5,
-  batch: 0.2,
+  across: 6,
+  courses: 4,
+  stagger: 0, // straight bond — see the note in registry.ts
+  batch: 0.34,
   grit: 0.14,
   seed: 4127,
 };
 
-const TILE_SCALE: readonly [number, number] = [0.3, 0.3];
+const TILE_SCALE: readonly [number, number] = [0.6, 0.6];
 
 const SIZE = 32;
 const channels = (bytes: Uint8ClampedArray, offset: number): number[] =>
@@ -140,15 +140,47 @@ describe('renderPattern — clay pantile', () => {
     expect(low).toBeLessThan(size / 4); // a line, not half the roof
   });
 
-  it('staggers alternate courses, so tiles do not stack into columns', () => {
-    const size = 64;
-    const height = heightOf(PANTILE, size);
-    // Mid-course rows of each of the two courses, compared across u. With a
-    // half-tile offset they should NOT agree.
-    const rowA = Array.from({ length: size }, (_, x) => height[Math.floor(size * 0.15) * size + x]);
-    const rowB = Array.from({ length: size }, (_, x) => height[Math.floor(size * 0.65) * size + x]);
-    const drift = rowA.reduce((acc, a, i) => acc + Math.abs(a - rowB[i]), 0) / size;
-    expect(drift).toBeGreaterThan(0.1);
+  it('divides tiles VERTICALLY, not just into horizontal bands', () => {
+    // The defect this catches: the map had strong course lines and no side-lap
+    // shadow at all, so it read as a stack of strips. Combined with corrugations
+    // running unbroken up the slope, that is corrugated iron — and no amount of
+    // geometry or lighting fixes an albedo with no vertical structure in it.
+    //
+    // One row, across six tiles: it has to vary.
+    const size = 512;
+    const { rgba } = renderPattern(PANTILE, size);
+    const row = Array.from({ length: size }, (_, x) => rgba[(80 * size + x) * 4]);
+    expect(Math.max(...row) - Math.min(...row)).toBeGreaterThan(45);
+  });
+
+  it('lays STRAIGHT bond — tile columns run true from eave to ridge', () => {
+    // This used to assert the opposite, back when `stagger` was 0.5 and the
+    // height field still carried the roll. Both of those were wrong.
+    //
+    // A pantile's side lap has to register with the tile beside it, so the
+    // columns cannot be offset course to course — that is broken bond, which is
+    // for plain tiles and slates. And `corrugate` lays its rolls on multiples of
+    // the cover width from world zero on every course regardless, so a staggered
+    // texture would have slid the per-tile colour sideways across a roll running
+    // straight through it.
+    const size = 128;
+    const { rgba } = renderPattern(PANTILE, size);
+
+    // Mean column profile over the middle of one course. Averaging is what
+    // makes this robust: a single row's darkest pixel is a noise minimum, not
+    // the pan floor, which is how the first version of this test lied.
+    const band = (v0: number, v1: number): number[] => {
+      const out = new Array<number>(size).fill(0);
+      let rows = 0;
+      for (let y = Math.floor(size * v0); y < Math.floor(size * v1); y++) {
+        rows += 1;
+        for (let x = 0; x < size; x++) out[x] += rgba[(y * size + x) * 4];
+      }
+      return out.map((v) => v / rows);
+    };
+    const panOf = (a: number[]) => a.indexOf(Math.min(...a)) % (size / PANTILE.across);
+
+    expect(panOf(band(0.55, 0.70))).toBeCloseTo(panOf(band(0.05, 0.20)), 5);
   });
 });
 

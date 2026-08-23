@@ -148,10 +148,35 @@ describe('corrugate', () => {
     }
   });
 
+  it('breaks the vertex run at every tile edge, so the lap stays a crease', () => {
+    // THE fix for the corrugated-iron look, and it needs both halves: a steep
+    // drop in the profile AND a mesh that refuses to average normals across it.
+    // Welding the whole panel rounded the lap edge back into the wave no matter
+    // how steep the profile got.
+    //
+    // Stations inside a tile are shared (smooth barrel); stations at a tile
+    // boundary are emitted twice, once for each neighbour.
+    const counts = new Map<string, number>();
+    for (const p of rolled.positions) {
+      const k = p.map((v) => v.toFixed(6)).join(',');
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    const duplicated = [...counts.values()].filter((n) => n > 1).length;
+    // ~37 tiles per panel, two panels, eave and ridge rows.
+    expect(duplicated).toBeGreaterThan(100);
+  });
+
+  it('keeps the roll asymmetric — sheet metal is symmetric, a lapped tile is not', () => {
+    const flank = (t0: number, t1: number) =>
+      Math.abs(pantileRoll(t1) - pantileRoll(t0)) * PANTILE.depth / ((t1 - t0) * PANTILE.period);
+    // The rise climbs over 28% of the cover width, the lap face falls over 12%.
+    expect(flank(0.88, 1.0) / flank(0.6, 0.88)).toBeGreaterThan(2);
+  });
+
   it('stays affordable', () => {
     // ~2,400 triangles on the tall roof. A displacement map over the same area
     // would be tens of thousands, and it is unnecessary because a pantile's
     // roll is constant up the slope.
-    expect(rolled.indices.length / 3).toBeLessThan(4000);
+    expect(rolled.indices.length / 3).toBeLessThan(5000);
   });
 });

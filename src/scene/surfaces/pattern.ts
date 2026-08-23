@@ -135,16 +135,41 @@ const shade = (a: RGB, b: RGB, t: number): RGB => [
 // pantile is stated once here and scaled by `relief` at the far end of the
 // pipeline. Deciding the tiles are deeper does not change their shape.
 
-const PANTILE_PAN = 0.55; // fraction of the cover width that is pan, not roll
+const PANTILE_PAN = 0.6; // fraction of the cover width that is pan, not roll
+const PANTILE_CROWN = 0.88; // where the roll peaks; past it is the lap face
 const PANTILE_LAP = 0.12; // fraction of the gauge overlapped by the course above
 
 const PANTILE_PAN_DIP = 0.28; // how far the pan dishes below the tile's base plane
+const PANTILE_SIDE = 0.12; // width of the side-lap shadow, as a fraction of cover width
 
-/** Across one cover width: a shallow dish, then a roll rising to full depth. */
-const pantileCross = (t: number): number =>
-  t < PANTILE_PAN
-    ? -PANTILE_PAN_DIP * Math.sin(Math.PI * (t / PANTILE_PAN))
-    : Math.sin(Math.PI * ((t - PANTILE_PAN) / (1 - PANTILE_PAN)));
+/**
+ * Across one cover width: a dished pan, a roll rising off it, then a STEEP DROP
+ * back to pan level.
+ *
+ * That drop is the whole point, and the first version of this did not have one.
+ * A pantile roof is not a wavy surface — it is a field of discrete plates, each
+ * one's roll landing on top of its neighbour's pan. What the eye reads is the
+ * EDGE of that roll and the shadow it throws. Return to the pan smoothly and
+ * symmetrically instead and you have described corrugated iron, which is exactly
+ * what it looked like.
+ *
+ * So the flanks are deliberately unequal: the roll climbs over 28% of the cover
+ * width and falls over 12%. Sheet metal is symmetric; a lapped tile is not.
+ *
+ * The slope discontinuity where that fall meets the next pan is a CREASE, and it
+ * survives only if the mesh refuses to average normals across it — see the
+ * per-tile vertex runs in scene/roofGeometry.ts. Profile and mesh have to agree
+ * on this or the geometry rounds the edge straight back off.
+ */
+const pantileCross = (t: number): number => {
+  if (t < PANTILE_PAN) {
+    return -PANTILE_PAN_DIP * Math.sin(Math.PI * (t / PANTILE_PAN));
+  }
+  if (t < PANTILE_CROWN) {
+    return Math.sin((Math.PI / 2) * ((t - PANTILE_PAN) / (PANTILE_CROWN - PANTILE_PAN)));
+  }
+  return Math.cos((Math.PI / 2) * ((t - PANTILE_CROWN) / (1 - PANTILE_CROWN)));
+};
 
 /**
  * The same profile normalised to 0..1 — 0 at the bottom of the pan, 1 at the
@@ -216,13 +241,25 @@ export function renderPattern(pattern: Pattern, size: number): PatternRender {
         // Clamped, so the bottom of the lap comes out flat rather than spiky.
         height[y * size + x] = clamp01((lap + 0.7) / 0.76);
 
-        // COLOUR sees both, and that is not an inconsistency. A pan really is
-        // darker than a crown — rain and dirt collect in it — so the roll earns
-        // its place in the albedo even though the mesh already has its shape.
-        // Being able to say that is what the height/colour split bought.
+        // COLOUR sees the roll too, but only faintly now, and the restraint is
+        // the point. A pan really is darker than a crown — rain and dirt collect
+        // in it — so the roll earns some place in the albedo. At full strength
+        // though it was a smooth gradient lying exactly on top of a smooth
+        // geometric wave, and two smooth waves in phase is the sheet-metal read
+        // twice over. Damped, and modulated by noise, so it reads as dirt IN the
+        // pan rather than as shading OF the pan.
+        // THE SIDE LAP. The previous tile's roll edge sits on this pan and throws
+        // a shadow down it. Without this the albedo has no vertical division at
+        // all — only the course bands — so the map reads as a stack of strips
+        // rather than a grid of tiles, and no lighting rescues that.
+        const side = Math.pow(Math.max(0, 1 - t / PANTILE_SIDE), 1.5);
         const batch = fired[course * pattern.across + col] * pattern.batch;
         const speck = (fbm(noise, u * 24, v * 24) - 0.5) * pattern.grit;
-        const tone = clamp01(1 - (roll + lap + 0.7) / 1.7 + batch + speck);
+        const dirt =
+          (1 - (roll + PANTILE_PAN_DIP) / (1 + PANTILE_PAN_DIP)) *
+          0.3 *
+          (0.45 + 0.55 * fbm(noise, u * 9, v * 9));
+        const tone = clamp01(0.24 + dirt + side * 0.45 - lap * 0.9 + batch + speck);
         put(i, shade(pattern.base, pattern.shade, tone));
       }
     }
