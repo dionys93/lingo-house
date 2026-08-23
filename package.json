@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
     "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "lint": "eslint .",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm run test:run",
+    "build": "npm run check && vite build"
   },
   "dependencies": {
     "@pmndrs/assets": "^1.7.0",
