@@ -13,9 +13,12 @@
 //   * Built once and disposed. react-planner calls `new TextureLoader()` inside
 //     the per-mesh render path, so every wall refetches its own copy and nothing
 //     is ever released.
-//   * Normal maps are DERIVED from the colour map's own luminance — for the
-//     photographed oak exactly as for the generated walnut — so there's no
-//     second asset to author, ship, or keep in sync.
+//   * Normal maps are BUILT FROM THE PATTERN'S OWN HEIGHT FIELD, so there's no
+//     second asset to author, ship, or keep in sync. This used to derive them
+//     from the colour map's luminance instead — for the photographed oak
+//     exactly as for the generated walnut — which was a reconstruction of
+//     something the generator already knew, and wrong the moment a pattern
+//     carried colour that wasn't depth. See the header of pattern.ts.
 //
 // Building happens in an effect rather than useMemo because image sources load
 // asynchronously. Surfaces appear as they resolve and `useSurfaceMaterial`
@@ -34,7 +37,7 @@ import {
 } from 'react';
 import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
-import { normalFromLuminance, renderPattern } from './pattern';
+import { normalFromHeight, renderPattern } from './pattern';
 import { SURFACES, type SurfaceKey, type SurfaceSpec } from './registry';
 
 interface Built {
@@ -142,13 +145,17 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
 
       if (spec.source.kind === 'pattern') {
         const size = spec.size ?? 128;
-        const rgba = renderPattern(spec.source.pattern, size);
+        // The pattern hands back the height field it already computed, so the
+        // normal map is built from the shape rather than reconstructed from the
+        // colour. `worldScale` is what turns a texel into a distance, which is
+        // what makes `relief` a depth instead of a strength — see pattern.ts.
+        const { rgba, height } = renderPattern(spec.source.pattern, size);
         remember(key, {
           map: canvasTexture(rgba, size, size, true, maxAnisotropy),
           normalMap:
-            spec.source.relief > 0
+            height !== null && spec.source.relief > 0
               ? canvasTexture(
-                normalFromLuminance(rgba, size, size, spec.source.relief),
+                normalFromHeight(height, size, spec.source.relief, spec.worldScale),
                 size,
                 size,
                 false,
@@ -255,25 +262,13 @@ export interface SurfaceMaterial {
 }
 
 /**
- * Material props for `key`, sized for a face `worldSize` = [u, v] in world
- * units. Pass the mesh's own dimensions and the grain comes out the same
- * physical size on every object using this surface.
- *
- * Returns null until the surface is ready, so callers fall back to a flat
- * colour rather than render nothing.
+ * Shared tail of both surface hooks: acquire a repeat-variant and dress it as
+ * material props. The two hooks differ ONLY in how they arrive at rx/ry, so
+ * that difference is all that lives above this.
  */
-export function useSurfaceMaterial(
-  key: SurfaceKey,
-  worldSize: readonly [number, number],
-): SurfaceMaterial | null {
+function useRepeated(key: SurfaceKey, rx: number, ry: number): SurfaceMaterial | null {
   const { acquire } = useContext(SurfaceContext);
   const spec = SURFACES[key];
-
-  // PURE: what size of tile this face needs. Rounded so near-identical meshes
-  // share one clone instead of minting a texture per pixel of difference. At
-  // least 1, or the tile vanishes.
-  const rx = Math.max(1, Math.round(worldSize[0] / spec.worldScale[0]));
-  const ry = Math.max(1, Math.round(worldSize[1] / spec.worldScale[1]));
 
   // EFFECTFUL: cloning a texture is a GPU allocation, so it happens after
   // commit, not during render. `acquire` changes identity when new surfaces
@@ -297,6 +292,62 @@ export function useSurfaceMaterial(
         },
     [variant, spec],
   );
+}
+
+/**
+ * Material props for a mesh whose UVs are in WORLD UNITS along the surface.
+ * The roof is the first of these; everything else follows.
+ *
+ * `repeat` is simply `1 / worldScale`, a constant per surface. The geometry
+ * already states how much world it covers, so the surface only has to say how
+ * big one tile is — nothing is fitted to a face and nothing is rounded, so two
+ * meshes of wildly different size come out at identical physical tile scale by
+ * construction rather than by arithmetic that happens to agree.
+ */
+export function useTiledSurface(key: SurfaceKey): SurfaceMaterial | null {
+  const spec = SURFACES[key];
+  return useRepeated(key, 1 / spec.worldScale[0], 1 / spec.worldScale[1]);
+}
+
+/**
+ * Material props for a mesh whose UVs are 0..1 — i.e. one of three's primitive
+ * geometries, which is everything that predates the roof: `boxGeometry` on the
+ * stairs and the lab panels, `planeGeometry` on the ground.
+ *
+ * Pass the mesh's own dimensions and it works out how many tiles that is. The
+ * shape is lifted from react-planner's `applyTexture(material, texture, length,
+ * height)` and the seam is a good one — every mesh knows its own size.
+ *
+ * TRANSITIONAL, and it goes when the last 0..1 UV does. Two things are wrong
+ * with it and neither is fixable here:
+ *
+ *   THE ROUNDING. `Math.max(1, Math.round(…))` is a lie about "the same
+ *   physical size on every object". A stair tread is 0.16 × 0.43 against oak's
+ *   0.2 × 0.67 tile — that's 0.8 × 0.64 of a tile, and it clamps to 1 × 1, so
+ *   the board comes out 25% and 56% oversized. At CELL = 0.5 most faces in this
+ *   house are smaller than one tile, so most faces are wrong. The handrail
+ *   aliasing that the registry blames on ring count is this.
+ *
+ *   ONE REPEAT FOR SIX FACES. `boxGeometry` gives every face 0..1 regardless of
+ *   its size, so the repeat computed for a tread's top is also applied to its
+ *   3cm edges. Nobody noticed because those edges are thin and shadowed.
+ *
+ * `useTiledSurface` has neither problem, because metric UVs make the question
+ * go away rather than answer it better.
+ */
+export function useSurfaceMaterial(
+  key: SurfaceKey,
+  worldSize: readonly [number, number],
+): SurfaceMaterial | null {
+  const spec = SURFACES[key];
+
+  // PURE: what size of tile this face needs. Rounded so near-identical meshes
+  // share one clone instead of minting a texture per pixel of difference. At
+  // least 1, or the tile vanishes.
+  const rx = Math.max(1, Math.round(worldSize[0] / spec.worldScale[0]));
+  const ry = Math.max(1, Math.round(worldSize[1] / spec.worldScale[1]));
+
+  return useRepeated(key, rx, ry);
 }
 
 /**
@@ -324,15 +375,27 @@ export function SurfaceMaterialSlot({
   color,
   roughness,
   metalness,
+  side,
 }: {
   material: SurfaceMaterial | null;
   color: string;
   roughness?: number;
   metalness?: number;
+  // Passed through to BOTH branches. The roof needs DoubleSide — you see its
+  // underside from upstairs — and a caller that reached for a bare
+  // <meshStandardMaterial> to get it would lose the keying above, which is the
+  // exact bug this component exists to prevent.
+  side?: THREE.Side;
 }) {
   return material ? (
-    <meshStandardMaterial key="surfaced" {...material} />
+    <meshStandardMaterial key="surfaced" {...material} side={side} />
   ) : (
-    <meshStandardMaterial key="flat" color={color} roughness={roughness} metalness={metalness} />
+    <meshStandardMaterial
+      key="flat"
+      color={color}
+      roughness={roughness}
+      metalness={metalness}
+      side={side}
+    />
   );
 }

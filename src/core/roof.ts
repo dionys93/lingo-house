@@ -15,9 +15,34 @@
 // deferred hard case; this covers the rectangular MVP.)
 
 type Vec3 = readonly [number, number, number];
+type Vec2 = readonly [number, number];
 
 export interface MeshData {
   readonly positions: readonly Vec3[];
+  /**
+   * UVs in WORLD UNITS ALONG THE SURFACE — not 0..1.
+   *
+   * `u` is the world coordinate along the eave, `v` is distance up the slope
+   * from the eave. Both consequences are deliberate:
+   *
+   *   ANCHORED IN WORLD SPACE, so two roofs at different heights put their tile
+   *   columns on the same lines. A per-quad 0..1 would make every roof start its
+   *   own grid at its own corner, and the low roof's tiles would drift out of
+   *   step with the tall one's wherever they meet.
+   *
+   *   MEASURED UP THE SLOPE, not in plan. Projecting to the ground plane would
+   *   compress every course by cos(pitch), so a steeper roof would silently get
+   *   smaller tiles.
+   *
+   * `v` starts at the EAVE rather than the ridge because that is how tiles are
+   * actually laid — bottom course first — and it is why the low roof and the
+   * tall one agree without either knowing the other exists.
+   *
+   * The consumer sets `repeat = 1 / worldScale`, a constant per surface. No
+   * fitting an integer number of tiles to a face, so no rounding error between
+   * one roof and the next.
+   */
+  readonly uvs: readonly Vec2[];
   readonly indices: readonly number[]; // flat, 3 per triangle
 }
 
@@ -85,10 +110,37 @@ export interface RoofShape {
 
 type Quad = readonly [Vec3, Vec3, Vec3, Vec3];
 
-// Two triangles per quad, built without mutation.
-function slopeMesh(quads: readonly Quad[]): MeshData {
+/**
+ * Two triangles per quad, built without mutation.
+ *
+ * THE QUAD INVARIANT, which was implicit and is load-bearing for the UVs:
+ * corners 0 and 1 sit on the EAVE, corners 2 and 3 sit on the RIDGE, and 1→2
+ * runs up the slope. Every quad built below holds it, on both slopes and on
+ * both ridge orientations. Break it and the tiles come out sideways.
+ *
+ * `along` is the axis the eave (and therefore the ridge) runs down — the same
+ * axis for both, since they're parallel. It is what makes `u` a world
+ * coordinate rather than a local one.
+ */
+function slopeMesh(quads: readonly Quad[], along: 'x' | 'z'): MeshData {
+  const axis = along === 'x' ? 0 : 2;
   return {
     positions: quads.flatMap((q) => [...q]),
+    uvs: quads.flatMap((q): readonly Vec2[] => {
+      // Distance from eave to ridge, up the slope plane rather than in plan.
+      // The quad is a rectangle in its own plane — eave and ridge are parallel
+      // and the same length — so two values are EXACT here and the rasteriser's
+      // interpolation between them introduces no error.
+      const rise = q[2][1] - q[1][1];
+      const run = Math.hypot(q[2][0] - q[1][0], q[2][2] - q[1][2]);
+      const slope = Math.hypot(run, rise);
+      return [
+        [q[0][axis], 0],
+        [q[1][axis], 0],
+        [q[2][axis], slope],
+        [q[3][axis], slope],
+      ];
+    }),
     indices: quads.flatMap((_, i) => {
       const n = i * 4;
       return [n, n + 1, n + 2, n, n + 2, n + 3];
@@ -128,7 +180,7 @@ export function gableRoof(box: RoofBox, wallTop: number, shape: RoofShape): Roof
       slopes: slopeMesh([
         [[xa, yFront, zFront], [xb, yFront, zFront], [xb, ridgeY, midZ], [xa, ridgeY, midZ]], // front
         [[xb, yBack, zBack], [xa, yBack, zBack], [xa, ridgeY, midZ], [xb, ridgeY, midZ]], // back
-      ]),
+      ], 'x'),
       gables: [
         { base0: [x0, wallTop, z0], base1: [x0, wallTop, z1], apex: [x0, ridgeY, midZ], axis: 'x' },
         { base0: [x1, wallTop, z0], base1: [x1, wallTop, z1], apex: [x1, ridgeY, midZ], axis: 'x' },
@@ -146,10 +198,16 @@ export function gableRoof(box: RoofBox, wallTop: number, shape: RoofShape): Roof
   const yRight = eaveHeight(abuts.x1);
   const yLeft = eaveHeight(abuts.x0);
   return {
+    // Eave corners run zb→za here, not za→zb. That looks arbitrary and isn't:
+    // it makes this branch WIND THE SAME WAY as the ridge-along-X one above, so
+    // both produce outward-facing normals. They used to disagree, which
+    // DoubleSide hid for flat colour but which a normal map does not survive —
+    // the tangent frame is derived from the geometric normal, so a roof running
+    // one way lit its relief backwards relative to a roof running the other.
     slopes: slopeMesh([
-      [[xRight, yRight, za], [xRight, yRight, zb], [midX, ridgeY, zb], [midX, ridgeY, za]], // right
-      [[xLeft, yLeft, zb], [xLeft, yLeft, za], [midX, ridgeY, za], [midX, ridgeY, zb]], // left
-    ]),
+      [[xRight, yRight, zb], [xRight, yRight, za], [midX, ridgeY, za], [midX, ridgeY, zb]], // right
+      [[xLeft, yLeft, za], [xLeft, yLeft, zb], [midX, ridgeY, zb], [midX, ridgeY, za]], // left
+    ], 'z'),
     gables: [
       { base0: [x0, wallTop, z0], base1: [x1, wallTop, z0], apex: [midX, ridgeY, z0], axis: 'z' },
       { base0: [x0, wallTop, z1], base1: [x1, wallTop, z1], apex: [midX, ridgeY, z1], axis: 'z' },

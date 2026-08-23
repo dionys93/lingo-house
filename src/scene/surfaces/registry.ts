@@ -20,7 +20,7 @@
 // ── ON TUNING THESE NUMBERS ─────────────────────────────────────────────────
 //
 // Every surface here was previously tuned by eye and every one of them came out
-// invisible. Measured, before this pass:
+// invisible. Measured, before that pass:
 //
 //   wood.walnut  128px  colour std  9.0   derived relief  4.5°
 //   wood.oak     512px  colour std 10.9   derived relief  2.0°
@@ -37,20 +37,26 @@
 //    `base`/`grain` far apart to compensate gives painted stripes, not wood —
 //    so contrast goes up only moderately and `relief` does the work. Which is
 //    also why a PHOTOGRAPH cannot borrow this trick: see the note on
-//    SurfaceSource, where `relief` now lives on the pattern variant only.
+//    SurfaceSource, where `relief` lives on the pattern variant only.
 //
-// 2. `relief` IS RESOLUTION-DEPENDENT. `normalFromLuminance` takes
-//    central differences over ADJACENT PIXELS, so the same strength on a 512px
-//    tile yields roughly a quarter of the relief it does on a 128px one. The
-//    numbers below are solved for ~12° of mean surface tilt at each tile's own
-//    resolution, NOT copied between surfaces. If you change `size`, this number
-//    is no longer valid.
+// 2. `relief` IS A DEPTH IN WORLD UNITS, and used to not be. It was a strength
+//    multiplier on the colour map's luminance gradient, which made it
+//    RESOLUTION-DEPENDENT and, worse, not even linearly so — going from a 128px
+//    tile to a 512px one needed the number to rise roughly TWELVEFOLD, because
+//    the luminance field smooths as resolution climbs. It had to be re-solved
+//    by hand every time `size` moved, and nobody could guess the factor.
+//
+//    Now that patterns emit their own height field (see pattern.ts), the number
+//    is a physical depth and holds within ~2° of mean surface tilt across an
+//    eightfold change in resolution. `normalScale` is the separate, honest knob
+//    for exaggeration: `relief` says what the surface IS, `normalScale` says how
+//    hard the renderer leans on it.
 //
 // Both numbers are checkable rather than felt: render the tile, take the mean
-// luminance gradient, take the arctangent.
+// height gradient in world units, take the arctangent.
 
 import * as THREE from 'three';
-import type { Pattern } from './pattern';
+import { pantileRoll, type Pattern } from './pattern';
 import { createGrassTexture } from '../textures/grass';
 import oakPlankUrl from '../textures/oak-plank.png';
 
@@ -59,21 +65,23 @@ export type SurfaceSource =
       readonly kind: 'pattern';
       readonly pattern: Pattern;
       /**
-       * Relief derived from this pattern's own luminance. 0 for none.
+       * Peak-to-trough relief depth, in WORLD UNITS. 0 for none. At 1 unit =
+       * 2m, 0.035 is a 70mm roof tile and 0.0054 is 11mm of carved grain.
        *
        * It lives HERE, on the pattern variant alone, and the placement is the
-       * whole point. Deriving a normal map from luminance assumes DARK MEANS
-       * DEEP. For a generated pattern that assumption is exact — one function
-       * drew the colour and the grooves, so its dark bands ARE its grooves. For
-       * a photograph it is simply false: dark means pigment. A stain becomes a
-       * pit, a pale knot becomes a bump, and compression noise becomes fuzz.
+       * whole point. A pattern KNOWS its own height field — one function draws
+       * the colour and the shape, and pattern.ts now returns both. A photograph
+       * doesn't: the only height field you could get from it is its luminance,
+       * and that assumes DARK MEANS DEEP, which is simply false for a photo.
+       * Dark means pigment. A stain becomes a pit, a pale knot a bump, and
+       * compression noise fuzz.
        *
        * This used to be `normalStrength` on SurfaceSpec, where every source
        * could reach it. Moving it into the union makes the unsound case
        * unrepresentable instead of merely discouraged.
        *
-       * Resolution-dependent — see the tuning note in the header. Solve it,
-       * don't copy it between tiles of different sizes.
+       * Resolution-INdependent, as of the height-field change — see the tuning
+       * note in the header for what it cost when it wasn't.
        */
       readonly relief: number;
     }
@@ -88,12 +96,33 @@ export interface SurfaceSpec {
   // because grain is directional: a board's rings run along its length, and
   // squashing them equally in both directions is what makes a stair tread read
   // like a scaled-down wall instead of a plank.
+  //
+  // Also feeds `normalFromHeight`: it is what converts a texel into a distance,
+  // so a `relief` in world units means the same thing on every tile.
   readonly worldScale: readonly [u: number, v: number];
   readonly normalScale: number; // how hard the renderer leans on that relief
   readonly size?: number; // pattern resolution; ignored by image/generator
+  /**
+   * Relief too deep for a normal map to fake, handed to the MESH instead.
+   *
+   * A normal map perturbs shading and nothing else: no silhouette, no shadow
+   * cast from one roll onto the next, no parallax — and it mips toward flat at
+   * exactly the distance you look at a roof from. A 70mm pantile roll fails all
+   * four, which is why the roof came out looking painted.
+   *
+   * A mesh that can corrugate reads this and displaces along `profile`; one
+   * that can't ignores it and gets a flat sheet. `relief` above then covers
+   * only what's LEFT — for the pantile, the step at each course.
+   */
+  readonly corrugation?: {
+    readonly period: number; // world units between rolls
+    readonly depth: number; // world units, pan to crown
+    readonly segments: number; // subdivisions per period
+    readonly profile: (t: number) => number; // 0 in the pan, 1 at the crown
+  };
 }
 
-export type SurfaceKey = 'wood.oak' | 'wood.walnut' | 'grass';
+export type SurfaceKey = 'wood.oak' | 'wood.walnut' | 'grass' | 'clay.pantile';
 
 export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
   // Photographed oak, cropped down to the single board that was floating in the
@@ -119,13 +148,12 @@ export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
     // ratio or the grain comes out squashed; 0.2 is the free knob (plank width
     // in world units) and 0.67 = 0.2 × 3.35 follows from it.
     worldScale: [0.2, 0.67],
-    // No relief, and the header's own measurements are why: this tile is
-    // colour std 10.9 and derived relief came out at 2.0°, against the ~12°
-    // every other number here is solved for. The 14 that used to sit here was
-    // the third attempt at cranking a signal out of an image that has none —
-    // a smooth veneer render, photographed flat. What 14 actually amplified
-    // was the file's own compression noise, and it amplified it as GEOMETRY:
-    // dark stain read as a pit, pale figure as a bump.
+    // No relief, and it is now structurally impossible to ask for any: `relief`
+    // lives on the pattern variant. The 14 that used to sit here was the third
+    // attempt at cranking a signal out of an image that has none — a smooth
+    // veneer render, photographed flat. What 14 actually amplified was the
+    // file's own compression noise, and it amplified it as GEOMETRY: dark stain
+    // read as a pit, pale figure as a bump.
     //
     // Flat is the honest answer for a smooth veneer. If oak needs to look like
     // sawn timber, that is a new asset with real grain in it — one line, here,
@@ -154,16 +182,80 @@ export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
         waviness: 0.9,
         seed: 611,
       },
-      // Sound here in a way it never was on the photo: renderPattern drew both
-      // the colour and the relief from the same grain field. Was 3.0 → 4.5°;
-      // 8 is solved for ~12° at size 128.
-      relief: 8,
+      // 0.0054 world units — about 11mm of relief. Solved against woodGrain's
+      // own height field to reproduce the ~12° of mean tilt the old `relief: 8`
+      // gave at size 128, so the look is unchanged; measured at 11.9° on 128
+      // and 12.5° on 512, where the old number would have needed to be ~96.
+      //
+      // 11mm is NOT the depth of real wood grain, which is a few tenths of a
+      // millimetre and would vanish. This is a stylisation — walnut carved as
+      // if its figure were 11mm deep — and the value of the unit change is that
+      // the exaggeration is now stated in something you can picture, rather
+      // than hidden in a strength multiplier nobody could interpret.
+      relief: 0.0054,
     },
     roughness: 0.7,
     metalness: 0,
     worldScale: [0.4, 0.16],
     normalScale: 0.8,
     size: 128,
+  },
+
+  // Clay pantiles for the roof. Dimensions are off real product data rather than
+  // chosen: a traditional pantile runs ~200mm cover width and ~300mm gauge, with
+  // ~70mm of profile depth. At 1 unit = 2m that is 0.1 × 0.15 per tile.
+  //
+  // WHY 3 ACROSS AND 2 COURSES. It is the smallest pair that makes the pattern
+  // square in WORLD units: 3 × 0.1 = 0.3 and 2 × 0.15 = 0.3. That matters
+  // because normalFromHeight takes central differences in texel space, so a
+  // tile that is not square in world terms would come out with steeper relief
+  // on one axis than the other. A half-tile stagger also closes after exactly
+  // two courses, so the square repeats seamlessly.
+  //
+  // At this scale the tall roof carries ~35 tiles across and ~11 courses, i.e.
+  // about 12 × 5 repeats of the pattern square, which does not read as tiling.
+  'clay.pantile': {
+    source: {
+      kind: 'pattern',
+      pattern: {
+        kind: 'clayPantile',
+        base: [178, 94, 62],
+        shade: [78, 38, 28],
+        across: 3,
+        courses: 2,
+        stagger: 0.5,
+        // Both of these are COLOUR ONLY and cannot reach the height field —
+        // which is exactly what the height-field change bought. Through the old
+        // luminance path, `grit` came out as gravel and `batch` turned a merely
+        // darker tile into a sunken one.
+        batch: 0.2,
+        grit: 0.14,
+        seed: 4127,
+      },
+      // 0.007 world units — 14mm, a tile's thickness, which is the step where
+      // each course laps the one below. It is NOT the 70mm profile depth any
+      // more: the roll moved into the geometry (see `corrugation`), so leaving
+      // it here too would tilt the same surface twice in the same direction and
+      // blow the flanks out to black and white.
+      //
+      // Measured 2.0° of mean tilt at 512. Low, and correct — a pantile minus
+      // its barrel is a mostly flat plate with a step at one end.
+      relief: 0.007,
+    },
+    // Clay is matte but not chalk; a weathered pantile keeps a faint sheen.
+    roughness: 0.82,
+    metalness: 0,
+    worldScale: [0.3, 0.3],
+    normalScale: 1,
+    // 0.1 = one tile's 200mm cover width; 0.035 = its 70mm profile depth. 16
+    // subdivisions puts ~7 across the roll itself, which is enough for vertex
+    // normals to round it into a barrel. Costs ~2,400 triangles on the tall
+    // roof and ~2,000 on the low one.
+    corrugation: { period: 0.1, depth: 0.035, segments: 16, profile: pantileRoll },
+    // 512 rather than 128: this is seen at a grazing angle from ground level,
+    // where the eave is the dominant read, and 3 × 2 tiles across 128px would
+    // put a whole tile in 42 pixels.
+    size: 512,
   },
 
   grass: {

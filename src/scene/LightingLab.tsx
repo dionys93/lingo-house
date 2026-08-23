@@ -199,7 +199,14 @@ function SurfacePanel({
 const PANEL: readonly [number, number] = [0.36, 0.5];
 const PANEL_Y = 0.28;
 
-/** oak | walnut | grass, side by side under whatever rig is selected. */
+/**
+ * oak | walnut | grass, side by side under whatever rig is selected.
+ *
+ * No pantile panel, deliberately. It is a `boxGeometry` and cannot corrugate,
+ * so it would show the roof's albedo on a flat plate — a diagnostic that lies
+ * about the thing it is diagnosing. The lab already renders a real `<Roof>`
+ * below; judge the tiles there.
+ */
 function SurfaceBench() {
   return (
     <>

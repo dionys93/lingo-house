@@ -4,7 +4,7 @@
 // reason it returns bytes rather than a canvas.
 
 import { describe, it, expect } from 'vitest';
-import { renderNormalMap, renderPattern, type Pattern } from '../scene/surfaces/pattern';
+import { normalFromHeight, renderPattern, type Pattern } from '../scene/surfaces/pattern';
 
 const OAK: Pattern = {
   kind: 'woodGrain',
@@ -15,24 +15,57 @@ const OAK: Pattern = {
   seed: 20260811,
 };
 
+const PANTILE: Pattern = {
+  kind: 'clayPantile',
+  base: [178, 94, 62],
+  shade: [78, 38, 28],
+  across: 3,
+  courses: 2,
+  stagger: 0.5,
+  batch: 0.2,
+  grit: 0.14,
+  seed: 4127,
+};
+
+const TILE_SCALE: readonly [number, number] = [0.3, 0.3];
+
 const SIZE = 32;
 const channels = (bytes: Uint8ClampedArray, offset: number): number[] =>
   Array.from({ length: bytes.length / 4 }, (_, i) => bytes[i * 4 + offset]);
 
+/** The height field, or a failure — a pattern with depth must always emit one. */
+function heightOf(pattern: Pattern, size: number): Float32Array {
+  const { height } = renderPattern(pattern, size);
+  if (height === null) throw new Error('expected a height field');
+  return height;
+}
+
+/** Mean surface tilt encoded in a normal map, in degrees. */
+function meanTilt(pattern: Pattern, size: number, relief: number): number {
+  const nm = normalFromHeight(heightOf(pattern, size), size, relief, TILE_SCALE);
+  let sum = 0;
+  for (let i = 0; i < size * size * 4; i += 4) {
+    sum += Math.acos(Math.min(1, Math.max(-1, (nm[i + 2] / 255) * 2 - 1)));
+  }
+  return (sum / (size * size)) * (180 / Math.PI);
+}
+
 describe('renderPattern', () => {
   it('returns RGBA for every pixel, fully opaque', () => {
-    const out = renderPattern(OAK, SIZE);
-    expect(out).toHaveLength(SIZE * SIZE * 4);
-    expect(channels(out, 3).every((a) => a === 255)).toBe(true);
+    const { rgba } = renderPattern(OAK, SIZE);
+    expect(rgba).toHaveLength(SIZE * SIZE * 4);
+    expect(channels(rgba, 3).every((a) => a === 255)).toBe(true);
   });
 
   it('is deterministic — same pattern and size, byte-for-byte identical', () => {
-    expect(Array.from(renderPattern(OAK, SIZE))).toEqual(Array.from(renderPattern(OAK, SIZE)));
+    expect(Array.from(renderPattern(OAK, SIZE).rgba)).toEqual(
+      Array.from(renderPattern(OAK, SIZE).rgba),
+    );
   });
 
   it('depends on the seed, so two woods can differ without new code', () => {
-    const other = renderPattern({ ...OAK, seed: OAK.seed + 1 }, SIZE);
-    expect(Array.from(renderPattern(OAK, SIZE))).not.toEqual(Array.from(other));
+    const other = renderPattern({ ...OAK, seed: OAK.seed + 1 }, SIZE).rgba;
+    expect(Array.from(renderPattern(OAK, SIZE).rgba)).not.toEqual(Array.from(other));
   });
 
   it('actually produces GRAIN, not a flat fill', () => {
@@ -40,13 +73,13 @@ describe('renderPattern', () => {
     // index, a seed of 0, an octave dropped — every pixel comes out the same and
     // the texture silently becomes a solid colour that still looks plausible in
     // a screenshot. Spread is the only thing that catches it.
-    const reds = channels(renderPattern(OAK, SIZE), 0);
+    const reds = channels(renderPattern(OAK, SIZE).rgba, 0);
     const spread = Math.max(...reds) - Math.min(...reds);
     expect(spread).toBeGreaterThan(20);
   });
 
   it('stays between the two colours it was given', () => {
-    const reds = channels(renderPattern(OAK, SIZE), 0);
+    const reds = channels(renderPattern(OAK, SIZE).rgba, 0);
     expect(Math.min(...reds)).toBeGreaterThanOrEqual(OAK.grain[0] - 1);
     expect(Math.max(...reds)).toBeLessThanOrEqual(OAK.base[0] + 1);
   });
@@ -54,34 +87,89 @@ describe('renderPattern', () => {
   it('tiles without a seam — the lattice wraps', () => {
     // Column 0 should be a plausible neighbour of the last column; a hard seam
     // shows up as a much bigger jump than any interior step.
-    const out = renderPattern(OAK, SIZE);
-    const px = (x: number, y: number) => out[(y * SIZE + x) * 4];
+    const { rgba } = renderPattern(OAK, SIZE);
+    const px = (x: number, y: number) => rgba[(y * SIZE + x) * 4];
     const wrap = Array.from({ length: SIZE }, (_, y) => Math.abs(px(0, y) - px(SIZE - 1, y)));
     const interior = Array.from({ length: SIZE }, (_, y) => Math.abs(px(1, y) - px(0, y)));
     expect(Math.max(...wrap)).toBeLessThanOrEqual(Math.max(...interior) * 3 + 6);
   });
 
-  it('renders a solid pattern as one flat colour', () => {
-    const out = renderPattern({ kind: 'solid', base: [10, 20, 30] }, 4);
-    expect(Array.from(out.slice(0, 8))).toEqual([10, 20, 30, 255, 10, 20, 30, 255]);
+  it('renders a solid pattern as one flat colour, with no height at all', () => {
+    const { rgba, height } = renderPattern({ kind: 'solid', base: [10, 20, 30] }, 4);
+    expect(Array.from(rgba.slice(0, 8))).toEqual([10, 20, 30, 255, 10, 20, 30, 255]);
+    // A solid has no depth, and the type says so rather than shipping a
+    // Float32Array of zeros the caller has to recognise as meaning "nothing".
+    expect(height).toBeNull();
+  });
+
+  it('emits a height field alongside the colour for a pattern with depth', () => {
+    const height = heightOf(OAK, SIZE);
+    expect(height).toHaveLength(SIZE * SIZE);
+    expect(Array.from(height).every((h) => h >= 0 && h <= 1)).toBe(true);
+    // Not a constant — if it were, relief would silently be flat.
+    expect(Math.max(...height) - Math.min(...height)).toBeGreaterThan(0.2);
   });
 });
 
-describe('renderNormalMap', () => {
+describe('renderPattern — clay pantile', () => {
+  it('does not let colour variation become geometry', () => {
+    // THE test for why the height field exists. `batch` (per-tile firing
+    // colour) and `grit` (fired-clay speckle) are pigment on a smooth surface.
+    // Through the old luminance-derived normals they became relief: the speckle
+    // read as gravel and a merely darker tile read as a sunken one. Colour must
+    // move; height must not.
+    const noisy = renderPattern(PANTILE, 64);
+    const plain = renderPattern({ ...PANTILE, batch: 0, grit: 0 }, 64);
+    expect(Array.from(noisy.rgba)).not.toEqual(Array.from(plain.rgba));
+    expect(Array.from(noisy.height!)).toEqual(Array.from(plain.height!));
+  });
+
+  it('lays a lap line under every course', () => {
+    // The butt of the course above sits proud, so the head of the one below is
+    // the lowest thing on the tile. Two courses ⇒ two low rows.
+    const size = 64;
+    const height = heightOf(PANTILE, size);
+    const rowMean = Array.from({ length: size }, (_, y) => {
+      let sum = 0;
+      for (let x = 0; x < size; x++) sum += height[y * size + x];
+      return sum / size;
+    });
+    const floor = Math.min(...rowMean);
+    const low = rowMean.filter((m) => m < floor + 0.05).length;
+    expect(low).toBeGreaterThan(0);
+    expect(low).toBeLessThan(size / 4); // a line, not half the roof
+  });
+
+  it('staggers alternate courses, so tiles do not stack into columns', () => {
+    const size = 64;
+    const height = heightOf(PANTILE, size);
+    // Mid-course rows of each of the two courses, compared across u. With a
+    // half-tile offset they should NOT agree.
+    const rowA = Array.from({ length: size }, (_, x) => height[Math.floor(size * 0.15) * size + x]);
+    const rowB = Array.from({ length: size }, (_, x) => height[Math.floor(size * 0.65) * size + x]);
+    const drift = rowA.reduce((acc, a, i) => acc + Math.abs(a - rowB[i]), 0) / size;
+    expect(drift).toBeGreaterThan(0.1);
+  });
+});
+
+describe('normalFromHeight', () => {
+  const size = 32;
+  const height = () => heightOf(OAK, size);
+
   it('returns RGBA for every pixel, fully opaque', () => {
-    const out = renderNormalMap(OAK, SIZE, 2.6);
-    expect(out).toHaveLength(SIZE * SIZE * 4);
+    const out = normalFromHeight(height(), size, 0.005, TILE_SCALE);
+    expect(out).toHaveLength(size * size * 4);
     expect(channels(out, 3).every((a) => a === 255)).toBe(true);
   });
 
-  it('is deterministic, like the colour map it is derived from', () => {
-    expect(Array.from(renderNormalMap(OAK, SIZE, 2.6))).toEqual(
-      Array.from(renderNormalMap(OAK, SIZE, 2.6)),
+  it('is deterministic, like the colour map beside it', () => {
+    expect(Array.from(normalFromHeight(height(), size, 0.005, TILE_SCALE))).toEqual(
+      Array.from(normalFromHeight(height(), size, 0.005, TILE_SCALE)),
     );
   });
 
   it('encodes unit vectors — every texel is a normal, not a colour', () => {
-    const out = renderNormalMap(OAK, SIZE, 2.6);
+    const out = normalFromHeight(height(), size, 0.005, TILE_SCALE);
     for (let i = 0; i < out.length; i += 4) {
       const x = (out[i] / 255) * 2 - 1;
       const y = (out[i + 1] / 255) * 2 - 1;
@@ -91,22 +179,65 @@ describe('renderNormalMap', () => {
   });
 
   it('points mostly up (+Z) — a surface, not noise', () => {
-    const out = renderNormalMap(OAK, SIZE, 2.6);
+    const out = normalFromHeight(height(), size, 0.005, TILE_SCALE);
     expect(channels(out, 2).every((b) => b > 127)).toBe(true);
   });
 
-  it('strength 0 gives a perfectly flat map', () => {
-    const flat = renderNormalMap(OAK, SIZE, 0);
+  it('relief 0 gives a perfectly flat map', () => {
+    const flat = normalFromHeight(height(), size, 0, TILE_SCALE);
     // Exactly (0, 0, 1): the neutral normal every renderer treats as "no relief".
     expect(channels(flat, 0).every((r) => Math.abs(r - 127.5) < 1)).toBe(true);
     expect(channels(flat, 2).every((b) => b >= 254)).toBe(true);
   });
 
-  it('more strength means more relief', () => {
-    const spread = (s: number) => {
-      const r = channels(renderNormalMap(OAK, SIZE, s), 0);
-      return Math.max(...r) - Math.min(...r);
-    };
-    expect(spread(4)).toBeGreaterThan(spread(1));
+  it('deeper relief means more tilt', () => {
+    expect(meanTilt(OAK, size, 0.01)).toBeGreaterThan(meanTilt(OAK, size, 0.002));
+  });
+
+  it('a tile squeezed onto less world comes out steeper', () => {
+    // Same height field, same depth, half the world distance to cross ⇒ twice
+    // the slope. This is the property that makes `relief` mean something.
+    const tight = normalFromHeight(height(), size, 0.005, [0.15, 0.15]);
+    const wide = normalFromHeight(height(), size, 0.005, [0.6, 0.6]);
+    const flatness = (nm: Uint8ClampedArray) =>
+      channels(nm, 2).reduce((a, b) => a + b, 0) / (size * size);
+    expect(flatness(tight)).toBeLessThan(flatness(wide));
+  });
+
+  it('relief keeps its meaning across resolutions', () => {
+    // THE payoff. This number used to be a luminance-per-pixel strength and had
+    // to be re-solved by hand whenever `size` changed — 8 at 128px became ~96 at
+    // 512px, a twelvefold jump nobody could guess. As a depth in world units it
+    // holds, within a degree or two of sampling error.
+    //
+    // It holds BETTER for a smooth field than for a stepped one, and the two
+    // patterns here show both ends of that. Oak's grain is curved, so the same
+    // relief lands within a degree across a fourfold change of resolution. The
+    // pantile's remaining relief is the LAP — a discontinuity, whose gradient is
+    // always exactly one texel wide however many texels there are — so it drifts
+    // more. That is a property of steps, not a defect in the unit.
+    const oakDrift = Math.abs(meanTilt(OAK, 128, 0.005) - meanTilt(OAK, 512, 0.005));
+    expect(oakDrift).toBeLessThan(1.5);
+
+    const lapDrift = Math.abs(meanTilt(PANTILE, 128, 0.007) - meanTilt(PANTILE, 512, 0.007));
+    expect(lapDrift).toBeLessThan(3);
+  });
+
+  it('the pantile normal map carries the LAP only — the roll is geometry', () => {
+    // The roll is displaced into the mesh by `corrugate`, so it must not also be
+    // in the normal map: the same surface would be tilted twice in the same
+    // direction and the flanks would blow out to black and white. With the roll
+    // gone, the height field no longer varies across u at all.
+    const size = 64;
+    const height = heightOf(PANTILE, size);
+    for (let y = 0; y < size; y++) {
+      const first = height[y * size];
+      for (let x = 1; x < size; x++) expect(height[y * size + x]).toBe(first);
+    }
+    // The colour map still varies across u, because a pan really is dirtier
+    // than a crown — the roll earns its place in the albedo either way.
+    const { rgba } = renderPattern(PANTILE, size);
+    const row = Array.from({ length: size }, (_, x) => rgba[(10 * size + x) * 4]);
+    expect(Math.max(...row) - Math.min(...row)).toBeGreaterThan(20);
   });
 });

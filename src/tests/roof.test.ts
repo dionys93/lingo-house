@@ -93,3 +93,80 @@ describe('gableRoof', () => {
     expect(deep.gables.every((g) => g.axis === 'z')).toBe(true); // gables face ±Z
   });
 });
+
+describe('gableRoof — UVs are world distances along the surface', () => {
+  const SHAPE: RoofShape = { pitch: 0.5, rakeOverhang: 0.1, eaveOverhang: 0.2, bearingOffset: 0.04 };
+
+  // The authored house: a tall storey with a lower one set back in front of it,
+  // abutting. These are the two roofs that have to agree.
+  const tall = gableRoof({ x0: 0, x1: 3, z0: 0, z1: 3.5 }, 2.4, SHAPE);
+  const low = gableRoof({ x0: 0, x1: 3, z0: 3.5, z1: 4.5 }, 1.2, { ...SHAPE, abuts: { z0: true } });
+
+  /** UV units per world unit, measured along each quad's two edges. */
+  const density = (roof: ReturnType<typeof gableRoof>): number[] => {
+    const { positions: p, uvs } = roof.slopes;
+    const out: number[] = [];
+    for (let q = 0; q < p.length; q += 4) {
+      const alongEave = Math.hypot(p[q + 1][0] - p[q][0], p[q + 1][1] - p[q][1], p[q + 1][2] - p[q][2]);
+      const upSlope = Math.hypot(
+        p[q + 2][0] - p[q + 1][0], p[q + 2][1] - p[q + 1][1], p[q + 2][2] - p[q + 1][2],
+      );
+      out.push(Math.abs(uvs[q + 1][0] - uvs[q][0]) / alongEave);
+      out.push(Math.abs(uvs[q + 2][1] - uvs[q + 1][1]) / upSlope);
+    }
+    return out;
+  };
+
+  it('gives every vertex a UV', () => {
+    expect(tall.slopes.uvs).toHaveLength(tall.slopes.positions.length);
+    expect(low.slopes.uvs).toHaveLength(low.slopes.positions.length);
+  });
+
+  it('one UV unit is one world unit, on every panel of both roofs', () => {
+    // The whole point. If this drifts, the shingle changes size between the low
+    // roof and the tall one, which is the thing the roof work exists to avoid.
+    for (const d of [...density(tall), ...density(low)]) expect(d).toBeCloseTo(1, 6);
+  });
+
+  it('measures v UP THE SLOPE, not across the plan', () => {
+    // In plan the tall roof's half-span is 1.5 + bearing; up the slope it is
+    // longer by 1/cos(pitch). Projecting to the ground would compress every
+    // course by that factor and shrink the tiles on a steeper roof.
+    const halfSpanInPlan = 1.5 + SHAPE.bearingOffset + SHAPE.eaveOverhang;
+    const vMax = Math.max(...tall.slopes.uvs.map((t) => t[1]));
+    expect(vMax).toBeCloseTo(halfSpanInPlan * Math.hypot(1, SHAPE.pitch), 6);
+    expect(vMax).toBeGreaterThan(halfSpanInPlan);
+  });
+
+  it('starts v at the eave, so courses run bottom-up like real tiles', () => {
+    // Corners 0 and 1 of every quad sit on the eave — the quad invariant that
+    // slopeMesh relies on.
+    const { positions: p, uvs } = tall.slopes;
+    for (let q = 0; q < p.length; q += 4) {
+      expect(uvs[q][1]).toBe(0);
+      expect(uvs[q + 1][1]).toBe(0);
+      expect(p[q][1]).toBeLessThan(p[q + 2][1]); // eave below ridge
+    }
+  });
+
+  it('anchors u in WORLD space, so two roofs put their tiles on the same lines', () => {
+    // u is the world coordinate along the eave. Both roofs here run from the
+    // same x0, so both start at the same u — a per-quad 0..1 would have each
+    // roof begin its own grid at its own corner and drift out of step.
+    const uOf = (r: ReturnType<typeof gableRoof>) => r.slopes.uvs.map((t) => t[0]);
+    const tallSpan = tall.slopes.positions.map((v) => v[2]); // ridge along Z here
+    const lowSpan = low.slopes.positions.map((v) => v[0]); // ridge along X here
+    expect(Math.min(...uOf(tall))).toBeCloseTo(Math.min(...tallSpan), 6);
+    expect(Math.min(...uOf(low))).toBeCloseTo(Math.min(...lowSpan), 6);
+  });
+
+  it('holds u constant up the slope — tiles run in columns, not fans', () => {
+    for (const roof of [tall, low]) {
+      const { uvs } = roof.slopes;
+      for (let q = 0; q < uvs.length; q += 4) {
+        expect(uvs[q + 3][0]).toBeCloseTo(uvs[q][0], 6); // ridge corner over its eave corner
+        expect(uvs[q + 2][0]).toBeCloseTo(uvs[q + 1][0], 6);
+      }
+    }
+  });
+});
