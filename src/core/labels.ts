@@ -33,7 +33,20 @@ export const LOCALE_NAMES: Record<Locale, string> = {
 
 // Everything clickable that isn't a room: the item kinds, plus the parts of the
 // building itself. Rooms are excluded on purpose — see the header.
-export type PartKey = 'door' | 'window' | 'wall' | 'floor' | 'ceiling' | 'roof' | 'stairs';
+// `frontDoor` is a separate NOUN, not a decorated door. German makes the case
+// plainly — die Haustür is its own compound word, not "die Tür" with an
+// adjective — and Spanish and English follow with their own forms. A door that
+// LOOKS special while the house calls it "a door" teaches the opposite of what
+// this app is for.
+export type PartKey =
+  | 'door'
+  | 'frontDoor'
+  | 'window'
+  | 'wall'
+  | 'floor'
+  | 'ceiling'
+  | 'roof'
+  | 'stairs';
 export type NounKey = ItemKind | PartKey;
 
 export interface LocaleLabels {

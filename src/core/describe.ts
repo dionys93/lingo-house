@@ -103,7 +103,19 @@ export function describe(
       // of the WALL height, which for a door put the popup up at the lintel.
       const anchor: Vec3 = [centre[0], (opening.sill + opening.head) / 2, centre[2]];
       const base = {
-        subject: noun(labels, from, to, opening.kind === 'door' ? 'door' : 'window'),
+        // An exterior door is the front door. Derived, not authored — the
+        // compiler already resolved both sides of every opening, and
+        // faceColors makes the same test three lines into wallMaterials.
+        subject: noun(
+          labels,
+          from,
+          to,
+          opening.kind !== 'door'
+            ? 'window'
+            : opening.sides.includes('outside')
+              ? 'frontDoor'
+              : 'door',
+        ),
         context: here,
         anchor,
       };

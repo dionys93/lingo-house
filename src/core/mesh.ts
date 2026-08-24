@@ -287,10 +287,47 @@ export function boxMesh(size: Vec3, grain: GrainAxis): MeshData {
 }
 
 /**
- * A flat rectangle in the XY plane facing +Z, centred on the origin — three's
- * planeGeometry convention, so Ground.tsx's existing −π/2 rotation still lays
- * it flat — with metric UVs.
+ * Shift a mesh without touching its UVs.
+ *
+ * Translation cannot change a metric UV, because boxMesh anchors each face at
+ * its own corner rather than in world space. That is what makes composition
+ * work at all: fifteen boxes can be moved into a door and every one keeps the
+ * grain scale it was born with.
  */
+export function translated(mesh: MeshData, by: Vec3): MeshData {
+  return {
+    ...mesh,
+    positions: mesh.positions.map((p): Vec3 => [p[0] + by[0], p[1] + by[1], p[2] + by[2]]),
+  };
+}
+
+/**
+ * Concatenate meshes into one, offsetting each one's indices by the vertices
+ * already emitted.
+ *
+ * This is a DRAW CALL collapser. A six-panel door is fifteen boxes; fifteen
+ * meshes is fifteen draw calls, doubled to thirty by the shadow pass, for one
+ * door. Merged it is one geometry and one draw call. The same applies to every
+ * composed item — a chair is six boxes, a bookshelf about eight — so this is
+ * what keeps "add more furniture" from meaning "add more draw calls".
+ *
+ * Vertices are NOT welded across the seams, deliberately. Two boxes meeting at
+ * a right angle have genuinely different normals there, and welding them would
+ * round the corner off — the same reason `corrugate` keeps its per-tile runs
+ * unshared at the lap.
+ */
+export function mergeMeshes(meshes: readonly MeshData[]): MeshData {
+  const positions: Vec3[] = [];
+  const uvs: Vec2[] = [];
+  const indices: number[] = [];
+  for (const m of meshes) {
+    const base = positions.length;
+    positions.push(...m.positions);
+    uvs.push(...m.uvs);
+    indices.push(...m.indices.map((i) => i + base));
+  }
+  return { positions, uvs, indices };
+}
 export function planeMesh(size: Vec2): MeshData {
   const [hw, hh] = [size[0] / 2, size[1] / 2];
   return {

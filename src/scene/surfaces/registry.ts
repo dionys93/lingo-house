@@ -122,7 +122,12 @@ export interface SurfaceSpec {
   };
 }
 
-export type SurfaceKey = 'wood.oak' | 'wood.walnut' | 'grass' | 'clay.pantile';
+export type SurfaceKey =
+  | 'wood.oak'
+  | 'wood.walnut'
+  | 'grass'
+  | 'clay.pantile'
+  | 'paint.oxblood';
 
 export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
   // Photographed oak, cropped down to the single board that was floating in the
@@ -281,5 +286,31 @@ export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
     metalness: 0,
     worldScale: [1.25, 1.25], // 40-unit ground plane ⇒ the 32 repeats it had
     normalScale: 0,
+  },
+  // Oxblood on the front door. Traditional for a colonial cross-and-bible door,
+  // and chosen over crimson because crimson sits near 345 degrees of hue — a red
+  // with a BLUE undertone — against a pantile roof at roughly 20. The two pull
+  // opposite ways and read as two reds disagreeing. Oxblood is warm enough to
+  // sit with terracotta while staying obviously distinct from the five oak doors
+  // inside, which is the point: a child should be able to see which one is die
+  // Haustür.
+  //
+  // `solid` with relief 0, and that is honest rather than lazy. Paint IS flat.
+  // Every bit of this door's visual interest is the panel geometry and the
+  // shadow in its 16mm recesses — which is the whole argument for building it as
+  // fifteen boxes instead of a texture. Faking grain on top would contradict the
+  // reason it exists. If it reads too flat once rendered, a `woodGrain` variant
+  // with a low-contrast grain telegraphing through the paint is a one-line
+  // change here.
+  'paint.oxblood': {
+    source: { kind: 'pattern', pattern: { kind: 'solid', base: [142, 59, 52] }, relief: 0 },
+    roughness: 0.7, // eggshell, not the 0.9 of bare timber
+    metalness: 0,
+    // A solid has no features to scale, so this is arbitrary — but it still
+    // divides the metric UVs, so it has to stay sane rather than be left at
+    // something silly just because nothing is visible.
+    worldScale: [0.2, 0.2],
+    normalScale: 1,
+    size: 64, // nothing to resolve; the smallest tile that isn't absurd
   },
 };

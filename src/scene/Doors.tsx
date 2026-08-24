@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { boxMesh } from '../core/mesh';
+import { panelDoorMesh, CROSS_AND_BIBLE } from './doorMesh';
 import { openingFloorY, type CompiledGrid, type CompiledOpening } from '../core/grid';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
 import { meshGeometry } from './roofGeometry';
@@ -27,8 +28,21 @@ type DoorOpening = Extract<CompiledOpening, { kind: 'door' }>;
 const DOOR_THICKNESS = 0.04;
 const DOOR_GAP = 0.02;
 const OPEN_ANGLE = (Math.PI / 2) * 0.9;
-const PANEL_COLOR = '#8a6f52'; // the fallback until the surface builds
+const PANEL_COLOR = '#8a6f52'; // fallback until the surface builds
+const FRONT_PANEL_COLOR = '#8E3B34'; // ditto — or the front door flashes oak first
 const DOOR_SURFACE: SurfaceKey = 'wood.oak';
+const FRONT_DOOR_SURFACE: SurfaceKey = 'paint.oxblood';
+
+/**
+ * A door onto the outside is the front door.
+ *
+ * DERIVED, not authored. The compiler already resolved both sides of every
+ * opening, so no new field, no id matching against strings like `L0:h:9:2`
+ * that mean nothing and would break the moment the house is redrawn.
+ * `faceColors` makes exactly this test, and `describe` now makes it too — one
+ * fact, three readers, no third place to keep in sync.
+ */
+const isFrontDoor = (o: DoorOpening): boolean => o.sides.includes('outside');
 
 function DoorInstance({
   opening,
@@ -92,9 +106,18 @@ function DoorInstance({
   // the x-axis one turned a quarter) plus a size-keyed cache in the parent, to
   // save five buffers of twenty-four vertices. Not worth the machinery.
   const [panelW, panelH, panelD] = panelSize;
+  // The front door is fifteen boxes merged into one mesh — 180 triangles, one
+  // draw call. Its outer envelope is identical to the slab's (960 × 1968 × 80),
+  // so the hinge offset and everything collision knows stay exactly as they are.
+  // Interior doors keep the plain slab: panelling all six would cost 900
+  // triangles to say something only the front door needs to say.
+  const front = isFrontDoor(opening);
   const panelGeo = useMemo(
-    () => meshGeometry(boxMesh([panelW, panelH, panelD], 'y')),
-    [panelW, panelH, panelD],
+    () =>
+      meshGeometry(
+        front ? panelDoorMesh(CROSS_AND_BIBLE) : boxMesh([panelW, panelH, panelD], 'y'),
+      ),
+    [front, panelW, panelH, panelD],
   );
   useEffect(() => () => panelGeo.dispose(), [panelGeo]);
 
@@ -124,7 +147,10 @@ function DoorInstance({
             document.body.style.cursor = 'auto';
           }}
         >
-          <SurfaceMaterialSlot material={surface} color={PANEL_COLOR} />
+          <SurfaceMaterialSlot
+            material={surface}
+            color={front ? FRONT_PANEL_COLOR : PANEL_COLOR}
+          />
         </mesh>
       </group>
     </group>
@@ -147,7 +173,8 @@ export function Doors({
   // No size argument — that is the whole point of the metric hook. The panel's
   // own UVs carry its extent, so all six faces get the same physical grain and
   // a door matches the stair treads without either knowing the other's size.
-  const surface = useTiledSurface(DOOR_SURFACE);
+  const oak = useTiledSurface(DOOR_SURFACE);
+  const oxblood = useTiledSurface(FRONT_DOOR_SURFACE);
   return (
     <>
       {doors.map((o) => (
@@ -157,7 +184,7 @@ export function Doors({
           colorOf={colorOf}
           open={openDoors.has(o.id)}
           onPick={() => onPick(o.id)}
-          surface={surface}
+          surface={isFrontDoor(o) ? oxblood : oak}
         />
       ))}
     </>
