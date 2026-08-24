@@ -5,12 +5,12 @@
 // side — is plain value assertions.
 
 import { describe as suite, it, expect } from 'vitest';
-import { compileHouse } from '../core/house';
-import { buildNavGraph } from '../core/nav';
-import { describe } from '../core/describe';
-import type { LabelTable, Locale, NounKey } from '../core/labels';
-import type { Selection } from '../core/explorer';
-import { defineRoom, type Grid, type ItemDef, type Opening } from '../core/blocks';
+import { compileHouse } from '../core/house/house';
+import { buildNavGraph } from '../core/house/nav';
+import { describe } from '../core/house/describe';
+import type { LabelTable, Locale, NounKey } from '../core/house/labels';
+import type { Selection } from '../core/session/explorer';
+import { defineRoom, type Grid, type ItemDef, type Opening } from '../core/house/blocks';
 
 const K = defineRoom({
   key: 'kitchen',

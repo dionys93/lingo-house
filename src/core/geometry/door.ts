@@ -1,4 +1,4 @@
-
+// src/core/geometry/door.ts
 //
 // A six-panel colonial door — the "cross and bible" — as fifteen boxes merged
 // into one mesh.
@@ -17,13 +17,14 @@
 //   recesses shade for free. Painting them on as flat colour is the same mistake
 //   as deriving relief from luminance, which this codebase already tore out once.
 //
-// ── WHY IT LIVES IN scene/ AND NOT core/ ────────────────────────────────────
+// ── WHY IT LIVES IN core/geometry/ ──────────────────────────────────────────
 //
 // Same seam corrugation sits on. `core/` knows a door is an opening of a given
 // size; it does not know whether that door is panelled, any more than it knows
-// what oak looks like. Panelling is a STYLE. But there is no three import here,
-// so it stays pure and runs under `node --experimental-strip-types` like the
-// rest of the core does.
+// what oak looks like — panelling is closer to a STYLE. It lives in core anyway
+// because it is pure geometry with no three import: it runs under
+// `node --experimental-strip-types` like the rest of core, and the shell in
+// render/ turns its MeshData into something drawable.
 
 import {
   boxMesh,
@@ -34,7 +35,7 @@ import {
   translated,
   type MeshData,
   type Vec3,
-} from '../core/mesh';
+} from './mesh';
 
 /**
  * Frame member sizes, in WORLD UNITS at 1 unit = 2m.

@@ -5,12 +5,12 @@
 
 import { describe, it, expect } from 'vitest';
 import type * as THREE from 'three';
-import { gableRoof, type RoofShape } from '../core/roof';
-import { meshGeometry } from '../scene/meshGeometry';
+import { gableRoof, type RoofShape } from '../core/geometry/roof';
+import { meshGeometry } from '../render/three/meshGeometry';
 
 const SHAPE: RoofShape = { pitch: 0.5, rakeOverhang: 0.1, eaveOverhang: 0.2, bearingOffset: 0.04 };
 
-// The tall storey's roof. The low one lives in roofMesh.test.ts, which is where
+// The tall storey's roof. The low one lives in roofSurface.test.ts, which is where
 // the two-roofs-must-agree assertions are.
 const tall = gableRoof({ x0: 0, x1: 3, z0: 0, z1: 3.5 }, 2.4, SHAPE);
 const at = (a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, i: number) =>

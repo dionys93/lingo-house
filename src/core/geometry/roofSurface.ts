@@ -7,7 +7,7 @@
 //
 // These are pure functions and they should be reachable by the fast loop:
 //
-//   node --experimental-strip-types -e "import('./src/scene/roofMesh.ts')…"
+//   node --experimental-strip-types -e "import('./src/core/geometry/roofSurface.ts')…"
 //
 // They were not, until this file existed. They sat next to `meshGeometry`,
 // which needs three, and a module-level import is all-or-nothing — one
@@ -36,8 +36,8 @@
 // The course lines that DO vary up the slope are shallow steps with no
 // silhouette, and they stay in the normal map where they cost nothing.
 
-import type { MeshData, Vec2, Vec3 } from '../core/mesh';
-import type { Gable } from '../core/roof';
+import type { MeshData, Vec2, Vec3 } from './mesh';
+import type { Gable } from './roof';
 
 const mix = (a: Vec3, b: Vec3, t: number): Vec3 => [
   a[0] + (b[0] - a[0]) * t,

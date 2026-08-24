@@ -73,28 +73,38 @@ export default tseslint.config(
     },
   },
 
-  // ── THE PURE MODULES STAY PURE ─────────────────────────────────────────────
+  // ── core/ IS THE PURE LAYER — ENFORCED BY ONE GLOB, NO ALLOWLIST ────────────
   //
-  // These files are reachable by `node --experimental-strip-types`, which is how
-  // this project finds bugs fastest — run the pure code, print numbers. A single
-  // module-level `import * as THREE` ends that, for EVERY function in the file,
-  // used or not. That is how `corrugate` and `gableMesh` lost the loop: they sat
-  // beside `meshGeometry`, which legitimately needs three.
+  // Everything under src/core/ must be reachable by `node --experimental-strip-types`,
+  // which is how this project finds bugs fastest: run the pure code, print
+  // numbers. A single module-level `import * as THREE` ends that for EVERY
+  // function in the file, used or not — that is how `corrugate` and `gableMesh`
+  // once lost the strip-types loop, sitting beside a module that needed three.
   //
-  // `allowTypeImports` is true on purpose and is not a loophole. Node's type
-  // stripping ERASES `import type`, so a type-only reference to THREE.Side or
-  // THREE.Texture costs the loop nothing. A VALUE import is what breaks it, and
-  // that is precisely what this bans.
+  // This used to be a hand-maintained per-file allowlist, and it drifted twice
+  // over. Pure modules that merely happened to sit in src/scene/ — wallMaterials,
+  // windowStyles, lights, shadows — went unprotected; and when roofMesh/doorMesh
+  // were renamed, the allowlist kept pointing at paths that no longer existed.
+  // The boundary is now the filesystem itself: if a module is pure it lives in
+  // core/ and this one glob guards it; if it needs three or react it lives in
+  // render/ and this rule never sees it. There is no list left to fall out of sync.
   //
-  // scene/meshGeometry.ts is the sanctioned adapter and is deliberately absent
-  // from this list.
+  // Three things are errors here:
+  //   • three (and the r3f / postprocessing packages that pull it in) — VALUE
+  //     imports only. `allowTypeImports` is deliberate and not a loophole: node's
+  //     type stripping ERASES `import type`, so a type-only reference to
+  //     THREE.Side or THREE.Texture costs the loop nothing. A value import is
+  //     what breaks it, and that is precisely what this bans.
+  //   • react / react-dom — core is domain logic, not components. The old rule
+  //     banned three but not react, so core/ could have grown a hook unnoticed.
+  //   • the render/ and content/ layers — DIRECTION. Dependencies point inward:
+  //     render and content import core, never the reverse. The old rule didn't
+  //     enforce this, so `core/` importing `scene/` would have passed.
+  //
+  // The sanctioned three adapter is render/three/meshGeometry.ts, which lives in
+  // render/ precisely so it sits outside this glob.
   {
-    files: [
-      'src/core/**/*.ts',
-      'src/scene/roofMesh.ts',
-      'src/scene/doorMesh.ts',
-      'src/scene/surfaces/pattern.ts',
-    ],
+    files: ['src/core/**/*.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -104,7 +114,30 @@ export default tseslint.config(
               name: 'three',
               allowTypeImports: true,
               message:
-                'Value-importing three here breaks `node --experimental-strip-types` for the whole module. Keep the mesh work pure and convert via scene/meshGeometry.ts. A type-only import is fine.',
+                'Value-importing three here breaks `node --experimental-strip-types` for the whole module and the pure/render boundary. Keep the work pure and convert via render/three/meshGeometry.ts. A type-only import is fine.',
+            },
+            {
+              name: 'react',
+              allowTypeImports: true,
+              message: 'core/ is pure domain logic — no React. Hooks and components belong in render/.',
+            },
+            {
+              name: 'react-dom',
+              allowTypeImports: true,
+              message: 'core/ is pure domain logic — no React. Hooks and components belong in render/.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['three/*', '@react-three/*', 'postprocessing', 'react/*', 'react-dom/*'],
+              allowTypeImports: true,
+              message:
+                'Value-importing the three / react-three stack here breaks the pure/render boundary and `node --experimental-strip-types`. A type-only import is fine; do the conversion in render/.',
+            },
+            {
+              group: ['**/render/**', '**/content/**'],
+              message:
+                'core/ must not import the render or content layers. Dependencies point inward: render and content depend on core, never the reverse.',
             },
           ],
         },

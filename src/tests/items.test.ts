@@ -5,10 +5,10 @@
 // Coordinate oracle assumes CELL = 0.5 (asserted in grid.test.ts).
 
 import { describe, it, expect } from 'vitest';
-import { compileGrid, ITEM_SPECS, type CompiledGrid } from '../core/grid';
-import { _, type Grid, type ItemDef } from '../core/blocks';
+import { compileGrid, ITEM_SPECS, type CompiledGrid } from '../core/house/grid';
+import { _, type Grid, type ItemDef } from '../core/house/blocks';
 import { room } from './support';
-import { WALL_THICKNESS } from '../core/grid';
+import { WALL_THICKNESS } from '../core/house/grid';
 
 const K = room('kitchen', 'Kitchen');
 const L = room('livingRoom', 'Living Room');

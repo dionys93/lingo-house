@@ -25,11 +25,11 @@
 // kind, between which rooms.
 
 import { describe, it, expect } from 'vitest';
-import { _ } from '../core/blocks';
+import { _ } from '../core/house/blocks';
 import { room } from './support';
-import { compileGrid, consecutiveRanges, CELL, WALL_HEIGHT, WALL_THICKNESS } from '../core/grid';
-import type { HouseError } from '../core/errors';
-import type { Result } from '../core/result';
+import { compileGrid, consecutiveRanges, CELL, WALL_HEIGHT, WALL_THICKNESS } from '../core/house/grid';
+import type { HouseError } from '../core/shared/errors';
+import type { Result } from '../core/shared/result';
 
 const K = room('kitchen', 'Kitchen', '#d4d4d4');
 const L = room('livingRoom', 'Living Room');
