@@ -56,7 +56,7 @@
 // height gradient in world units, take the arctangent.
 
 import * as THREE from 'three';
-import { pantileRoll, type Pattern } from './pattern';
+import { pantileRoll, type Pattern } from '../../core/geometry/pattern';
 import { createGrassTexture } from '../textures/grass';
 import oakPlankUrl from '../textures/oak-plank.png';
 

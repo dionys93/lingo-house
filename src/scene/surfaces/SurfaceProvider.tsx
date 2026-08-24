@@ -37,7 +37,7 @@ import {
 } from 'react';
 import * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
-import { normalFromHeight, renderPattern } from './pattern';
+import { normalFromHeight, renderPattern } from '../../core/geometry/pattern';
 import { SURFACES, type SurfaceKey, type SurfaceSpec } from './registry';
 
 interface Built {

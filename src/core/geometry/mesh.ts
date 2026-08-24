@@ -1,4 +1,4 @@
-// src/core/mesh.ts
+
 //
 // Mesh producers, and the one check that keeps them honest.
 //

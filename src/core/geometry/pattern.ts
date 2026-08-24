@@ -1,4 +1,4 @@
-// src/scene/surfaces/pattern.ts
+
 //
 // Procedural surface patterns. PURE: in a pattern description and a size, out
 // colour bytes AND a height field. No canvas, no three, no DOM — which is what

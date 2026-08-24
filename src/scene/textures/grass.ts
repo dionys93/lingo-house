@@ -10,7 +10,7 @@
 // single green (reads as plastic) and pure per-pixel noise (reads as static).
 
 import * as THREE from 'three';
-import { mulberry32 } from '../surfaces/pattern';
+import { mulberry32 } from '../../core/geometry/pattern';
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 const smoothstep = (t: number): number => t * t * (3 - 2 * t);

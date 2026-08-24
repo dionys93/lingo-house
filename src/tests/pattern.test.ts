@@ -4,7 +4,7 @@
 // reason it returns bytes rather than a canvas.
 
 import { describe, it, expect } from 'vitest';
-import { normalFromHeight, renderPattern, type Pattern } from '../scene/surfaces/pattern';
+import { normalFromHeight, renderPattern, type Pattern } from '../core/geometry/pattern';
 
 const OAK: Pattern = {
   kind: 'woodGrain',

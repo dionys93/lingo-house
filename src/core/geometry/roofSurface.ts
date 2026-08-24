@@ -1,4 +1,4 @@
-// src/scene/roofMesh.ts
+
 //
 // The roof's mesh PRODUCERS: corrugation, and the gable ends. MeshData in,
 // MeshData out — no three, no DOM, no clock.

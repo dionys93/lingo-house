@@ -1,4 +1,4 @@
-// src/core/roof.ts
+
 //
 // A GABLE roof over a rectangular footprint: one ridge, two sloped panels, and
 // two triangular gable ends. Height depends only on distance from the ridge LINE

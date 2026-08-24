@@ -1,4 +1,4 @@
-// src/scene/doorMesh.ts
+
 //
 // A six-panel colonial door — the "cross and bible" — as fifteen boxes merged
 // into one mesh.

@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { gableRoof, type RoofShape } from '../core/roof';
 import { corrugate, type Corrugation } from '../scene/roofMesh';
-import { pantileRoll } from '../scene/surfaces/pattern';
+import { pantileRoll } from '../core/geometry/pattern';
 
 const SHAPE: RoofShape = { pitch: 0.5, rakeOverhang: 0.1, eaveOverhang: 0.2, bearingOffset: 0.04 };
 
