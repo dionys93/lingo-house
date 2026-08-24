@@ -1,8 +1,8 @@
 // src/tests/roof.test.ts
 
 import { describe, it, expect } from 'vitest';
-import { uvDensity } from '../core/mesh';
-import { gableRoof, type RoofShape } from '../core/roof';
+import { uvDensity } from '../core/geometry/mesh';
+import { gableRoof, type RoofShape } from '../core/geometry/roof';
 
 const allY = (roof: ReturnType<typeof gableRoof>): number[] => [
   ...roof.slopes.positions.map((p) => p[1]),

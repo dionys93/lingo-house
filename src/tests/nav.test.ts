@@ -16,10 +16,10 @@
 // that can each pass while the other fails aren't two checks.
 
 import { describe, it, expect } from 'vitest';
-import { buildNavGraph } from '../core/nav';
-import { DOOR_HEIGHT_FRAC } from '../core/grid';
-import type { CompiledStair } from '../core/house';
-import type { CompiledOpening, WallSide } from '../core/grid';
+import { buildNavGraph } from '../core/house/nav';
+import { DOOR_HEIGHT_FRAC } from '../core/house/grid';
+import type { CompiledStair } from '../core/house/house';
+import type { CompiledOpening, WallSide } from '../core/house/grid';
 
 // A minimal door fixture — only the fields the graph reads matter here.
 function door(id: string, a: WallSide, b: WallSide): CompiledOpening {

@@ -6,8 +6,8 @@
 // doesn't mean editing every test file. Tests that DO care about language pass
 // explicit labels instead (see describe.test.ts).
 
-import { defineRoom, type RoomDef, type RoomLabels } from '../core/blocks';
-import { LOCALES, type Locale } from '../core/labels';
+import { defineRoom, type RoomDef, type RoomLabels } from '../core/house/blocks';
+import { LOCALES, type Locale } from '../core/house/labels';
 
 const everywhere = (name: string): Record<Locale, RoomLabels> =>
   Object.fromEntries(

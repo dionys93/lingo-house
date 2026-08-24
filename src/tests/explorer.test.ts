@@ -10,7 +10,7 @@ import {
   type ExplorerEvent,
   type ExplorerState,
   type Selection,
-} from '../core/explorer';
+} from '../core/session/explorer';
 
 const run = (state: ExplorerState, ...events: readonly ExplorerEvent[]): ExplorerState =>
   events.reduce(explorerReducer, state);

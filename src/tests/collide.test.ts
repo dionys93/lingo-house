@@ -10,8 +10,8 @@
 //   corners don't leak, and degenerate input doesn't produce NaN
 
 import { describe, expect, it } from 'vitest';
-import { blockersFor, blocksDoorway, boxSegments, closestOn, doorwayOf, segmentsCross, slide, solidOpenings, stairwellOf, type Segment2, type Vec2 } from '../core/collide';
-import type { AABB, CompiledOpening, CompiledWall } from '../core/grid';
+import { blockersFor, blocksDoorway, boxSegments, closestOn, doorwayOf, segmentsCross, slide, solidOpenings, stairwellOf, type Segment2, type Vec2 } from '../core/house/collide';
+import type { AABB, CompiledOpening, CompiledWall } from '../core/house/grid';
 
 const R = 0.18; // player radius, ~36cm across at 1 unit = 2m
 

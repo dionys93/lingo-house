@@ -11,9 +11,9 @@
 // vocabulary as Sandbox's preset bar so it doesn't read as a different app.
 
 import { useState, type ComponentType, type CSSProperties } from 'react';
-import { HouseScene } from './scene/HouseScene';
-import { Sandbox } from './scene/Sandbox';
-import { LightingLab } from './scene/LightingLab';
+import { HouseScene } from './render/scenes/HouseScene';
+import { Sandbox } from './render/scenes/Sandbox';
+import { LightingLab } from './render/scenes/LightingLab';
 
 interface ModeSpec {
   readonly label: string;

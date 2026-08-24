@@ -30,7 +30,7 @@
 //               ONE mesh instead of minting one per position.
 //   planeMesh   LOCAL-anchored, for the same reason as boxMesh.
 
-import { err, ok, type Result } from './result';
+import { err, ok, type Result } from '../shared/result';
 
 export type Vec2 = readonly [number, number];
 export type Vec3 = readonly [number, number, number];

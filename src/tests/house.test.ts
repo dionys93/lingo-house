@@ -4,10 +4,10 @@
 // All pure — no scene, no React.
 
 import { describe, it, expect } from 'vitest';
-import { compileHouse } from '../core/house';
-import { WALL_HEIGHT } from '../core/grid';
-import type { Opening, Stair, Storey } from '../core/blocks';
-import type { HouseError } from '../core/errors';
+import { compileHouse } from '../core/house/house';
+import { WALL_HEIGHT } from '../core/house/grid';
+import type { Opening, Stair, Storey } from '../core/house/blocks';
+import type { HouseError } from '../core/shared/errors';
 import { room } from './support';
 
 const A = room('down', 'Downstairs');
