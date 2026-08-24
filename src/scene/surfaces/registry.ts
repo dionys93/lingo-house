@@ -127,7 +127,9 @@ export type SurfaceKey =
   | 'wood.walnut'
   | 'grass'
   | 'clay.pantile'
-  | 'paint.oxblood';
+  | 'paint.oxblood'
+  | 'wood.beech'
+  | 'metal.brass';
 
 export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
   // Photographed oak, cropped down to the single board that was floating in the
@@ -312,5 +314,55 @@ export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
     worldScale: [0.2, 0.2],
     normalScale: 1,
     size: 64, // nothing to resolve; the smallest tile that isn't absurd
+  },
+  // The interior doors. Light, calm, low-figure — beech, and PROCEDURAL rather
+  // than the photographed oak the doors wore first.
+  //
+  // The swap buys real relief. `wood.oak` is `kind: 'image'`, where relief is
+  // structurally impossible: the only height field a photo offers is its
+  // luminance, and that assumes dark means deep. A woodGrain pattern knows its
+  // own height field, so beech gets 4mm of actual carved grain that lights and
+  // shadows correctly.
+  //
+  // NOTE THE CONTRAST GOES THE OTHER WAY FROM WALNUT. Walnut's comment argues
+  // for widening base-to-grain to ~90 because 48 read as flat grey. Beech is
+  // deliberately back down at ~40, because "less textured" is the brief: the
+  // door should be quiet and let the front door be the thing you look at. Same
+  // knob, opposite goal — which is why it is worth saying out loud rather than
+  // leaving as a number that looks like the walnut lesson unlearned.
+  'wood.beech': {
+    source: {
+      kind: 'pattern',
+      pattern: {
+        kind: 'woodGrain',
+        base: [205, 175, 140],
+        grain: [165, 132, 100], // ~40 apart, on purpose — see above
+        rings: 3, // 4 on walnut, to survive a 34mm rail; a door face is 2.4 tiles wide
+        waviness: 0.35, // beech is straight-grained; walnut's 0.9 is figure
+        seed: 214,
+      },
+      relief: 0.0022, // ~4.4mm, against walnut's 11mm
+    },
+    roughness: 0.75,
+    metalness: 0,
+    // Same board size as oak, deliberately. A beech door and an oak stair tread
+    // then show the SAME plank width — which is the entire point of metric UVs,
+    // and would be lost by picking a number that merely looked nice on a door.
+    worldScale: [0.2, 0.67],
+    normalScale: 1,
+    size: 256,
+  },
+
+  // Doorknobs. A `solid` with no relief, because a polished knob has no texture
+  // — its whole look is the environment map, which is why metalness is high and
+  // roughness low. This is also the one surface that never needs metric UVs:
+  // sphereMesh cannot provide them, and nothing here would show the distortion.
+  'metal.brass': {
+    source: { kind: 'pattern', pattern: { kind: 'solid', base: [181, 148, 79] }, relief: 0 },
+    roughness: 0.28,
+    metalness: 0.85,
+    worldScale: [0.05, 0.05],
+    normalScale: 1,
+    size: 32,
   },
 };

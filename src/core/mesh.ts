@@ -328,6 +328,142 @@ export function mergeMeshes(meshes: readonly MeshData[]): MeshData {
   }
   return { positions, uvs, indices };
 }
+
+/**
+ * Turn a mesh a quarter turn about Y: (x, y, z) → (z, y, −x).
+ *
+ * A proper rotation, so winding survives. A bare axis SWAP would not — it flips
+ * handedness and turns every face inside out.
+ *
+ * Needed because a composed mesh is built in one canonical orientation and the
+ * house has walls running both ways. UVs are untouched: they are per-face and
+ * local, so a rotated piece keeps the grain scale it was born with.
+ */
+export function rotatedY90(mesh: MeshData): MeshData {
+  return {
+    ...mesh,
+    positions: mesh.positions.map((p): Vec3 => [p[2], p[1], -p[0]]),
+  };
+}
+
+/**
+ * A quarter turn about X: (x, y, z) → (x, −z, y). Determinant +1, so winding
+ * survives — unlike the axis SWAP (x, y, z) → (x, z, y), which looks equivalent,
+ * has determinant −1, and turns the mesh inside out.
+ *
+ * Stands a Y-axis cylinder up along Z, which is how a door's rose sits.
+ */
+export function rotatedX90(mesh: MeshData): MeshData {
+  return {
+    ...mesh,
+    positions: mesh.positions.map((p): Vec3 => [p[0], -p[2], p[1]]),
+  };
+}
+
+// ── Curved primitives, and the one place the metric contract stops ──────────
+//
+// A CYLINDER'S SIDE IS DEVELOPABLE — zero Gaussian curvature, so it unrolls
+// flat and its UVs are honestly metric: `u` is arc length around, `v` is height.
+// uvDensity returns 1.0 on it and should.
+//
+// A SPHERE IS NOT. Positive curvature means no distortion-free map exists, at
+// any resolution. uvDensity WILL report min ≠ max on sphereMesh, and that is
+// the check working rather than failing.
+//
+// Acceptable for exactly one reason: the only sphere here is a brass doorknob,
+// whose whole look is reflection off the environment map rather than a tiled
+// texture. Put a wood grain on a sphere and it will stretch at the poles — and
+// uvDensity will have said so first.
+
+/**
+ * A cylinder about the Y axis, centred on the origin. Metric UVs on the side;
+ * caps are planar-projected, which is metric within each cap.
+ *
+ * uvDensity measures the side at sin(pi/segments)/(pi/segments), not 1.0 — 0.9836
+ * at 10 segments — because `u` is ARC length while the geometry is chords. That
+ * gap is the faceting, not an error, and it closes as segments rise. The caps
+ * measure exactly 1.0, which is the tell that the two are different situations.
+ */
+export function cylinderMesh(radius: number, height: number, segments: number): MeshData {
+  const positions: Vec3[] = [];
+  const uvs: Vec2[] = [];
+  const indices: number[] = [];
+  const [hy, circ] = [height / 2, 2 * Math.PI * radius];
+
+  // The seam vertex is emitted TWICE — once at u = 0 and once at u = circ — so
+  // the texture meets itself instead of running backward across the last quad.
+  for (let s = 0; s <= segments; s++) {
+    const a = (s / segments) * 2 * Math.PI;
+    const [x, z] = [Math.cos(a) * radius, Math.sin(a) * radius];
+    positions.push([x, -hy, z], [x, hy, z]);
+    uvs.push([(s / segments) * circ, 0], [(s / segments) * circ, height]);
+  }
+  for (let s = 0; s < segments; s++) {
+    const b = s * 2;
+    indices.push(b, b + 3, b + 2, b, b + 1, b + 3);
+  }
+
+  for (const [sy, flip] of [
+    [hy, false],
+    [-hy, true],
+  ] as const) {
+    const centre = positions.length;
+    positions.push([0, sy, 0]);
+    uvs.push([radius, radius]);
+    for (let s = 0; s <= segments; s++) {
+      const a = (s / segments) * 2 * Math.PI;
+      const [x, z] = [Math.cos(a) * radius, Math.sin(a) * radius];
+      positions.push([x, sy, z]);
+      uvs.push([x + radius, z + radius]);
+    }
+    for (let s = 0; s < segments; s++) {
+      const [i, j] = [centre + 1 + s, centre + 2 + s];
+      indices.push(...(flip ? [centre, i, j] : [centre, j, i]));
+    }
+  }
+
+  return { positions, uvs, indices };
+}
+
+/**
+ * A UV sphere centred on the origin. NOT metric — see the note above. UVs are
+ * arc length at the equator, which is the least-bad choice and exact on the one
+ * ring where it can be.
+ */
+export function sphereMesh(radius: number, segments: number, rings: number): MeshData {
+  const positions: Vec3[] = [];
+  const uvs: Vec2[] = [];
+  const indices: number[] = [];
+
+  for (let r = 0; r <= rings; r++) {
+    const phi = (r / rings) * Math.PI;
+    const [sy, sr] = [Math.cos(phi) * radius, Math.sin(phi) * radius];
+    for (let s = 0; s <= segments; s++) {
+      const theta = (s / segments) * 2 * Math.PI;
+      positions.push([Math.cos(theta) * sr, sy, Math.sin(theta) * sr]);
+      uvs.push([(s / segments) * 2 * Math.PI * radius, (r / rings) * Math.PI * radius]);
+    }
+  }
+  const row = segments + 1;
+  for (let r = 0; r < rings; r++) {
+    for (let s = 0; s < segments; s++) {
+      const [a, b] = [r * row + s, (r + 1) * row + s];
+      // A pole row collapses to a point, so one triangle of each pair there
+      // would be degenerate — and a degenerate triangle is what uvDensity
+      // rejects outright.
+      if (r !== 0) indices.push(a, a + 1, b);
+      if (r !== rings - 1) indices.push(a + 1, b + 1, b);
+    }
+  }
+
+  return { positions, uvs, indices };
+}
+
+/**
+ * A flat rectangle in the XY plane facing +Z, centred on the origin — three's
+ * planeGeometry convention, so Ground.tsx's existing −π/2 rotation still lays
+ * it flat — with metric UVs.
+ */
 export function planeMesh(size: Vec2): MeshData {
   const [hw, hh] = [size[0] / 2, size[1] / 2];
   return {

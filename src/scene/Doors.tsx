@@ -14,8 +14,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { boxMesh } from '../core/mesh';
-import { panelDoorMesh, CROSS_AND_BIBLE } from './doorMesh';
+import { boxMesh, rotatedY90 } from '../core/mesh';
+import { panelDoorMesh, doorKnobMesh, CROSS_AND_BIBLE } from './doorMesh';
 import { openingFloorY, type CompiledGrid, type CompiledOpening } from '../core/grid';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
 import { meshGeometry } from './roofGeometry';
@@ -28,9 +28,11 @@ type DoorOpening = Extract<CompiledOpening, { kind: 'door' }>;
 const DOOR_THICKNESS = 0.04;
 const DOOR_GAP = 0.02;
 const OPEN_ANGLE = (Math.PI / 2) * 0.9;
-const PANEL_COLOR = '#8a6f52'; // fallback until the surface builds
+const PANEL_COLOR = '#CDAF8C'; // fallback until the surface builds — beech
+const KNOB_COLOR = '#B5944F'; // ditto — brass
 const FRONT_PANEL_COLOR = '#8E3B34'; // ditto — or the front door flashes oak first
-const DOOR_SURFACE: SurfaceKey = 'wood.oak';
+const DOOR_SURFACE: SurfaceKey = 'wood.beech';
+const KNOB_SURFACE: SurfaceKey = 'metal.brass';
 const FRONT_DOOR_SURFACE: SurfaceKey = 'paint.oxblood';
 
 /**
@@ -50,6 +52,7 @@ function DoorInstance({
   open,
   onPick,
   surface,
+  knob,
 }: {
   opening: DoorOpening;
   colorOf: (side: string) => string;
@@ -58,6 +61,7 @@ function DoorInstance({
   // Hoisted to the parent: every door in the house is the same material, and
   // saying so once beats six independent hook calls that can drift apart.
   surface: SurfaceMaterial | null;
+  knob: SurfaceMaterial | null;
 }) {
   const hinge = useRef<THREE.Group>(null);
 
@@ -112,14 +116,32 @@ function DoorInstance({
   // Interior doors keep the plain slab: panelling all six would cost 900
   // triangles to say something only the front door needs to say.
   const front = isFrontDoor(opening);
-  const panelGeo = useMemo(
-    () =>
-      meshGeometry(
-        front ? panelDoorMesh(CROSS_AND_BIBLE) : boxMesh([panelW, panelH, panelD], 'y'),
-      ),
-    [front, panelW, panelH, panelD],
-  );
+  const turned = axis === 'z';
+  const panelGeo = useMemo(() => {
+    // panelDoorMesh and doorKnobMesh are both built x-wide. A door on a wall
+    // running north-south needs them turned — a real rotation, not an axis
+    // swap, or every face ends up inside out.
+    const m = front ? panelDoorMesh(CROSS_AND_BIBLE) : boxMesh([panelW, panelH, panelD], 'y');
+    return meshGeometry(turned && front ? rotatedY90(m) : m);
+  }, [front, turned, panelW, panelH, panelD]);
   useEffect(() => () => panelGeo.dispose(), [panelGeo]);
+
+  // Every door gets one, front and back. Merged into a single mesh, so six
+  // doors cost six draw calls rather than twenty-four.
+  //
+  // panelSize is [thickness, height, width] on a z-axis door and
+  // [width, height, thickness] on an x-axis one, so the canonical pair has to
+  // be un-permuted here before the mesh is built and turned back.
+  const knobGeo = useMemo(() => {
+    const m = doorKnobMesh({
+      ...CROSS_AND_BIBLE,
+      width: turned ? panelD : panelW,
+      height: panelH,
+      thickness: turned ? panelW : panelD,
+    });
+    return meshGeometry(turned ? rotatedY90(m) : m);
+  }, [turned, panelW, panelH, panelD]);
+  useEffect(() => () => knobGeo.dispose(), [knobGeo]);
 
   return (
     <group>
@@ -152,6 +174,9 @@ function DoorInstance({
             color={front ? FRONT_PANEL_COLOR : PANEL_COLOR}
           />
         </mesh>
+        <mesh {...SOLID} geometry={knobGeo} position={panelOffset} raycast={() => null}>
+          <SurfaceMaterialSlot material={knob} color={KNOB_COLOR} />
+        </mesh>
       </group>
     </group>
   );
@@ -173,7 +198,8 @@ export function Doors({
   // No size argument — that is the whole point of the metric hook. The panel's
   // own UVs carry its extent, so all six faces get the same physical grain and
   // a door matches the stair treads without either knowing the other's size.
-  const oak = useTiledSurface(DOOR_SURFACE);
+  const beech = useTiledSurface(DOOR_SURFACE);
+  const knob = useTiledSurface(KNOB_SURFACE);
   const oxblood = useTiledSurface(FRONT_DOOR_SURFACE);
   return (
     <>
@@ -184,7 +210,8 @@ export function Doors({
           colorOf={colorOf}
           open={openDoors.has(o.id)}
           onPick={() => onPick(o.id)}
-          surface={isFrontDoor(o) ? oxblood : oak}
+          surface={isFrontDoor(o) ? oxblood : beech}
+          knob={knob}
         />
       ))}
     </>

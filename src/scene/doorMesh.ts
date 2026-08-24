@@ -25,7 +25,16 @@
 // so it stays pure and runs under `node --experimental-strip-types` like the
 // rest of the core does.
 
-import { boxMesh, mergeMeshes, translated, type MeshData, type Vec3 } from '../core/mesh';
+import {
+  boxMesh,
+  cylinderMesh,
+  mergeMeshes,
+  rotatedX90,
+  sphereMesh,
+  translated,
+  type MeshData,
+  type Vec3,
+} from '../core/mesh';
 
 /**
  * Frame member sizes, in WORLD UNITS at 1 unit = 2m.
@@ -132,4 +141,60 @@ export function panelDoorMesh(spec: PanelDoorSpec): MeshData {
     ...rowBotPieces,
     bottomRail,
   ]);
+}
+
+// ── Hardware ────────────────────────────────────────────────────────────────
+
+/**
+ * Knob geometry, in world units at 1 unit = 2m.
+ *
+ * `height` is 1000mm from the floor, which is where knobs actually go. The
+ * child walking this house has a 1300mm eye height, so they reach slightly
+ * DOWN for it — same as a real child in a real house, and worth preserving.
+ */
+const KNOB = {
+  height: 0.5, // 1000mm from the floor
+  inset: 0.032, // 64mm in from the latch edge
+  roseRadius: 0.014, // 28mm — a 56mm rose
+  roseDepth: 0.006, // 12mm proud of the face
+  ballRadius: 0.016, // 32mm — a 64mm knob
+  segments: 10,
+  rings: 6,
+} as const;
+
+/**
+ * Both knobs for one door, as a SINGLE mesh.
+ *
+ * Merged deliberately. A knob is a rose plus a ball, and a door needs one on
+ * each face — four meshes per door, twenty-four across the house, forty-eight
+ * once the shadow pass renders them again. Merged it is one draw call per door.
+ *
+ * Separate from the panel mesh because brass is a different material, which is
+ * the one thing mergeMeshes cannot collapse across.
+ *
+ * Built in the same origin-centred frame as the door itself, so it takes the
+ * identical `panelOffset` and needs no placement logic of its own. The latch
+ * side is +x: the hinge sits at the door's origin and the panel extends away
+ * from it, so the far edge is always the one that opens.
+ */
+export function doorKnobMesh(spec: PanelDoorSpec): MeshData {
+  const { width: w, height: h, thickness: t } = spec;
+  const x = w / 2 - KNOB.inset;
+  const y = KNOB.height - h / 2;
+
+  // Rotated ONCE, then translated twice. A cylinder is symmetric about its own
+  // axis midpoint, so the two faces need no mirroring — and mirroring is exactly
+  // what would have flipped the winding.
+  const rose = rotatedX90(cylinderMesh(KNOB.roseRadius, KNOB.roseDepth, KNOB.segments));
+  const ball = sphereMesh(KNOB.ballRadius, KNOB.segments, KNOB.rings);
+
+  const side = (sign: 1 | -1): readonly MeshData[] => {
+    const faceZ = sign * (t / 2);
+    return [
+      translated(rose, [x, y, faceZ + sign * (KNOB.roseDepth / 2)]),
+      translated(ball, [x, y, faceZ + sign * (KNOB.roseDepth + KNOB.ballRadius * 0.75)]),
+    ];
+  };
+
+  return mergeMeshes([...side(1), ...side(-1)]);
 }
