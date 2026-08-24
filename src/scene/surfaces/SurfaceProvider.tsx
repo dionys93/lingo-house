@@ -288,7 +288,11 @@ function useRepeated(key: SurfaceKey, rx: number, ry: number): SurfaceMaterial |
           normalScale: new THREE.Vector2(spec.normalScale, spec.normalScale),
           roughness: spec.roughness,
           metalness: spec.metalness,
-          color: '#ffffff', // white, so the map's own colour comes through untinted
+          // White by default, so a map's own colour comes through untinted.
+          // An image source may override it: a photograph's colour is baked and
+          // this multiplier is the only way to re-tone one. Patterns never set
+          // it — they state their colours directly.
+          color: spec.source.kind === 'image' ? (spec.source.tint ?? '#ffffff') : '#ffffff',
         },
     [variant, spec],
   );

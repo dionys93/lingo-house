@@ -85,7 +85,20 @@ export type SurfaceSource =
        */
       readonly relief: number;
     }
-  | { readonly kind: 'image'; readonly url: string }
+  | {
+      readonly kind: 'image';
+      readonly url: string;
+      /**
+       * Multiplied into the map. A photograph's colour is baked, so this is the
+       * only way to re-tone one without a new asset.
+       *
+       * It lives HERE, on the image variant alone, for the same reason `relief`
+       * lives on `pattern` alone. A pattern already states its own colours in
+       * `base` and `grain`; giving it a tint too would mean two places to set
+       * one thing, and a silent question about which wins.
+       */
+      readonly tint?: string;
+    }
   | { readonly kind: 'generator'; readonly make: () => THREE.Texture };
 
 export interface SurfaceSpec {
@@ -128,7 +141,7 @@ export type SurfaceKey =
   | 'grass'
   | 'clay.pantile'
   | 'paint.oxblood'
-  | 'wood.beech'
+  | 'wood.cherry'
   | 'metal.brass';
 
 export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
@@ -148,7 +161,12 @@ export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
   // "clean pale board", replace the file — the `source` union means that is a
   // one-line change here and touches no component.
   'wood.oak': {
-    source: { kind: 'image', url: oakPlankUrl },
+    // MEASURED, not eyeballed: the asset's mean is [224, 183, 131], luminance
+    // 188 — the "clean pale board" the note above warns about. This multiplier
+    // is [0.668, 0.590, 0.581], which lands the mean on [150, 108, 76]: dark
+    // enough to read as a stained board and still 1.5x the oxblood front door,
+    // which is where that stops being true.
+    source: { kind: 'image', url: oakPlankUrl, tint: '#AA9694' },
     roughness: 0.78,
     metalness: 0,
     // The board measures 191 × 730px, i.e. 1 : 3.35. worldScale must hold that
@@ -315,37 +333,48 @@ export const SURFACES: Record<SurfaceKey, SurfaceSpec> = {
     normalScale: 1,
     size: 64, // nothing to resolve; the smallest tile that isn't absurd
   },
-  // The interior doors. Light, calm, low-figure — beech, and PROCEDURAL rather
-  // than the photographed oak the doors wore first.
+  // The interior doors. Calm, low-figure, mid-brown — cherry, and PROCEDURAL
+  // rather than the photographed oak the doors wore first.
   //
   // The swap buys real relief. `wood.oak` is `kind: 'image'`, where relief is
   // structurally impossible: the only height field a photo offers is its
   // luminance, and that assumes dark means deep. A woodGrain pattern knows its
-  // own height field, so beech gets 4mm of actual carved grain that lights and
-  // shadows correctly.
+  // own height field, so cherry gets 4.4mm of actual carved grain that lights
+  // and shadows correctly.
+  //
+  // HOW DARK IT CAN GO IS SET BY THE FRONT DOOR, not by taste. Oxblood sits at
+  // luminance 76. Cherry's base is 115 — 1.51x — which still reads as lighter
+  // across a room. Chestnut (94, 1.23x) and dark walnut (73, 0.95x) converge on
+  // the front door in VALUE, leaving only hue to tell them apart, which is far
+  // weaker at distance and nearly gone in shadow. Darkening past here quietly
+  // undoes the reason the front door was picked out at all.
   //
   // NOTE THE CONTRAST GOES THE OTHER WAY FROM WALNUT. Walnut's comment argues
-  // for widening base-to-grain to ~90 because 48 read as flat grey. Beech is
-  // deliberately back down at ~40, because "less textured" is the brief: the
-  // door should be quiet and let the front door be the thing you look at. Same
-  // knob, opposite goal — which is why it is worth saying out loud rather than
-  // leaving as a number that looks like the walnut lesson unlearned.
-  'wood.beech': {
+  // for widening base-to-grain to ~90 because 48 read as flat grey. Cherry is
+  // deliberately down at ~30, because "less textured" is the brief: the door
+  // should be quiet and let the front door be the thing you look at. Same knob,
+  // opposite goal — worth saying out loud rather than leaving as a number that
+  // looks like the walnut lesson unlearned.
+  'wood.cherry': {
     source: {
       kind: 'pattern',
       pattern: {
         kind: 'woodGrain',
-        base: [205, 175, 140],
-        grain: [165, 132, 100], // ~40 apart, on purpose — see above
+        base: [150, 108, 76],
+        grain: [112, 78, 54], // ~30 apart, on purpose — see above
         rings: 3, // 4 on walnut, to survive a 34mm rail; a door face is 2.4 tiles wide
-        waviness: 0.35, // beech is straight-grained; walnut's 0.9 is figure
+        waviness: 0.35, // cherry is straight-grained; walnut's 0.9 is figure
         seed: 214,
       },
+      // Unchanged from the lighter version this replaced, and that is the point:
+      // `relief` is a DEPTH IN WORLD UNITS, so re-colouring the wood does not
+      // re-open it. Back when relief was a luminance-per-pixel strength, this
+      // edit would have needed it re-solved by hand.
       relief: 0.0022, // ~4.4mm, against walnut's 11mm
     },
     roughness: 0.75,
     metalness: 0,
-    // Same board size as oak, deliberately. A beech door and an oak stair tread
+    // Same board size as oak, deliberately. A cherry door and an oak stair tread
     // then show the SAME plank width — which is the entire point of metric UVs,
     // and would be lost by picking a number that merely looked nice on a door.
     worldScale: [0.2, 0.67],

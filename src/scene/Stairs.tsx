@@ -26,12 +26,14 @@
 // floor, +Z up the flight, +X the climber's left — then placed with one position
 // and one Y rotation.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
+import { boxMesh } from '../core/mesh';
+import { meshGeometry } from './roofGeometry';
 import type { CompiledStair } from '../core/house';
 import { CELL, type Vec3 } from '../core/grid';
 import { pickable } from './pickable';
-import { SurfaceMaterialSlot, useSurfaceMaterial } from './surfaces/SurfaceProvider';
+import { SurfaceMaterialSlot, useTiledSurface } from './surfaces/SurfaceProvider';
 import { SOLID } from './shadows';
 
 type Triple = [number, number, number];
@@ -63,6 +65,9 @@ const RAIL_R = 0.017;
 const POST = 0.028;
 
 const RISER_COLOR = '#efe7d8'; // painted risers against wood treads: the tonal
+// Shown until the surface resolves. The tinted oak's measured mean, so the
+// stairs don't visibly change colour a frame after they appear.
+const TIMBER_FALLBACK = '#966C4C';
 const METAL = '#57534d'; // contrast is most of what separates one step from the next
 
 /** Blondel: how many steps a flight of this rise and run wants. */
@@ -124,20 +129,31 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
   );
   useMemo(() => () => profile.dispose(), [profile]);
 
-  // Face sizes drive the repeat, so the grain is the same physical size on a
-  // tread, a stringer and a rail alike. The pair is [u, v] in the geometry's own
-  // UV space and the ORDER matters: the oak tile is ONE BOARD with its length
-  // along v, so v has to be the direction the board runs. On a box's top face u
-  // maps to x and v to z, so for a tread — a board laid across the flight —
-  // that's [depth, width]. Getting this backwards lays the grain across the
-  // plank instead of along it, which is exactly how the first version looked
-  // wrong however good the texture was.
-  const flightLen = Math.hypot(runLen, stair.rise);
-  const tread = useSurfaceMaterial('wood.oak', [going + NOSING, WIDTH]);
-  // The stringer is one long board running up the flight: length along u here,
-  // because the extruded profile's UVs put the shape's own x on u.
-  const stringer = useSurfaceMaterial('wood.oak', [STRINGER_DROP + riser, flightLen]);
-  const rail = useSurfaceMaterial('wood.walnut', [flightLen, RAIL_R * 2]);
+  // ONE surface for every piece of stair timber, and the same one the interior
+  // doors use — the STEPS' wood, darkened by a tint, carried to the doors. That is only meaningful because both sides are metric now: a
+  // tread and a door show the same physical plank because each carries its own
+  // true extent, not because anyone matched two numbers by hand.
+  //
+  // This replaced three `useSurfaceMaterial` calls whose clamped integer repeat
+  // was measurably wrong — tread −26% × +56%, stringer −27% × +5%, rail +4% ×
+  // +371%. Pointing the old hook at a shared key would have given three
+  // different plank sizes wearing the same name.
+  const timber = useTiledSurface('wood.oak');
+
+  // GRAIN RUNS WITH THE BOARD, and `grain` says so directly instead of being
+  // smuggled in through the order of a size pair. A tread is a board laid
+  // ACROSS the flight, so its grain runs along x; the rail runs UP it, so along
+  // z. Getting this backwards lays the grain across the plank, which is exactly
+  // how the first version looked wrong however good the texture was.
+  //
+  // Every tread is identical, so they share ONE geometry rather than minting a
+  // BoxGeometry per step.
+  const treadGeo = useMemo(
+    () => meshGeometry(boxMesh([WIDTH, TREAD_T, going + NOSING], 'x')),
+    [going],
+  );
+  useEffect(() => () => treadGeo.dispose(), [treadGeo]);
+
   const picks = onPick ? pickable(() => onPick()) : {};
 
   const steps = Array.from({ length: n }, (_, i) => ({
@@ -157,6 +173,16 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
   const railStartZ = Math.min(RAIL_ENTRY_STEPS, Math.floor(n * 0.4)) * going;
   const railMidZ = (railStartZ + runLen) / 2;
   const railLen = Math.hypot(runLen - railStartZ, stair.rise * (1 - railStartZ / runLen));
+
+  // Declared here rather than up with treadGeo because it depends on railLen,
+  // which depends on railStartZ. Both open sides get the same rail, so one
+  // geometry serves both.
+  const railGeo = useMemo(
+    () => meshGeometry(boxMesh([RAIL_R * 2, RAIL_R * 2, railLen], 'z')),
+    [railLen],
+  );
+  useEffect(() => () => railGeo.dispose(), [railGeo]);
+
   /** Rail height at a point along the run — vertical offset above the nosing line. */
   const railY = (z: number) => RAIL_H - TREAD_T / 2 + (stair.rise * z) / runLen;
 
@@ -179,16 +205,20 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
           rotation={[0, -Math.PI / 2, 0]}
           {...picks}
         >
-          <SurfaceMaterialSlot material={stringer} color="#8a7757" roughness={0.9} />
+          <SurfaceMaterialSlot material={timber} color={TIMBER_FALLBACK} roughness={0.9} />
         </mesh>
       ))}
 
       {steps.map(({ i, top, front }) => (
         <group key={i}>
           {/* Tread, overhanging its riser: the overhang is the shadow line. */}
-          <mesh position={[0, top - TREAD_T / 2, front + (going - NOSING) / 2]} {...SOLID} {...picks}>
-            <boxGeometry args={[WIDTH, TREAD_T, going + NOSING]} />
-            <SurfaceMaterialSlot material={tread} color="#b09a72" roughness={0.85} />
+          <mesh
+            geometry={treadGeo}
+            position={[0, top - TREAD_T / 2, front + (going - NOSING) / 2]}
+            {...SOLID}
+            {...picks}
+          >
+            <SurfaceMaterialSlot material={timber} color={TIMBER_FALLBACK} roughness={0.85} />
           </mesh>
 
           {/* Riser, set back behind the nose so the tread reads as a board. */}
@@ -218,11 +248,11 @@ function Flight({ stair, onPick }: { stair: CompiledStair; onPick?: () => void }
             */}
             <mesh
               {...SOLID}
+              geometry={railGeo}
               position={[x, railY(railMidZ), (railStartZ + runLen) / 2]}
               rotation={[-pitch, 0, 0]}
             >
-              <boxGeometry args={[RAIL_R * 2, RAIL_R * 2, railLen]} />
-              <SurfaceMaterialSlot material={rail} color="#7e5e42" roughness={0.6} />
+              <SurfaceMaterialSlot material={timber} color={TIMBER_FALLBACK} roughness={0.6} />
             </mesh>
 
             {/* Balusters every other step — one per step is a picket fence at

@@ -28,10 +28,10 @@ type DoorOpening = Extract<CompiledOpening, { kind: 'door' }>;
 const DOOR_THICKNESS = 0.04;
 const DOOR_GAP = 0.02;
 const OPEN_ANGLE = (Math.PI / 2) * 0.9;
-const PANEL_COLOR = '#CDAF8C'; // fallback until the surface builds — beech
+const PANEL_COLOR = '#966C4C'; // fallback — the tinted oak's measured mean
 const KNOB_COLOR = '#B5944F'; // ditto — brass
 const FRONT_PANEL_COLOR = '#8E3B34'; // ditto — or the front door flashes oak first
-const DOOR_SURFACE: SurfaceKey = 'wood.beech';
+const DOOR_SURFACE: SurfaceKey = 'wood.oak';
 const KNOB_SURFACE: SurfaceKey = 'metal.brass';
 const FRONT_DOOR_SURFACE: SurfaceKey = 'paint.oxblood';
 
@@ -198,7 +198,7 @@ export function Doors({
   // No size argument — that is the whole point of the metric hook. The panel's
   // own UVs carry its extent, so all six faces get the same physical grain and
   // a door matches the stair treads without either knowing the other's size.
-  const beech = useTiledSurface(DOOR_SURFACE);
+  const timber = useTiledSurface(DOOR_SURFACE);
   const knob = useTiledSurface(KNOB_SURFACE);
   const oxblood = useTiledSurface(FRONT_DOOR_SURFACE);
   return (
@@ -210,7 +210,7 @@ export function Doors({
           colorOf={colorOf}
           open={openDoors.has(o.id)}
           onPick={() => onPick(o.id)}
-          surface={isFrontDoor(o) ? oxblood : beech}
+          surface={isFrontDoor(o) ? oxblood : timber}
           knob={knob}
         />
       ))}
