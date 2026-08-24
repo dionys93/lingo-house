@@ -10,14 +10,9 @@ import { meshGeometry } from '../scene/meshGeometry';
 
 const SHAPE: RoofShape = { pitch: 0.5, rakeOverhang: 0.1, eaveOverhang: 0.2, bearingOffset: 0.04 };
 
-// The authored massing: a tall storey with a lower one set back in front of it.
-// Their ridges run on different axes, which is exactly the pair most likely to
-// disagree with each other.
+// The tall storey's roof. The low one lives in roofMesh.test.ts, which is where
+// the two-roofs-must-agree assertions are.
 const tall = gableRoof({ x0: 0, x1: 3, z0: 0, z1: 3.5 }, 2.4, SHAPE);
-const low = gableRoof({ x0: 0, x1: 3, z0: 3.5, z1: 4.5 }, 1.2, { ...SHAPE, abuts: { z0: true } });
-
-const PANTILE: Corrugation = { period: 0.1, depth: 0.035, segments: 16, profile: pantileRoll };
-
 const at = (a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, i: number) =>
   [a.getX(i), a.getY(i), a.getZ(i)] as const;
 const close = (a: readonly number[], b: readonly number[], eps = 1e-6) =>

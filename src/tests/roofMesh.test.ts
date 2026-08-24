@@ -18,8 +18,6 @@ const low = gableRoof({ x0: 0, x1: 3, z0: 3.5, z1: 4.5 }, 1.2, { ...SHAPE, abuts
 
 const PANTILE: Corrugation = { period: 0.1, depth: 0.035, segments: 16, profile: pantileRoll };
 
-const at = (a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, i: number) =>
-  [a.getX(i), a.getY(i), a.getZ(i)] as const;
 const close = (a: readonly number[], b: readonly number[], eps = 1e-6) =>
   a.every((v, i) => Math.abs(v - b[i]) < eps);
 

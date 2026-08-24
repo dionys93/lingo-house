@@ -39,6 +39,7 @@ const WORDS = {
   laptop: { en: 'the laptop', es: 'el portátil', de: 'der Laptop' },
   tv: { en: 'the television', es: 'la televisión', de: 'der Fernseher' },
   door: { en: 'the door', es: 'la puerta', de: 'die Tür' },
+  frontDoor: { en: 'the front door', es: 'la puerta principal', de: 'die Haustür' },
   window: { en: 'the window', es: 'la ventana', de: 'das Fenster' },
   wall: { en: 'the wall', es: 'la pared', de: 'die Wand' },
   floor: { en: 'the floor', es: 'el suelo', de: 'der Boden' },
@@ -257,7 +258,18 @@ suite('describe — a door that is already open', () => {
     expect(fromKitchen.action).toEqual(fromLiving.action);
   });
 
-  it('subject stays the door either way', () => {
+  it('names an exterior door with its OWN noun, not door-plus-adjective', () => {
+    // die Haustür is a different word from die Tür, not a decorated one, and the
+    // same holds in Spanish and English. `describe` derives this from the
+    // compiler's own `sides` rather than from anything authored, so the only way
+    // to get it wrong is to stop deriving it.
+    const front = at({ on: 'opening', id: frontDoor }, 'livingRoom')!;
+    const interior = at({ on: 'opening', id: interiorDoor }, 'kitchen')!;
+    expect(front.subject).toEqual({ from: 'the front door', to: 'la puerta principal' });
+    expect(interior.subject).toEqual({ from: 'the door', to: 'la puerta' });
+  });
+
+  it('subject stays the SAME noun whether the door is open or shut', () => {
     const open = at({ on: 'opening', id: frontDoor }, 'outside', new Set([frontDoor]))!;
     const shut = at({ on: 'opening', id: frontDoor }, 'outside')!;
     expect(open.subject).toEqual(shut.subject);
