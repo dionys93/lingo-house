@@ -73,6 +73,45 @@ export default tseslint.config(
     },
   },
 
+  // ── THE PURE MODULES STAY PURE ─────────────────────────────────────────────
+  //
+  // These files are reachable by `node --experimental-strip-types`, which is how
+  // this project finds bugs fastest — run the pure code, print numbers. A single
+  // module-level `import * as THREE` ends that, for EVERY function in the file,
+  // used or not. That is how `corrugate` and `gableMesh` lost the loop: they sat
+  // beside `meshGeometry`, which legitimately needs three.
+  //
+  // `allowTypeImports` is true on purpose and is not a loophole. Node's type
+  // stripping ERASES `import type`, so a type-only reference to THREE.Side or
+  // THREE.Texture costs the loop nothing. A VALUE import is what breaks it, and
+  // that is precisely what this bans.
+  //
+  // scene/meshGeometry.ts is the sanctioned adapter and is deliberately absent
+  // from this list.
+  {
+    files: [
+      'src/core/**/*.ts',
+      'src/scene/roofMesh.ts',
+      'src/scene/doorMesh.ts',
+      'src/scene/surfaces/pattern.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'three',
+              allowTypeImports: true,
+              message:
+                'Value-importing three here breaks `node --experimental-strip-types` for the whole module. Keep the mesh work pure and convert via scene/meshGeometry.ts. A type-only import is fine.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Node-context config files (vite/vitest configs): give them Node globals.
   {
     files: ['*.config.{ts,mts}'],
