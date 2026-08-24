@@ -15,6 +15,16 @@ export const HOUSE_SIDING = '#dfd3c3'; // exterior default, for any face meeting
 export const DEFAULT_INTERIOR = '#d8d2c8'; // rooms authored without a colour
 export const TRIM = '#c4b8a4'; // top / bottom / interior end faces
 
+/**
+ * Siding roughness, for WALLS AND GABLES ALIKE.
+ *
+ * It exists as a constant because the two had drifted: Walls.tsx set none and
+ * took three's default of 1, while the gable asked for 0.9. Same colour, same
+ * material, two different specular responses under the HDRIs — one of the two
+ * reasons the gable didn't read as the wall continuing up.
+ */
+export const SIDING_ROUGHNESS = 1;
+
 // side → colour, resolved once from the compiled rooms.
 export function buildColorOf(rooms: readonly CompiledRoom[]): (side: WallSide) => string {
   const byKey = new Map(rooms.map((r) => [r.key, r.color ?? DEFAULT_INTERIOR]));

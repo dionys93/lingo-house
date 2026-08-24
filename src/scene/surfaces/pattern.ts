@@ -158,7 +158,7 @@ const PANTILE_SIDE = 0.12; // width of the side-lap shadow, as a fraction of cov
  *
  * The slope discontinuity where that fall meets the next pan is a CREASE, and it
  * survives only if the mesh refuses to average normals across it — see the
- * per-tile vertex runs in scene/roofGeometry.ts. Profile and mesh have to agree
+ * per-tile vertex runs in scene/roofMesh.ts. Profile and mesh have to agree
  * on this or the geometry rounds the edge straight back off.
  */
 const pantileCross = (t: number): number => {
@@ -178,7 +178,7 @@ const pantileCross = (t: number): number => {
  * The roll is the one part of a pantile that a normal map cannot fake. It is
  * 70mm deep, it breaks the silhouette at the eave and the rake, and it shadows
  * the pan beside it. So the roof carries it as geometry (see
- * scene/roofGeometry.ts) and this is the shape it displaces along.
+ * scene/roofMesh.ts) and this is the shape it displaces along.
  *
  * `t` is the world coordinate along the eave divided by the cover width, so the
  * geometry and the texture are phase-locked to the same world origin without

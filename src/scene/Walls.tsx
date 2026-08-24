@@ -10,7 +10,7 @@
 import { useMemo } from 'react';
 import { WALL_THICKNESS as WT, type CompiledGrid, type CompiledItem, type CompiledWall, type Vec3 } from '../core/grid';
 import { pickable } from './pickable';
-import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
+import { WALL_THICKNESS, buildColorOf, faceColors, type Triple, SIDING_ROUGHNESS } from './wallMaterials';
 import { SOLID } from './shadows';
 
 function boxFor(wall: CompiledWall): { size: Triple; pos: Triple } {
@@ -36,7 +36,12 @@ function WallMesh({
     <mesh position={pos} {...SOLID} {...(onPick ? pickable(onPick) : {})}>
       <boxGeometry args={size} />
       {colors.map((c, i) => (
-        <meshStandardMaterial key={i} attach={`material-${i}`} color={c} />
+        <meshStandardMaterial
+          key={i}
+          attach={`material-${i}`}
+          color={c}
+          roughness={SIDING_ROUGHNESS}
+        />
       ))}
     </mesh>
   );

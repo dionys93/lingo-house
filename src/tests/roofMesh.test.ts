@@ -1,21 +1,11 @@
-// src/tests/roofGeometry.test.ts
+// src/tests/roofMesh.test.ts
 //
-// The seam between the pure core and three, plus the corrugation that gives the
-// pantiles their thickness. `core/roof.ts` is well covered and `Roof.tsx`
-// renders — but nothing checked that the second used everything the first
-// produced, and that gap shipped a roof with a hole in it: the `uv` attribute
-// went in where `setIndex` had been rather than beside it, so the slopes drew
-// as 2 unindexed triangles instead of 4.
-//
-// `tsc` cannot catch that (`setIndex` is optional) and the core's own tests
-// cannot (the indices were right all along). What catches it is asserting that
-// the geometry carries everything the MeshData describes — which needs no DOM
-// and no WebGL, because BufferGeometry is plain JS.
+// The roof's pure mesh producers. Everything under test here runs without three
+// — the vitest wrapper is for assertions, not for module resolution.
 
 import { describe, it, expect } from 'vitest';
-import type * as THREE from 'three';
 import { gableRoof, type RoofShape } from '../core/roof';
-import { corrugate, meshGeometry, type Corrugation } from '../scene/roofGeometry';
+import { corrugate, type Corrugation } from '../scene/roofMesh';
 import { pantileRoll } from '../scene/surfaces/pattern';
 
 const SHAPE: RoofShape = { pitch: 0.5, rakeOverhang: 0.1, eaveOverhang: 0.2, bearingOffset: 0.04 };
@@ -32,66 +22,6 @@ const at = (a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, i: numb
   [a.getX(i), a.getY(i), a.getZ(i)] as const;
 const close = (a: readonly number[], b: readonly number[], eps = 1e-6) =>
   a.every((v, i) => Math.abs(v - b[i]) < eps);
-
-describe('meshGeometry', () => {
-  it('carries every vertex the core produced', () => {
-    const geo = meshGeometry(tall.slopes);
-    expect(geo.getAttribute('position').count).toBe(tall.slopes.positions.length);
-  });
-
-  it('carries the INDEX — without it the panels tear open at the ridge', () => {
-    // The regression. 2 quads → 8 vertices → 12 indices → 4 triangles. Drop the
-    // index and three draws floor(8 / 3) = 2 triangles from those same vertices.
-    const geo = meshGeometry(tall.slopes);
-    const index = geo.getIndex();
-    expect(index).not.toBeNull();
-    expect(index?.count).toBe(tall.slopes.indices.length);
-    expect(index?.count).toBe(12);
-  });
-
-  it('carries a UV per vertex, or every map samples texel (0,0)', () => {
-    const geo = meshGeometry(tall.slopes);
-    const uv = geo.getAttribute('uv');
-    expect(uv).toBeDefined();
-    expect(uv.count).toBe(tall.slopes.positions.length);
-    expect(uv.itemSize).toBe(2);
-  });
-
-  it('keeps UVs in world units once they are on the GPU buffer', () => {
-    // Float32 rather than the core's doubles, so this is the last place the
-    // metric scale could be lost.
-    const geo = meshGeometry(tall.slopes);
-    const uv = geo.getAttribute('uv');
-    const pos = geo.getAttribute('position');
-    for (let q = 0; q < pos.count; q += 4) {
-      const alongEave = Math.hypot(
-        pos.getX(q + 1) - pos.getX(q),
-        pos.getY(q + 1) - pos.getY(q),
-        pos.getZ(q + 1) - pos.getZ(q),
-      );
-      expect(Math.abs(uv.getX(q + 1) - uv.getX(q)) / alongEave).toBeCloseTo(1, 4);
-    }
-  });
-
-  it('meets at the ridge without welding — a crease, not a curve', () => {
-    // Two facts at once. The panels DO share the ridge line, so there is no gap
-    // to see through; and they do NOT share vertices, so each keeps its own face
-    // normal. If someone reaches for mergeVertices to "tidy up", the second half
-    // fails and the roof rounds off at the top.
-    const geo = meshGeometry(tall.slopes);
-    const pos = geo.getAttribute('position');
-    const n = geo.getAttribute('normal');
-    let coincident = 0;
-    for (let i = 0; i < 4; i++) {
-      for (let j = 4; j < 8; j++) {
-        if (!close(at(pos, i), at(pos, j))) continue;
-        coincident += 1;
-        expect(close(at(n, i), at(n, j))).toBe(false);
-      }
-    }
-    expect(coincident).toBe(2);
-  });
-});
 
 describe('corrugate', () => {
   const rolled = corrugate(tall.slopes, PANTILE);

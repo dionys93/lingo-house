@@ -10,55 +10,25 @@
 // the same terms as every other wall — texturing walls is a separate decision
 // and is deferred. So only the slopes carry UVs or corrugation.
 //
-// Geometry lives in ./roofGeometry so it can be tested; this file is the wiring.
+// Geometry lives in ./roofMesh (pure, node-runnable) and becomes drawable via
+// ./meshGeometry (the one module that imports three). BOTH halves of the roof go
+// through it now — the gable's welded-vertex normals were the reason it never
+// read as the wall. This file is the wiring.
 
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import type { Vec3 } from '../core/grid';
-import type { Gable, RoofMesh } from '../core/roof';
-import { WALL_THICKNESS, HOUSE_SIDING } from './wallMaterials';
+import type { RoofMesh } from '../core/roof';
+import { WALL_THICKNESS, HOUSE_SIDING, SIDING_ROUGHNESS } from './wallMaterials';
 import { pickable } from './pickable';
 import { SOLID } from './shadows';
-import { corrugate, meshGeometry } from './roofGeometry';
+import { meshGeometry } from './meshGeometry';
+import { corrugate, gableMesh } from './roofMesh';
 import { SurfaceMaterialSlot, useTiledSurface } from './surfaces/SurfaceProvider';
 import { SURFACES, type SurfaceKey } from './surfaces/registry';
 
 const ROOF_SURFACE: SurfaceKey = 'clay.pantile';
 const ROOF_COLOR = '#a86b4c'; // terracotta — the fallback until the surface builds
-
-// Extrude each gable triangle to `thickness` along its axis → a triangular prism
-// that matches (and sits on) the end wall.
-function gableGeometry(gables: readonly Gable[], thickness: number): THREE.BufferGeometry {
-  const positions: number[] = [];
-  const indices: number[] = [];
-  const push = (v: Vec3): number => {
-    positions.push(v[0], v[1], v[2]);
-    return positions.length / 3 - 1;
-  };
-  for (const g of gables) {
-    const h = thickness / 2;
-    const off: Vec3 = g.axis === 'x' ? [h, 0, 0] : [0, 0, h];
-    const shift = (v: Vec3, s: number): Vec3 => [v[0] + off[0] * s, v[1] + off[1] * s, v[2] + off[2] * s];
-    const A = push(shift(g.base0, 1));
-    const B = push(shift(g.base1, 1));
-    const P = push(shift(g.apex, 1));
-    const a = push(shift(g.base0, -1));
-    const b = push(shift(g.base1, -1));
-    const p = push(shift(g.apex, -1));
-    indices.push(
-      A, B, P, // +face triangle (end cap)
-      a, p, b, // -face triangle (end cap)
-      A, a, b, A, b, B, // bottom
-      // Top is left OPEN — the overhanging roof covers it. Adding the sloped faces
-      // here would put them coplanar with the roof and z-fight.
-    );
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();
-  return geo;
-}
 
 export function Roof({ roof, onPick }: { roof: RoofMesh; onPick?: (at: Vec3) => void }) {
   const slopeGeo = useMemo(() => {
@@ -69,7 +39,7 @@ export function Roof({ roof, onPick }: { roof: RoofMesh; onPick?: (at: Vec3) => 
     const c = SURFACES[ROOF_SURFACE].corrugation;
     return meshGeometry(c ? corrugate(roof.slopes, c) : roof.slopes);
   }, [roof]);
-  const gableGeo = useMemo(() => gableGeometry(roof.gables, WALL_THICKNESS), [roof]);
+  const gableGeo = useMemo(() => meshGeometry(gableMesh(roof.gables, WALL_THICKNESS)), [roof]);
 
   // Geometries are GPU allocations and were never released. That was cheap to
   // ignore at 8 vertices a roof; corrugation makes it ~2,400, so every rebuild
@@ -105,7 +75,14 @@ export function Roof({ roof, onPick }: { roof: RoofMesh; onPick?: (at: Vec3) => 
         />
       </mesh>
       <mesh geometry={gableGeo} {...SOLID} {...picks}>
-        <meshStandardMaterial color={HOUSE_SIDING} side={THREE.DoubleSide} roughness={0.9} />
+        {/* The SAME roughness the walls use, from the same constant. It was 0.9
+            here against their default of 1 — same colour, different specular
+            under the HDRIs. */}
+        <meshStandardMaterial
+          color={HOUSE_SIDING}
+          side={THREE.DoubleSide}
+          roughness={SIDING_ROUGHNESS}
+        />
       </mesh>
     </>
   );

@@ -18,7 +18,7 @@ import { boxMesh, rotatedY90 } from '../core/mesh';
 import { panelDoorMesh, doorKnobMesh, CROSS_AND_BIBLE } from './doorMesh';
 import { openingFloorY, type CompiledGrid, type CompiledOpening } from '../core/grid';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
-import { meshGeometry } from './roofGeometry';
+import { meshGeometry } from './meshGeometry';
 import { SurfaceMaterialSlot, useTiledSurface, type SurfaceMaterial } from './surfaces/SurfaceProvider';
 import { type SurfaceKey } from './surfaces/registry';
 import { SOLID } from './shadows';

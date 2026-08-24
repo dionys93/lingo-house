@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo } from 'react';
 import { planeMesh } from '../core/mesh';
-import { meshGeometry } from './roofGeometry';
+import { meshGeometry } from './meshGeometry';
 import { SurfaceMaterialSlot, useTiledSurface } from './surfaces/SurfaceProvider';
 import { CATCHES } from './shadows';
 

@@ -1,10 +1,24 @@
-// src/scene/roofGeometry.ts
+// src/scene/roofMesh.ts
 //
-// MeshData → BufferGeometry for the roof, plus the corrugation that gives clay
-// pantiles their actual thickness. Pure functions that happen to import three:
-// BufferGeometry and BufferAttribute are plain JS, no DOM and no WebGL, so this
-// whole file runs under vitest. It lives outside Roof.tsx because the component
-// is four lines and this is the part worth testing.
+// The roof's mesh PRODUCERS: corrugation, and the gable ends. MeshData in,
+// MeshData out — no three, no DOM, no clock.
+//
+// ── NO THREE IN THIS FILE, ON PURPOSE ───────────────────────────────────────
+//
+// These are pure functions and they should be reachable by the fast loop:
+//
+//   node --experimental-strip-types -e "import('./src/scene/roofMesh.ts')…"
+//
+// They were not, until this file existed. They sat next to `meshGeometry`,
+// which needs three, and a module-level import is all-or-nothing — one
+// `import * as THREE` takes every function in the file down with it, used or
+// not. Verifying a pure change to `gableMesh` meant stripping the import into a
+// scratch copy first, which is exactly the friction the project's "measure,
+// don't reason" rule exists to avoid.
+//
+// An eslint override enforces it now rather than leaving it to memory. A
+// TYPE-only import of three would be fine — node erases those — but a value
+// import is what breaks the loop, so that is what the rule bans.
 //
 // ── WHY CORRUGATION IS THE SHELL'S JOB ──────────────────────────────────────
 //
@@ -22,8 +36,8 @@
 // The course lines that DO vary up the slope are shallow steps with no
 // silhouette, and they stay in the normal map where they cost nothing.
 
-import * as THREE from 'three';
-import type { MeshData, Vec3 } from '../core/mesh';
+import type { MeshData, Vec2, Vec3 } from '../core/mesh';
+import type { Gable } from '../core/roof';
 
 const mix = (a: Vec3, b: Vec3, t: number): Vec3 => [
   a[0] + (b[0] - a[0]) * t,
@@ -138,31 +152,66 @@ export function corrugate(data: MeshData, c: Corrugation): MeshData {
 }
 
 /**
- * MeshData → BufferGeometry, for ANY producer. Nothing here is roof-specific;
- * it was named `slopeGeometry` only because the roof was the first mesh to need
- * it. The ground, the door and every item go through this same function, which
- * is the point — the three traps below are encoded once instead of rediscovered
- * per component.
+ * The gable ends: each flat triangle from the core extruded to wall thickness,
+ * so it sits on the end wall and reads as the wall continuing up to the ridge.
+ *
+ * EVERY FACE GETS ITS OWN VERTICES, and that is the entire point of this
+ * function existing. The version this replaced shared the base corners between
+ * the end-cap triangle and the bottom quad, so `computeVertexNormals` averaged
+ * a face normal with a perpendicular one. Measured on this house, the three
+ * vertex normals of a single FLAT triangle came out 28.3° apart on one roof and
+ * 10.7° on the other — so the gable shaded as a gradient while the wall beside
+ * it, a BoxGeometry with unshared faces, shaded uniformly at 0.0°. No amount of
+ * matching the colour fixes that; it is a normals problem wearing a paint
+ * problem's clothes.
+ *
+ * Same rule `mergeMeshes` states: two surfaces meeting at an angle have
+ * genuinely different normals there, and welding them rounds the corner off.
+ *
+ * The top is left OPEN — the overhanging roof covers it, and adding the sloped
+ * faces would put them coplanar with the roof and z-fight.
+ *
+ * UVs are metric and WORLD-anchored, matching the roof's convention rather than
+ * boxMesh's: a gable is a fixed piece of building, and when walls are eventually
+ * textured, world anchoring is what lets the siding on the gable line up with
+ * the siding on the wall underneath it.
  */
-export function meshGeometry(data: MeshData): THREE.BufferGeometry {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(data.positions.flat()), 3));
-  // Without this the roof had no `uv` attribute at all, so any `map` sampled
-  // texel (0,0) forever and every surface came out as one flat colour — which
-  // looks exactly like the fallback the component draws, which is why it read
-  // as "the texture didn't load" rather than "the geometry can't be textured".
-  //
-  // In WORLD UNITS, not 0..1 (see MeshData in core/mesh.ts), so the material
-  // must come from `useTiledSurface` and not `useSurfaceMaterial`.
-  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(data.uvs.flat()), 2));
-  // Without the index, three reads a flat slope's 8 vertices as 2 unindexed
-  // triangles instead of the 4 the quads describe: half the front panel, one
-  // spurious sheet stretched from the ridge across the back, and both far ridge
-  // corners dropped. It looks like a split at the top of the roof.
-  g.setIndex([...data.indices]);
-  // Runs AFTER setIndex — computeVertexNormals takes a different path for
-  // indexed geometry, and the smoothing across shared vertices is exactly what
-  // rounds the corrugation into barrels.
-  g.computeVertexNormals();
-  return g;
+export function gableMesh(gables: readonly Gable[], thickness: number): MeshData {
+  const positions: Vec3[] = [];
+  const uvs: Vec2[] = [];
+  const indices: number[] = [];
+
+  // One face, its own vertices, never reused. The two projection axes are
+  // per-face and NOT shared: the caps stand vertically so their `v` is height,
+  // but the bottom quad lies flat, where height is constant. Projecting it the
+  // same way collapses its UVs to a line — uvDensity reports exactly that, as
+  // DegenerateUvTriangle, which is how this was caught.
+  const face = (vs: readonly Vec3[], uAxis: 0 | 1 | 2, vAxis: 0 | 1 | 2): void => {
+    const base = positions.length;
+    for (const v of vs) {
+      positions.push(v);
+      uvs.push([v[uAxis], v[vAxis]]);
+    }
+    for (let i = 2; i < vs.length; i++) indices.push(base, base + i - 1, base + i);
+  };
+
+  for (const g of gables) {
+    const h = thickness / 2;
+    const off: Vec3 = g.axis === 'x' ? [h, 0, 0] : [0, 0, h];
+    const shift = (v: Vec3, s: number): Vec3 => [
+      v[0] + off[0] * s,
+      v[1] + off[1] * s,
+      v[2] + off[2] * s,
+    ];
+    const [A, B, P] = [shift(g.base0, 1), shift(g.base1, 1), shift(g.apex, 1)];
+    const [a, b, p] = [shift(g.base0, -1), shift(g.base1, -1), shift(g.apex, -1)];
+
+    // The axis the gable's base runs along, and the one its thickness runs along.
+    const [along, through]: [0 | 2, 0 | 2] = g.axis === 'x' ? [2, 0] : [0, 2];
+    face([A, B, P], along, 1); // outer cap — u along the base, v is height
+    face([a, p, b], along, 1); // inner cap
+    face([A, a, b, B], along, through); // bottom, sitting flat on the wall top
+  }
+
+  return { positions, uvs, indices };
 }

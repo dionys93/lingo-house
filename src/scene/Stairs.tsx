@@ -29,7 +29,7 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { boxMesh } from '../core/mesh';
-import { meshGeometry } from './roofGeometry';
+import { meshGeometry } from './meshGeometry';
 import type { CompiledStair } from '../core/house';
 import { CELL, type Vec3 } from '../core/grid';
 import { pickable } from './pickable';
