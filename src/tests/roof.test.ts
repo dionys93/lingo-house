@@ -1,6 +1,7 @@
 // src/tests/roof.test.ts
 
 import { describe, it, expect } from 'vitest';
+import { uvDensity } from '../core/mesh';
 import { gableRoof, type RoofShape } from '../core/roof';
 
 const allY = (roof: ReturnType<typeof gableRoof>): number[] => [
@@ -102,21 +103,6 @@ describe('gableRoof — UVs are world distances along the surface', () => {
   const tall = gableRoof({ x0: 0, x1: 3, z0: 0, z1: 3.5 }, 2.4, SHAPE);
   const low = gableRoof({ x0: 0, x1: 3, z0: 3.5, z1: 4.5 }, 1.2, { ...SHAPE, abuts: { z0: true } });
 
-  /** UV units per world unit, measured along each quad's two edges. */
-  const density = (roof: ReturnType<typeof gableRoof>): number[] => {
-    const { positions: p, uvs } = roof.slopes;
-    const out: number[] = [];
-    for (let q = 0; q < p.length; q += 4) {
-      const alongEave = Math.hypot(p[q + 1][0] - p[q][0], p[q + 1][1] - p[q][1], p[q + 1][2] - p[q][2]);
-      const upSlope = Math.hypot(
-        p[q + 2][0] - p[q + 1][0], p[q + 2][1] - p[q + 1][1], p[q + 2][2] - p[q + 1][2],
-      );
-      out.push(Math.abs(uvs[q + 1][0] - uvs[q][0]) / alongEave);
-      out.push(Math.abs(uvs[q + 2][1] - uvs[q + 1][1]) / upSlope);
-    }
-    return out;
-  };
-
   it('gives every vertex a UV', () => {
     expect(tall.slopes.uvs).toHaveLength(tall.slopes.positions.length);
     expect(low.slopes.uvs).toHaveLength(low.slopes.positions.length);
@@ -125,7 +111,21 @@ describe('gableRoof — UVs are world distances along the surface', () => {
   it('one UV unit is one world unit, on every panel of both roofs', () => {
     // The whole point. If this drifts, the shingle changes size between the low
     // roof and the tall one, which is the thing the roof work exists to avoid.
-    for (const d of [...density(tall), ...density(low)]) expect(d).toBeCloseTo(1, 6);
+    //
+    // Measured by uvDensity, which replaced a helper local to this file that
+    // stepped `q += 4` and could therefore only ever see a roof. min and max
+    // both, not the mean: one bad panel moves the mean far too little to fail.
+    for (const [name, roof] of [
+      ['tall', tall],
+      ['low', low],
+    ] as const) {
+      const d = uvDensity(roof.slopes);
+      // Narrows, and names the defect instead of letting a NaN mean fail as an
+      // unexplained number.
+      if (!d.ok) throw new Error(`${name} roof: ${JSON.stringify(d.error)}`);
+      expect(d.value.min).toBeCloseTo(1, 6);
+      expect(d.value.max).toBeCloseTo(1, 6);
+    }
   });
 
   it('measures v UP THE SLOPE, not across the plan', () => {

@@ -14,37 +14,7 @@
 // (Non-rectangular footprints — an L with wing gables and valleys — remain the
 // deferred hard case; this covers the rectangular MVP.)
 
-type Vec3 = readonly [number, number, number];
-type Vec2 = readonly [number, number];
-
-export interface MeshData {
-  readonly positions: readonly Vec3[];
-  /**
-   * UVs in WORLD UNITS ALONG THE SURFACE — not 0..1.
-   *
-   * `u` is the world coordinate along the eave, `v` is distance up the slope
-   * from the eave. Both consequences are deliberate:
-   *
-   *   ANCHORED IN WORLD SPACE, so two roofs at different heights put their tile
-   *   columns on the same lines. A per-quad 0..1 would make every roof start its
-   *   own grid at its own corner, and the low roof's tiles would drift out of
-   *   step with the tall one's wherever they meet.
-   *
-   *   MEASURED UP THE SLOPE, not in plan. Projecting to the ground plane would
-   *   compress every course by cos(pitch), so a steeper roof would silently get
-   *   smaller tiles.
-   *
-   * `v` starts at the EAVE rather than the ridge because that is how tiles are
-   * actually laid — bottom course first — and it is why the low roof and the
-   * tall one agree without either knowing the other exists.
-   *
-   * The consumer sets `repeat = 1 / worldScale`, a constant per surface. No
-   * fitting an integer number of tiles to a face, so no rounding error between
-   * one roof and the next.
-   */
-  readonly uvs: readonly Vec2[];
-  readonly indices: readonly number[]; // flat, 3 per triangle
-}
+import type { MeshData, Vec2, Vec3 } from './mesh';
 
 // A gable end, as a flat triangle the shell extrudes to wall thickness along
 // `axis` (the direction the end wall is thin in).
@@ -121,6 +91,26 @@ type Quad = readonly [Vec3, Vec3, Vec3, Vec3];
  * `along` is the axis the eave (and therefore the ridge) runs down — the same
  * axis for both, since they're parallel. It is what makes `u` a world
  * coordinate rather than a local one.
+ *
+ * ── THE ROOF'S UV ANCHOR ────────────────────────────────────────────────────
+ *
+ * MeshData only promises METRIC — one UV unit is one world unit. The ANCHOR is
+ * each producer's own choice (see core/mesh.ts), and the roof's is:
+ *
+ *   ANCHORED IN WORLD SPACE. `u` is a world coordinate, so two roofs at
+ *   different heights put their tile columns on the same lines. A per-quad
+ *   0..1 would make every roof start its own grid at its own corner, and the
+ *   low roof's tiles would drift out of step with the tall one's wherever they
+ *   meet. This is the opposite of what boxMesh does, and deliberately so — a
+ *   roof does not move, and a door does.
+ *
+ *   MEASURED UP THE SLOPE, not in plan. Projecting to the ground plane would
+ *   compress every course by cos(pitch), so a steeper roof would silently get
+ *   smaller tiles.
+ *
+ *   `v` STARTS AT THE EAVE rather than the ridge, because that is how tiles are
+ *   actually laid — bottom course first — and it is why the low roof and the
+ *   tall one agree without either knowing the other exists.
  */
 function slopeMesh(quads: readonly Quad[], along: 'x' | 'z'): MeshData {
   const axis = along === 'x' ? 0 : 2;

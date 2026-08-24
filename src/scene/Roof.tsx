@@ -19,7 +19,7 @@ import type { Gable, RoofMesh } from '../core/roof';
 import { WALL_THICKNESS, HOUSE_SIDING } from './wallMaterials';
 import { pickable } from './pickable';
 import { SOLID } from './shadows';
-import { corrugate, slopeGeometry } from './roofGeometry';
+import { corrugate, meshGeometry } from './roofGeometry';
 import { SurfaceMaterialSlot, useTiledSurface } from './surfaces/SurfaceProvider';
 import { SURFACES, type SurfaceKey } from './surfaces/registry';
 
@@ -67,7 +67,7 @@ export function Roof({ roof, onPick }: { roof: RoofMesh; onPick?: (at: Vec3) => 
     // plane wants to be flat. A surface with no `corrugation` gets the flat
     // panels the core produced.
     const c = SURFACES[ROOF_SURFACE].corrugation;
-    return slopeGeometry(c ? corrugate(roof.slopes, c) : roof.slopes);
+    return meshGeometry(c ? corrugate(roof.slopes, c) : roof.slopes);
   }, [roof]);
   const gableGeo = useMemo(() => gableGeometry(roof.gables, WALL_THICKNESS), [roof]);
 

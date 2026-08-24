@@ -1,16 +1,25 @@
 // src/scene/Doors.tsx
 //
-// Renders each kind:'door' opening, and is now the navigation trigger. Clicking a
-// door dispatches `traverse` — the reducer decides if the move is legal and, if
-// so, the CameraRig walks you through. A door swings open when it's the one being
-// opened (openDoors), so open/close is DERIVED from walk state, not a local
-// toggle — one source of truth for "which door is open".
+// Renders each kind:'door' opening. Clicking a door SELECTS it; traversal happens
+// from the popup's action button, so moving through the house means reading the
+// phrase for it. A door swings open when it's in `openDoors`, so open/close is
+// DERIVED from walk state, not a local toggle — one source of truth for "which
+// door is open".
+//
+// The panel is the reason boxMesh anchors its UVs LOCALLY rather than in world
+// space the way the roof does. A door ROTATES: world-anchored UVs on a hinged
+// panel would have to be rebuilt every frame, or else be a lie that happens to
+// be true only while the door is shut.
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { boxMesh } from '../core/mesh';
 import { openingFloorY, type CompiledGrid, type CompiledOpening } from '../core/grid';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from './wallMaterials';
+import { meshGeometry } from './roofGeometry';
+import { SurfaceMaterialSlot, useTiledSurface, type SurfaceMaterial } from './surfaces/SurfaceProvider';
+import { type SurfaceKey } from './surfaces/registry';
 import { SOLID } from './shadows';
 
 type DoorOpening = Extract<CompiledOpening, { kind: 'door' }>;
@@ -18,18 +27,23 @@ type DoorOpening = Extract<CompiledOpening, { kind: 'door' }>;
 const DOOR_THICKNESS = 0.04;
 const DOOR_GAP = 0.02;
 const OPEN_ANGLE = (Math.PI / 2) * 0.9;
-const PANEL_COLOR = '#8a6f52';
+const PANEL_COLOR = '#8a6f52'; // the fallback until the surface builds
+const DOOR_SURFACE: SurfaceKey = 'wood.oak';
 
 function DoorInstance({
   opening,
   colorOf,
   open,
   onPick,
+  surface,
 }: {
   opening: DoorOpening;
   colorOf: (side: string) => string;
   open: boolean;
   onPick: () => void;
+  // Hoisted to the parent: every door in the house is the same material, and
+  // saying so once beats six independent hook calls that can drift apart.
+  surface: SurfaceMaterial | null;
 }) {
   const hinge = useRef<THREE.Group>(null);
 
@@ -66,6 +80,24 @@ function DoorInstance({
     if (g) g.rotation.y = THREE.MathUtils.damp(g.rotation.y, target, 9, delta);
   });
 
+  // `grain: 'y'` because stiles run UP a door. Getting this backwards lays the
+  // boards across it — the same mistake Stairs.tsx already carries a scar for.
+  //
+  // Keyed on the three NUMBERS, not on `panelSize`: that array is a fresh
+  // literal every render, so a dependency on it would rebuild and dispose a GPU
+  // buffer on every single render.
+  //
+  // Not shared between the six doors, even though they are dimensionally
+  // identical today. Sharing needs an extra rotation group (the z-axis panel is
+  // the x-axis one turned a quarter) plus a size-keyed cache in the parent, to
+  // save five buffers of twenty-four vertices. Not worth the machinery.
+  const [panelW, panelH, panelD] = panelSize;
+  const panelGeo = useMemo(
+    () => meshGeometry(boxMesh([panelW, panelH, panelD], 'y')),
+    [panelW, panelH, panelD],
+  );
+  useEffect(() => () => panelGeo.dispose(), [panelGeo]);
+
   return (
     <group>
       <mesh position={lintelPos} {...SOLID}>
@@ -78,6 +110,7 @@ function DoorInstance({
       <group ref={hinge} position={[a[0], floorY, a[2]]}>
         <mesh
           {...SOLID}
+          geometry={panelGeo}
           position={panelOffset}
           onClick={(e) => {
             e.stopPropagation();
@@ -91,8 +124,7 @@ function DoorInstance({
             document.body.style.cursor = 'auto';
           }}
         >
-          <boxGeometry args={panelSize} />
-          <meshStandardMaterial color={PANEL_COLOR} />
+          <SurfaceMaterialSlot material={surface} color={PANEL_COLOR} />
         </mesh>
       </group>
     </group>
@@ -112,6 +144,10 @@ export function Doors({
 }) {
   const colorOf = useMemo(() => buildColorOf(grid.rooms), [grid.rooms]);
   const doors = grid.openings.filter((o): o is DoorOpening => o.kind === 'door');
+  // No size argument — that is the whole point of the metric hook. The panel's
+  // own UVs carry its extent, so all six faces get the same physical grain and
+  // a door matches the stair treads without either knowing the other's size.
+  const surface = useTiledSurface(DOOR_SURFACE);
   return (
     <>
       {doors.map((o) => (
@@ -121,6 +157,7 @@ export function Doors({
           colorOf={colorOf}
           open={openDoors.has(o.id)}
           onPick={() => onPick(o.id)}
+          surface={surface}
         />
       ))}
     </>

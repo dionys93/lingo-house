@@ -15,7 +15,7 @@
 import { describe, it, expect } from 'vitest';
 import type * as THREE from 'three';
 import { gableRoof, type RoofShape } from '../core/roof';
-import { corrugate, slopeGeometry, type Corrugation } from '../scene/roofGeometry';
+import { corrugate, meshGeometry, type Corrugation } from '../scene/roofGeometry';
 import { pantileRoll } from '../scene/surfaces/pattern';
 
 const SHAPE: RoofShape = { pitch: 0.5, rakeOverhang: 0.1, eaveOverhang: 0.2, bearingOffset: 0.04 };
@@ -33,16 +33,16 @@ const at = (a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, i: numb
 const close = (a: readonly number[], b: readonly number[], eps = 1e-6) =>
   a.every((v, i) => Math.abs(v - b[i]) < eps);
 
-describe('slopeGeometry', () => {
+describe('meshGeometry', () => {
   it('carries every vertex the core produced', () => {
-    const geo = slopeGeometry(tall.slopes);
+    const geo = meshGeometry(tall.slopes);
     expect(geo.getAttribute('position').count).toBe(tall.slopes.positions.length);
   });
 
   it('carries the INDEX — without it the panels tear open at the ridge', () => {
     // The regression. 2 quads → 8 vertices → 12 indices → 4 triangles. Drop the
     // index and three draws floor(8 / 3) = 2 triangles from those same vertices.
-    const geo = slopeGeometry(tall.slopes);
+    const geo = meshGeometry(tall.slopes);
     const index = geo.getIndex();
     expect(index).not.toBeNull();
     expect(index?.count).toBe(tall.slopes.indices.length);
@@ -50,7 +50,7 @@ describe('slopeGeometry', () => {
   });
 
   it('carries a UV per vertex, or every map samples texel (0,0)', () => {
-    const geo = slopeGeometry(tall.slopes);
+    const geo = meshGeometry(tall.slopes);
     const uv = geo.getAttribute('uv');
     expect(uv).toBeDefined();
     expect(uv.count).toBe(tall.slopes.positions.length);
@@ -60,7 +60,7 @@ describe('slopeGeometry', () => {
   it('keeps UVs in world units once they are on the GPU buffer', () => {
     // Float32 rather than the core's doubles, so this is the last place the
     // metric scale could be lost.
-    const geo = slopeGeometry(tall.slopes);
+    const geo = meshGeometry(tall.slopes);
     const uv = geo.getAttribute('uv');
     const pos = geo.getAttribute('position');
     for (let q = 0; q < pos.count; q += 4) {
@@ -78,7 +78,7 @@ describe('slopeGeometry', () => {
     // to see through; and they do NOT share vertices, so each keeps its own face
     // normal. If someone reaches for mergeVertices to "tidy up", the second half
     // fails and the roof rounds off at the top.
-    const geo = slopeGeometry(tall.slopes);
+    const geo = meshGeometry(tall.slopes);
     const pos = geo.getAttribute('position');
     const n = geo.getAttribute('normal');
     let coincident = 0;

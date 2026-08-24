@@ -23,9 +23,7 @@
 // silhouette, and they stay in the normal map where they cost nothing.
 
 import * as THREE from 'three';
-import type { MeshData } from '../core/roof';
-
-type Vec3 = readonly [number, number, number];
+import type { MeshData, Vec3 } from '../core/mesh';
 
 const mix = (a: Vec3, b: Vec3, t: number): Vec3 => [
   a[0] + (b[0] - a[0]) * t,
@@ -139,7 +137,14 @@ export function corrugate(data: MeshData, c: Corrugation): MeshData {
   return { positions, uvs, indices };
 }
 
-export function slopeGeometry(data: MeshData): THREE.BufferGeometry {
+/**
+ * MeshData → BufferGeometry, for ANY producer. Nothing here is roof-specific;
+ * it was named `slopeGeometry` only because the roof was the first mesh to need
+ * it. The ground, the door and every item go through this same function, which
+ * is the point — the three traps below are encoded once instead of rediscovered
+ * per component.
+ */
+export function meshGeometry(data: MeshData): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(data.positions.flat()), 3));
   // Without this the roof had no `uv` attribute at all, so any `map` sampled
@@ -147,7 +152,7 @@ export function slopeGeometry(data: MeshData): THREE.BufferGeometry {
   // looks exactly like the fallback the component draws, which is why it read
   // as "the texture didn't load" rather than "the geometry can't be textured".
   //
-  // In WORLD UNITS, not 0..1 (see MeshData in core/roof.ts), so the material
+  // In WORLD UNITS, not 0..1 (see MeshData in core/mesh.ts), so the material
   // must come from `useTiledSurface` and not `useSurfaceMaterial`.
   g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(data.uvs.flat()), 2));
   // Without the index, three reads a flat slope's 8 vertices as 2 unindexed
