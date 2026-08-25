@@ -1,4 +1,4 @@
-// src/core/describe.ts
+// src/core/house/describe.ts
 //
 // Click → words. The one place that decides what a popup says, kept pure so the
 // whole reading experience is testable without mounting a scene.

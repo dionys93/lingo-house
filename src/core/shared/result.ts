@@ -1,4 +1,4 @@
-// src/core/result.ts
+// src/core/shared/result.ts
 //
 // The core's error channel. Fallible operations return a Result rather than
 // throwing, so a caller cannot ignore failure — the `ok` discriminant forces a

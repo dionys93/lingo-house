@@ -1,4 +1,4 @@
-// src/core/cells.ts
+// src/core/house/cells.ts
 //
 // What is at a cell, and where two cells differ. One rule, one place.
 //

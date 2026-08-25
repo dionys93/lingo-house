@@ -1,4 +1,4 @@
-// src/core/grid.ts
+// src/core/house/grid.ts
 //
 // The innermost pure function of the core: a grid of blocks in, world-space
 // geometry (or a list of typed errors) out. No I/O, no React, no three. This is
@@ -99,10 +99,18 @@ export type CompiledOpening =
 
 // ── Items. Canonical per-kind spec — DATA the core needs to place items and
 // emit click bounds; what a kind LOOKS like stays in the shell's factory, same
-// split as room `color`. Sizes are stylised to fit one CELL (0.5) under
-// WALL_HEIGHT (1.2). `supportsTop` is the height at which OTHER items rest on
-// this one — `null` means nothing can, which is what turns "laptop on a TV"
-// into a typed error instead of a laptop embedded in a screen. ──
+// split as room `color`. `supportsTop` is the height at which OTHER items rest
+// on this one — `null` means nothing can, which is what turns "laptop on a TV"
+// into a typed error instead of a laptop embedded in a screen.
+//
+// SIZES ARE REAL, converted once. The house is built at 1 unit = 2 m (CELL is
+// 0.5 = a 1 m cell; WALL_HEIGHT 1.2 = a 2.4 m room), so every number below is
+// millimetres / 2000. They were stylised to fit a single cell before, which is
+// why a table stood 0.68 m tall and a TV was 6 cm thick — dimensions nothing in
+// the real world has. Each row carries its real size in the comment so the
+// conversion stays checkable, and the few that legitimately exceed one cell (a
+// bath, a sofa, a bed) are marked: items may straddle cells, and the rooms that
+// hold them are two or three cells wide.
 interface ItemSpec {
   readonly w: number;
   readonly d: number;
@@ -110,9 +118,28 @@ interface ItemSpec {
   readonly supportsTop: number | null;
 }
 export const ITEM_SPECS: Record<ItemKind, ItemSpec> = {
-  table: { w: 0.44, d: 0.3, h: 0.34, supportsTop: 0.34 }, // things rest on the slab
-  laptop: { w: 0.13, d: 0.1, h: 0.09, supportsTop: null },
-  tv: { w: 0.34, d: 0.03, h: 0.2, supportsTop: null },
+  // ── Living / general
+  table: { w: 0.44, d: 0.3, h: 0.37, supportsTop: 0.37 }, //   880 ×  600 ×  740
+  chair: { w: 0.225, d: 0.25, h: 0.45, supportsTop: null }, //  450 ×  500 ×  900
+  sofa: { w: 1.0, d: 0.45, h: 0.425, supportsTop: null }, //   2000 ×  900 ×  850 — 2 cells wide
+  rug: { w: 1.0, d: 0.75, h: 0.006, supportsTop: null }, //    2000 × 1500 ×   12 — lies under other items
+  bookshelf: { w: 0.4, d: 0.15, h: 0.9, supportsTop: null }, // 800 ×  300 × 1800
+  // ── Electronics
+  laptop: { w: 0.15, d: 0.105, h: 0.095, supportsTop: null }, // 300 × 210 × 190 open
+  tv: { w: 0.44, d: 0.02, h: 0.248, supportsTop: null }, //     880 ×   40 ×  495 — 40", true 16:9
+  // ── Kitchen
+  counter: { w: 0.6, d: 0.3, h: 0.45, supportsTop: 0.45 }, //  1200 ×  600 ×  900 — worktop
+  oven: { w: 0.3, d: 0.3, h: 0.45, supportsTop: null }, //       600 ×  600 ×  900 — hob on top, so nothing rests here
+  fridge: { w: 0.3, d: 0.325, h: 0.9, supportsTop: null }, //    600 ×  650 × 1800
+  // ── Bathroom
+  toilet: { w: 0.185, d: 0.35, h: 0.39, supportsTop: null }, //  370 ×  700 ×  780 to the cistern lid
+  bathtub: { w: 0.85, d: 0.375, h: 0.29, supportsTop: null }, // 1700 × 750 ×  580 — 2 cells long
+  shower: { w: 0.45, d: 0.45, h: 1.0, supportsTop: null }, //    900 ×  900 × 2000 enclosure
+  sink: { w: 0.3, d: 0.225, h: 0.425, supportsTop: null }, //    600 ×  450 ×  850 — basin rim, not a shelf
+  // ── Bedroom
+  bed: { w: 0.7, d: 1.0, h: 0.5, supportsTop: 0.26 }, //        1400 × 2000 × 1000 headboard; 520 mattress top
+  wardrobe: { w: 0.5, d: 0.3, h: 1.0, supportsTop: null }, //   1000 ×  600 × 2000
+  nightstand: { w: 0.225, d: 0.2, h: 0.275, supportsTop: 0.275 }, // 450 × 400 × 550
 };
 
 // facing → rotation about Y, for a model whose local "front" is +Z ('s').

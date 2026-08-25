@@ -1,4 +1,4 @@
-// src/core/house.ts
+// src/core/house/house.ts
 //
 // The multi-storey wrapper. `compileGrid` stays completely level-ignorant — it
 // knows only the `baseY` it's handed — so everything about *stacking* lives

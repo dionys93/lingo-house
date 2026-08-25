@@ -1,4 +1,4 @@
-// src/core/locate.ts
+// src/core/house/locate.ts
 //
 // Where you are, from where you're standing.
 //

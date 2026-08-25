@@ -1,4 +1,4 @@
-// src/core/errors.ts
+// src/core/shared/errors.ts
 //
 // Every way a house plan can be wrong, as one discriminated union. compileScene
 // returns these instead of throwing or silently dropping, so an authoring

@@ -1,4 +1,4 @@
-// src/core/grid.test.ts
+// src/tests/grid.test.ts
 //
 // Slice 1's guardrail: the grid → geometry contract as a table of
 // (grid) → (rooms + walls) or (errors). `compileGrid` is the innermost pure
