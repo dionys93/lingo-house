@@ -14,6 +14,7 @@ import { useState, type ComponentType, type CSSProperties } from 'react';
 import { HouseScene } from './render/scenes/HouseScene';
 import { Sandbox } from './render/scenes/Sandbox';
 import { LightingLab } from './render/scenes/LightingLab';
+import { ItemGallery } from './render/scenes/ItemGallery';
 
 interface ModeSpec {
   readonly label: string;
@@ -39,13 +40,14 @@ interface ModeSpec {
  *
  * Order is presentation too: the real thing first, scratch scenes after.
  */
-const ORDER = ['house', 'sandbox', 'lab'] as const;
+const ORDER = ['house', 'sandbox', 'items', 'lab'] as const;
 
 type Mode = (typeof ORDER)[number];
 
 const MODES: Record<Mode, ModeSpec> = {
   house: { label: 'House', Scene: HouseScene },
   sandbox: { label: 'Sandbox', Scene: Sandbox },
+  items: { label: 'Items', Scene: ItemGallery },
   lab: { label: 'Lights', Scene: LightingLab },
 };
 

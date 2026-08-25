@@ -7,7 +7,17 @@ import { type CompiledGrid, type Vec3 } from '../../core/house/grid';
 import type { Cell } from '../../core/shared/errors';
 import { RoomTiles } from './RoomTiles';
 
-const FLOOR_Y = 0.02; // just above the grass (y=0) to avoid z-fighting
+/**
+ * How far the floor TILE sits above the storey's structural floor — just enough
+ * to stop it z-fighting the grass at y=0.
+ *
+ * Exported because it is the surface things actually stand on. The compiler
+ * places an item at `baseY`, which is 20 mm BELOW this, so anything rendered at
+ * its raw compiled height is buried to that depth. Two centimetres of a table
+ * leg is invisible; a 12 mm rug is entirely gone, which is exactly what
+ * happened. Items.tsx lifts by this.
+ */
+export const FLOOR_Y = 0.02;
 const DEFAULT_FLOOR = '#cfc9bd'; // rooms authored without a colour
 
 export function Floor({

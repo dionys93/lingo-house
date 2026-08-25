@@ -5,7 +5,7 @@
 // OrbitControls outside / InteriorControls in a room). App toggles between this
 // and the sandbox.
 
-import { useCallback, useMemo, useReducer, useRef } from 'react';
+import { useCallback, useMemo, useReducer, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { compileHouse } from '../../core/house/house';
 import { CELL } from '../../core/house/grid';
@@ -16,15 +16,17 @@ import { locationAt } from '../../core/house/locate';
 import { blocksDoorway, blockersFor, doorwayOf, stairwellOf, type Vec2 } from '../../core/house/collide';
 import { explorerReducer, START_EXPLORER, type Selection } from '../../core/session/explorer';
 import { describe as describeSelection } from '../../core/house/describe';
-import { HOUSE } from '../../content/rooms';
+import { houseFor } from '../../content/house';
+import { MONTHS, type Month } from '../../core/house/month';
 import { LABELS } from '../../content/labels';
+import { MonthBar } from '../ui/MonthBar';
 import { Ground } from '../elements/Ground';
 import { Roof } from '../elements/Roof';
 import { Stairs } from '../elements/Stairs';
 import { SurfaceProvider } from '../surfaces/SurfaceProvider';
 import { HouseLights } from '../stage/HouseLights';
 import { rigFor } from '../../core/style/lights';
-import { BODY_RADIUS, EYE, WalkControls } from '../stage/WalkControls';
+import { BODY_RADIUS, EYE, HEAD, STEP_OVER, WalkControls } from '../stage/WalkControls';
 import { ScenePost } from '../stage/ScenePost';
 import { Storey } from '../elements/Storey';
 import { SelectionPopup } from '../ui/SelectionPopup';
@@ -58,7 +60,12 @@ function ErrorPanel({ errors }: { errors: readonly HouseError[] }) {
 }
 
 export function HouseScene() {
-  const result = useMemo(() => compileHouse(HOUSE), []);
+  // WHICH HOUSE is a function of the month. Held here rather than in App
+  // because it is an input to the plan, not a mode of the app — everything
+  // downstream (nav graph, collision, lighting) already derives from the
+  // compiled result, so switching months re-derives all of it for free.
+  const [month, setMonth] = useState<Month>(MONTHS[0]);
+  const result = useMemo(() => compileHouse(houseFor(month)), [month]);
   const house = result.ok ? result.value : null;
 
   // Doors from every storey in one flat list. That's safe precisely because
@@ -84,7 +91,7 @@ export function HouseScene() {
   // while they were all shut.
   const start = useMemo<Vec2>(() => {
     const b = ground?.grid.footprint.bbox;
-    return b ? [(b.x0 + b.x1) / 2, b.z1 + 1.2] : [0, 2];
+    return b ? [(b.x0 + b.x1) / 2, b.z1 + 2.6] : [0, 2];
   }, [ground]);
 
   const [walk, dispatch] = useReducer(walkReducer, 'outside', startWalking);
@@ -125,6 +132,7 @@ export function HouseScene() {
             standingOn.grid.openings,
             standingOn.grid.items.map((i) => i.bounds),
             walk.openDoors,
+            { floorY: standingOn.baseY, stepOver: STEP_OVER, headY: HEAD },
           ),
           // A stair blocks the storey it rises from AND the one it rises into —
           // the flight below, the hole above. Same footprint, two reasons.
@@ -299,7 +307,10 @@ export function HouseScene() {
         <WalkControls
           blockers={blockers}
           start={start}
-          startYaw={Math.PI}
+          // 0, not PI. The camera looks down -Z at yaw 0 and the spawn is on the
+          // lawn at the house's +Z side, so PI turned you to face the empty
+          // lawn — the one thing on screen with nothing to click.
+          startYaw={0}
           level={walkLevel}
           baseYOf={baseYOf}
           climbTo={climbTo}
@@ -308,6 +319,7 @@ export function HouseScene() {
           onMoved={onMoved}
         />
       </Canvas>
+      <MonthBar month={month} onPick={setMonth} labels={LABELS} from={explorer.from} to={explorer.to} />
       <LanguageBar from={explorer.from} to={explorer.to} dispatch={explore} />
       {!result.ok && <ErrorPanel errors={result.error} />}
     </div>

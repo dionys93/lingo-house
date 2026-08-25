@@ -10,8 +10,11 @@
 //   corners don't leak, and degenerate input doesn't produce NaN
 
 import { describe, expect, it } from 'vitest';
-import { blockersFor, blocksDoorway, boxSegments, closestOn, doorwayOf, segmentsCross, slide, solidOpenings, stairwellOf, type Segment2, type Vec2 } from '../core/house/collide';
+import { blockersFor, blocksDoorway, boxSegments, closestOn, doorwayOf, ITEM_CLEARANCE, segmentsCross, slide, solidOpenings, stairwellOf, type Body, type Segment2, type Vec2 } from '../core/house/collide';
 import type { AABB, CompiledOpening, CompiledWall } from '../core/house/grid';
+
+// A walker on the ground floor: steps over 180 mm, ducks nothing below 1.4 m.
+const BODY: Body = { floorY: 0, stepOver: 0.09, headY: 0.7 };
 
 const R = 0.18; // player radius, ~36cm across at 1 unit = 2m
 
@@ -183,18 +186,18 @@ describe('solidOpenings', () => {
   });
 
   it('closes the wall against a shut door', () => {
-    const blockers = blockersFor([left, right], [d], [], new Set());
+    const blockers = blockersFor([left, right], [d], [], new Set(), BODY);
     expect(slide([0, -0.5], [0, 0.5], blockers, R)[1]).toBeLessThan(0);
   });
 
   it('opens it when the door opens, and only there', () => {
-    const blockers = blockersFor([left, right], [d], [], new Set(['d1']));
+    const blockers = blockersFor([left, right], [d], [], new Set(['d1']), BODY);
     expect(slide([0, -0.5], [0, 0.5], blockers, R)[1]).toBeGreaterThan(0); // through the gap
     expect(slide([0.7, -0.5], [0.7, 0.5], blockers, R)[1]).toBeLessThan(0); // not beside it
   });
 
   it('never opens for a window', () => {
-    const blockers = blockersFor([left, right], [win], [], new Set(['w1']));
+    const blockers = blockersFor([left, right], [win], [], new Set(['w1']), BODY);
     expect(slide([0, -0.5], [0, 0.5], blockers, R)[1]).toBeLessThan(0);
   });
 });
@@ -202,16 +205,60 @@ describe('solidOpenings', () => {
 describe('blockersFor', () => {
   it('includes furniture as four sides', () => {
     const bounds: AABB = { min: [-0.2, 0, -0.2], max: [0.2, 0.5, 0.2] };
-    const b = blockersFor([], [], [bounds], new Set());
+    const b = blockersFor([], [], [bounds], new Set(), BODY);
     expect(b).toHaveLength(4);
   });
 
-  it('drops the y axis entirely — a tall item blocks exactly as a short one does', () => {
-    const short: AABB = { min: [-0.2, 0, -0.2], max: [0.2, 0.05, 0.2] };
-    const tall: AABB = { min: [-0.2, 0, -0.2], max: [0.2, 2.0, 0.2] };
-    expect(blockersFor([], [], [short], new Set())).toEqual(
-      blockersFor([], [], [tall], new Set()),
-    );
+  // This file used to assert the OPPOSITE — "drops the y axis entirely, a tall
+  // item blocks exactly as a short one does" — and that was the bug, written
+  // down and guarded. A rug is 12 mm tall and it walled off a doorway.
+  it('lets you walk over anything below step height', () => {
+    const rug: AABB = { min: [-0.5, 0, -0.4], max: [0.5, 0.012, 0.4] };
+    expect(blockersFor([], [], [rug], new Set(), BODY)).toEqual([]);
+  });
+
+  it('lets you walk under anything hung above your head', () => {
+    const wallTv: AABB = { min: [-0.22, 1.0, -0.01], max: [0.22, 1.25, 0.01] };
+    expect(blockersFor([], [], [wallTv], new Set(), BODY)).toEqual([]);
+  });
+
+  it('still blocks anything that overlaps the body', () => {
+    const table: AABB = { min: [-0.22, 0, -0.15], max: [0.22, 0.37, 0.15] };
+    expect(blockersFor([], [], [table], new Set(), BODY)).toHaveLength(4);
+  });
+
+  it('measures those heights from the storey floor, not from zero', () => {
+    // An upstairs table, at absolute y 1.20-1.57. To someone standing upstairs
+    // it is furniture; to someone on the ground floor it is above the ceiling
+    // and must not block. Reading these heights absolutely would get one of the
+    // two wrong whichever constant you picked.
+    const table: AABB = { min: [-0.22, 1.2, -0.15], max: [0.22, 1.57, 0.15] };
+    const upstairs: Body = { ...BODY, floorY: 1.2 };
+    expect(blockersFor([], [], [table], new Set(), upstairs)).toHaveLength(4);
+    expect(blockersFor([], [], [table], new Set(), BODY)).toEqual([]);
+
+    // And the rug stays a rug on whichever floor it lies.
+    const rug: AABB = { min: [-0.5, 1.2, -0.4], max: [0.5, 1.212, 0.4] };
+    expect(blockersFor([], [], [rug], new Set(), upstairs)).toEqual([]);
+  });
+
+  it('blocks a smaller box than it draws, so you can brush past furniture', () => {
+    const table: AABB = { min: [-0.22, 0, -0.15], max: [0.22, 0.37, 0.15] };
+    const [seg] = blockersFor([], [], [table], new Set(), BODY);
+    // Front edge pulled in by ITEM_CLEARANCE on both axes.
+    expect(seg.a[0]).toBeCloseTo(-0.22 + ITEM_CLEARANCE);
+    expect(seg.b[0]).toBeCloseTo(0.22 - ITEM_CLEARANCE);
+  });
+
+  it('shrinks a thin item to a sliver rather than turning it inside out', () => {
+    // A TV is 40 mm deep — thinner than twice the clearance, so a naive inset
+    // would hand back a box whose min exceeded its max and wind the four sides
+    // the wrong way round.
+    const tv: AABB = { min: [-0.22, 0.2, -0.02], max: [0.22, 0.45, 0.02] };
+    const zs = blockersFor([], [], [tv], new Set(), BODY).flatMap((g) => [g.a[1], g.b[1]]);
+    const depth = Math.max(...zs) - Math.min(...zs);
+    expect(depth).toBeGreaterThan(0);
+    expect(depth).toBeLessThan(0.04);
   });
 });
 
@@ -231,7 +278,7 @@ describe('blocksDoorway', () => {
   it('is exactly the condition that would otherwise wedge you', () => {
     // Standing in the doorway, then the wall comes back. Every direction is
     // blocked, which is what the guard exists to prevent.
-    const sealed = blockersFor([wall([-1, 0], [1, 0])], [], [], new Set());
+    const sealed = blockersFor([wall([-1, 0], [1, 0])], [], [], new Set(), BODY);
     const stuck: Vec2 = [0, 0];
     for (const to of [[0, 0.2], [0, -0.2], [0.2, 0], [-0.2, 0]] as const) {
       expect(slide(stuck, to, sealed, R)).toEqual(stuck);
