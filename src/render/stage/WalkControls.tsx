@@ -73,6 +73,16 @@ const MAX_PITCH = Math.PI / 2 - 0.05;
 export const BODY_RADIUS = 0.18;
 
 /**
+ * The two heights that decide whether a thing is in your way (see core Body).
+ *
+ * STEP_OVER is a threshold, not a stair: 180 mm is what you clear without
+ * thinking, which is what makes a rug floor rather than furniture. HEAD is just
+ * above EYE, so anything hung higher than your head lets you walk under it.
+ */
+export const STEP_OVER = 0.09;
+export const HEAD = EYE + 0.05;
+
+/**
  * Longest timestep we will integrate.
  *
  * A backgrounded tab resuming hands you a `delta` of several seconds. `slide`

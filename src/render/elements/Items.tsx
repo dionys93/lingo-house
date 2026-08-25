@@ -40,6 +40,7 @@ import type { CompiledGrid, CompiledItem } from '../../core/house/grid';
 import { ITEM_SPECS } from '../../core/house/grid';
 import type { ItemKind } from '../../core/house/blocks';
 import { CATCHES, IGNORED, SOLID } from '../../core/style/shadows';
+import { FLOOR_Y } from './Floor';
 
 type V3 = [number, number, number];
 
@@ -326,11 +327,11 @@ function Rug(): JSX.Element {
   const border = 0.06;
   return (
     <>
-      <mesh position={[0, 0.001 + h / 2, 0]} {...CATCHES}>
+      <mesh position={[0, h / 2, 0]} {...CATCHES}>
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={RUG_BORDER} roughness={1} />
       </mesh>
-      <mesh position={[0, 0.001 + h + 0.0005, 0]} {...CATCHES}>
+      <mesh position={[0, h + 0.0005, 0]} {...CATCHES}>
         <boxGeometry args={[w - border * 2, 0.001, d - border * 2]} />
         <meshStandardMaterial color={RUG_FIELD} roughness={1} />
       </mesh>
@@ -1137,7 +1138,7 @@ function ClickProxy({
   const { min, max } = item.bounds;
   const centre: [number, number, number] = [
     (min[0] + max[0]) / 2,
-    (min[1] + max[1]) / 2,
+    (min[1] + max[1]) / 2 + FLOOR_Y,
     (min[2] + max[2]) / 2,
   ];
   const size: [number, number, number] = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
@@ -1182,7 +1183,13 @@ function Item({
   const Build = factories[item.kind];
   return (
     <>
-      <group position={[...item.position]} rotation={[0, item.yaw, 0]}>
+      {/* Lifted onto the floor TILE, not the structural floor the compiler
+          measures from — see FLOOR_Y. The proxy is lifted to match, or a rug's
+          click box would sit under the floor and never be hit. */}
+      <group
+        position={[item.position[0], item.position[1] + FLOOR_Y, item.position[2]]}
+        rotation={[0, item.yaw, 0]}
+      >
         <Build />
       </group>
       <ClickProxy item={item} selected={selected} onSelect={onSelect} />

@@ -9,6 +9,7 @@ import { compileHouse } from '../core/house/house';
 import { buildNavGraph } from '../core/house/nav';
 import { describe } from '../core/house/describe';
 import type { LabelTable, Locale, NounKey } from '../core/house/labels';
+import { MONTHS, type Month } from '../core/house/month';
 import type { Selection } from '../core/session/explorer';
 import { defineRoom, type Grid, type ItemDef, type Opening } from '../core/house/blocks';
 
@@ -68,10 +69,14 @@ const nounsIn = (l: Locale): Record<NounKey, string> =>
     string
   >;
 
+// Month names aren't what this file tests; the table just has to be total.
+const monthsIn = (l: Locale): Record<Month, string> =>
+  Object.fromEntries(MONTHS.map((m) => [m, `${m}-${l}`])) as Record<Month, string>;
+
 const LABELS: LabelTable = {
-  en: { nouns: nounsIn('en'), outside: 'outside', goOutside: 'Go outside', closeDoor: 'Close the door' },
-  es: { nouns: nounsIn('es'), outside: 'afuera', goOutside: 'Sal afuera', closeDoor: 'Cierra la puerta' },
-  de: { nouns: nounsIn('de'), outside: 'draußen', goOutside: 'Geh nach draußen', closeDoor: 'Schließ die Tür' },
+  en: { nouns: nounsIn('en'), months: monthsIn('en'), outside: 'outside', goOutside: 'Go outside', closeDoor: 'Close the door' },
+  es: { nouns: nounsIn('es'), months: monthsIn('es'), outside: 'afuera', goOutside: 'Sal afuera', closeDoor: 'Cierra la puerta' },
+  de: { nouns: nounsIn('de'), months: monthsIn('de'), outside: 'draußen', goOutside: 'Geh nach draußen', closeDoor: 'Schließ die Tür' },
 };
 
 // Kitchen left, living room right, an interior door between them, and a front

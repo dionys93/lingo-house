@@ -16,6 +16,7 @@
 // at runtime, the error variant comes back.
 
 import type { ItemKind } from './blocks';
+import type { Month } from './month';
 
 export type Locale = 'en' | 'es' | 'de';
 
@@ -51,6 +52,10 @@ export type NounKey = ItemKind | PartKey;
 
 export interface LocaleLabels {
   readonly nouns: Record<NounKey, string>;
+  // The calendar, in this language. A Record over the closed Month union, so a
+  // month cannot exist without a name here — the same guarantee `nouns` gets,
+  // and the reason the month picker can render a name without a fallback.
+  readonly months: Record<Month, string>;
   // 'outside' is a destination like a room, but it isn't one, so its two strings
   // live here rather than on a RoomDef that doesn't exist.
   readonly outside: string;

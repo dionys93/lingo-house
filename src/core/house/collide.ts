@@ -3,10 +3,16 @@
 // Walking, as pure geometry. No React, no three, no time — same contract as
 // grid.ts and nav.ts, tested the same way.
 //
-// Everything here works in 2D. A storey is flat, you can't jump, and the camera
-// stands at a fixed eye height, so the third axis carries no information a
-// collision needs. Doing this in 3D would mean building a physics story about
-// gravity and floor contact to solve a problem that is two coordinates wide.
+// The MOVE is 2D. A storey is flat, you can't jump, and the camera stands at a
+// fixed eye height, so solving the step itself in 3D would mean building a
+// physics story about gravity and floor contact for a problem two coordinates
+// wide.
+//
+// Height is consulted for exactly one decision, taken before the move: whether
+// a thing is in your way AT ALL. It has to be. Every item used to contribute its
+// full footprint as a wall no matter where it sat in the air, which made a 12 mm
+// rug an impassable box and hung an invisible barrier under every wall-mounted
+// TV. See `obstructs`.
 //
 // The player is a CIRCLE, not a point. A point squeezes through the zero-width
 // gap where two wall segments meet at a corner, which is the classic way to end
@@ -88,17 +94,73 @@ export const stairwellOf = (treads: readonly Vec3[], cell: number): readonly Seg
   );
 };
 
+/**
+ * The walker, as the two heights that decide what is in its way.
+ *
+ * `stepOver` and `headY` are measured from the storey floor, so the same body
+ * describes you upstairs and down.
+ */
+export interface Body {
+  readonly floorY: number;
+  /** Top out below this and you simply walk over it: a rug, a threshold. */
+  readonly stepOver: number;
+  /** Start above this and you walk under it: a wall TV, a cabinet, a beam. */
+  readonly headY: number;
+}
+
+/**
+ * Does this box actually stand in a walker's way?
+ *
+ * The rule is vertical OVERLAP with the body, not mere existence. Without it
+ * every item is a wall at any height, which produced two bugs with one cause:
+ * a rug 12 mm tall blocked a doorway as effectively as masonry, and a
+ * wall-mounted TV projected a solid box across the floor beneath it.
+ */
+export const obstructs = (b: AABB, body: Body): boolean =>
+  b.max[1] > body.floorY + body.stepOver && b.min[1] < body.floorY + body.headY;
+
+/**
+ * How much smaller than itself a piece of furniture blocks — 80 mm at 1 unit = 2 m.
+ *
+ * Not a fudge for bad collision: the AABB it shrinks is the CLICK proxy, which
+ * is deliberately generous (it wraps a table's legs and all the air between
+ * them) so that aiming at furniture is forgiving. Reusing that same box for
+ * movement makes every object walk wider than it looks, and in a corridor two
+ * of those overlap into a wall. Clicking stays forgiving; walking gets the
+ * tighter box.
+ *
+ * Never inverts: on a box thinner than twice the margin it shrinks to a sliver
+ * instead of turning inside out.
+ */
+export const ITEM_CLEARANCE = 0.04;
+
+const shrunk = (b: AABB, m: number): readonly [Vec2, Vec2] => {
+  const mx = Math.min(m, (b.max[0] - b.min[0]) / 2 - 1e-3);
+  const mz = Math.min(m, (b.max[2] - b.min[2]) / 2 - 1e-3);
+  return [
+    [b.min[0] + mx, b.min[2] + mz],
+    [b.max[0] - mx, b.max[2] - mz],
+  ];
+};
+
 /** Everything on this storey you can walk into. */
 export const blockersFor = (
   walls: readonly CompiledWall[],
   openings: readonly CompiledOpening[],
   itemBounds: readonly AABB[],
   openDoors: ReadonlySet<string>,
+  body: Body,
 ): readonly Segment2[] => [
-  // Walls are already opening-free, so they pass through untouched.
+  // Walls are already opening-free, so they pass through untouched. They are
+  // NOT shrunk: clipping into masonry is worse than any tight squeeze.
   ...walls.map((w) => ({ a: flat(w.a), b: flat(w.b) })),
   ...solidOpenings(openings, openDoors),
-  ...itemBounds.flatMap((b) => boxSegments(flat(b.min), flat(b.max))),
+  ...itemBounds
+    .filter((b) => obstructs(b, body))
+    .flatMap((b) => {
+      const [min, max] = shrunk(b, ITEM_CLEARANCE);
+      return boxSegments(min, max);
+    }),
 ];
 
 // ── The move ────────────────────────────────────────────────────────────────
