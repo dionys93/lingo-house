@@ -1,4 +1,4 @@
-// src/core/explorer.ts
+// src/core/session/explorer.ts
 //
 // The language loop's state: which pair of languages is showing, and which item
 // (if any) is popped up. Pure reducer, same shape as nav — a plain function of

@@ -1,4 +1,4 @@
-// src/core/nav.ts
+// src/core/house/nav.ts
 //
 // The door/stair GRAPH — pure, no React, no three.
 //

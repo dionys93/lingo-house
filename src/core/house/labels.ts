@@ -1,4 +1,4 @@
-// src/core/labels.ts
+// src/core/house/labels.ts
 //
 // The language layer's types.
 //

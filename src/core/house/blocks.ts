@@ -1,4 +1,4 @@
-// src/core/blocks.ts
+// src/core/house/blocks.ts
 //
 // The tiny data layer the authoring grid is built from. `defineRoom` is a plain
 // constructor with NO validation — reserved-key and every other check happen in
@@ -93,7 +93,33 @@ export type Opening =
 // with everything else when storeys stack. `kind` is a CLOSED union — the
 // shell's factory record plus exhaustive checks make the compiler walk you to
 // every site when a kind is added.
-export type ItemKind = 'table' | 'laptop' | 'tv';
+// Grouped by the room that usually owns them. Adding one here walks the
+// compiler through every site that must learn about it: ITEM_SPECS (size), the
+// shell's factory record (what it looks like), and the label table (its name in
+// every language). None of the three can be forgotten.
+export type ItemKind =
+  // Living / general
+  | 'table'
+  | 'chair'
+  | 'sofa'
+  | 'rug'
+  | 'bookshelf'
+  // Electronics
+  | 'laptop'
+  | 'tv'
+  // Kitchen
+  | 'counter'
+  | 'oven'
+  | 'fridge'
+  // Bathroom
+  | 'toilet'
+  | 'bathtub'
+  | 'shower'
+  | 'sink'
+  // Bedroom
+  | 'bed'
+  | 'wardrobe'
+  | 'nightstand';
 export type Facing = 'n' | 's' | 'e' | 'w'; // n = toward the BACK of the house (row 0)
 
 // WHERE an item sits is a RELATIONSHIP, not a coordinate — and the three kinds

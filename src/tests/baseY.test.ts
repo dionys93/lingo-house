@@ -13,7 +13,7 @@
 // forgets baseY fails here without anyone remembering to extend a list.
 
 import { describe, it, expect } from 'vitest';
-import { compileGrid, WALL_HEIGHT, type CompiledGrid } from '../core/house/grid';
+import { compileGrid, ITEM_SPECS, WALL_HEIGHT, type CompiledGrid } from '../core/house/grid';
 import { _, type Grid, type ItemDef, type Opening } from '../core/house/blocks';
 import { room } from './support';
 
@@ -121,7 +121,11 @@ describe('baseY sweeps the whole compiled storey', () => {
     // And the rest of the seam, spot-checked by name for a readable failure.
     expect(lifted.footprint.wallTopY).toBeCloseTo(B + WALL_HEIGHT);
     expect(lifted.rooms[0].floor[0][1]).toBeCloseTo(B);
-    expect(lifted.items.find((i) => i.id === 'lap')!.position[1]).toBeCloseTo(B + 0.34);
+    // Derived, not a literal: an item mounted on the table lands at the table's
+    // own support height, so resizing the table can't silently falsify this.
+    expect(lifted.items.find((i) => i.id === 'lap')!.position[1]).toBeCloseTo(
+      B + (ITEM_SPECS.table.supportsTop ?? 0),
+    );
     expect(lifted.items.find((i) => i.id === 'telly')!.position[1]).toBeCloseTo(B + 0.5);
   });
 

@@ -1,4 +1,4 @@
-// src/core/collide.ts
+// src/core/house/collide.ts
 //
 // Walking, as pure geometry. No React, no three, no time — same contract as
 // grid.ts and nav.ts, tested the same way.

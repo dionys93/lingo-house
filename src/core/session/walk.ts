@@ -1,4 +1,4 @@
-// src/core/walk.ts
+// src/core/session/walk.ts
 //
 // The walking brain. Replaces the discrete graph in nav.ts, which modelled
 // navigation as "in a location" or "moving between two" and cannot represent

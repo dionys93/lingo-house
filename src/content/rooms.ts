@@ -126,13 +126,36 @@ export const WINDOWS: readonly Opening[] = [
 // item's facing is derived — it always looks into the room. Ids must be unique;
 // order doesn't matter, so a laptop may be listed before its table. ──
 export const ITEMS: readonly ItemDef[] = [
+  // ── Kitchen: the working run along the back wall. Offsets press each unit
+  // against the wall — an appliance floating 20 cm out is the thing that reads
+  // as "placed by a computer". The gaps between them are deliberate, not slack.
+  { id: 'kitchen-fridge', kind: 'fridge', mount: { on: 'floor', cell: [0, 0], facing: 's', offset: [-0.12, -0.095] } },
+  { id: 'kitchen-counter', kind: 'counter', mount: { on: 'floor', cell: [0, 2], facing: 's', offset: [0, -0.12] } },
+  { id: 'kitchen-oven', kind: 'oven', mount: { on: 'floor', cell: [0, 3], facing: 's', offset: [0, -0.12] } },
+
+  // ── The dining wing: same room as the kitchen, just the far end of it.
+  // The chairs face the table (front is +Z, so 'e' looks toward +X).
+  { id: 'dining-table', kind: 'table', mount: { on: 'floor', cell: [1, 4], facing: 's' } },
+  { id: 'dining-chair-w', kind: 'chair', mount: { on: 'floor', cell: [1, 4], facing: 'e', offset: [-0.73, 0] } },
+  { id: 'dining-chair-e', kind: 'chair', mount: { on: 'floor', cell: [1, 4], facing: 'w', offset: [0.73, 0] } },
+
+  // ── Living room, arranged around the TV on the kitchen partition: sofa
+  // facing it ('n' = toward the back of the house), coffee table between them,
+  // rug under both. The rug is 12 mm tall and OVERLAPS both on purpose — legs
+  // and feet stand on it, which is what a rug is for.
+  { id: 'living-rug', kind: 'rug', mount: { on: 'floor', cell: [4, 2], facing: 's', offset: [0, 0.1] } },
   { id: 'living-table', kind: 'table', mount: { on: 'floor', cell: [4, 2], facing: 's' } },
   { id: 'work-laptop', kind: 'laptop', mount: { on: 'item', host: 'living-table', offset: [-0.2, -0.1] } },
+  { id: 'living-sofa', kind: 'sofa', mount: { on: 'floor', cell: [5, 2], facing: 'n' } },
+  { id: 'living-bookshelf', kind: 'bookshelf', mount: { on: 'floor', cell: [6, 5], facing: 'w', offset: [0.27, 0] } },
   // Living room's side of the kitchen partition. NOT [3,1]'s back edge — the
   // door between the two rooms already claims that one.
   { id: 'living-tv', kind: 'tv', mount: { on: 'wall', cell: [3, 2], side: 'back', height: 0.55 } },
-  // The dining wing: same room as the kitchen, just the far end of it.
-  { id: 'dining-table', kind: 'table', mount: { on: 'floor', cell: [1, 4], facing: 's' } },
+
+  // ── The downstairs WC is two cells square, so it gets the two fixtures that
+  // fit. The bath and shower are upstairs, where the bathroom is 3x3.
+  { id: 'wc-toilet', kind: 'toilet', mount: { on: 'floor', cell: [2, 4], facing: 's', offset: [0, -0.07] } },
+  { id: 'wc-sink', kind: 'sink', mount: { on: 'floor', cell: [3, 5], facing: 'w', offset: [0.195, 0] } },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -230,10 +253,30 @@ export const UPPER_WINDOWS: readonly Opening[] = [
 ];
 
 export const UPPER_ITEMS: readonly ItemDef[] = [
-  { id: 'bedroom-table', kind: 'table', mount: { on: 'floor', cell: [4, 4], facing: 's' } },
-  // The bedroom's back wall — the partition with the upstairs bathroom. NOT the
-  // front of [4,5]: that edge is bedroom-to-bedroom, so there's no wall there.
-  { id: 'bedroom-tv', kind: 'tv', mount: { on: 'wall', cell: [3, 3], side: 'back', height: 0.6 } },
+  // ── The family bathroom, 3x3. The bath runs along the right-hand wall under
+  // the window (a 1.7 m tub is over two cells long, which is why it lives up
+  // here); shower in the back corner; toilet and basin along the front wall.
+  // Nothing goes on the wall the door is in — [2,2]'s right edge.
+  { id: 'up-bath', kind: 'bathtub', mount: { on: 'floor', cell: [1, 5], facing: 'w', offset: [0.045, 0] } },
+  { id: 'up-shower', kind: 'shower', mount: { on: 'floor', cell: [0, 3], facing: 's', offset: [0.03, 0.03] } },
+  { id: 'up-sink', kind: 'sink', mount: { on: 'floor', cell: [2, 3], facing: 'n', offset: [0, 0.195] } },
+  { id: 'up-toilet', kind: 'toilet', mount: { on: 'floor', cell: [2, 4], facing: 'n', offset: [0, 0.07] } },
+
+  // ── Main bedroom: bed head against the bathroom partition, a nightstand
+  // either side of it, wardrobe on the right-hand wall clear of the window.
+  { id: 'bedroom-bed', kind: 'bed', mount: { on: 'floor', cell: [3, 3], facing: 's', offset: [0, 0.58] } },
+  { id: 'bedroom-nightstand-l', kind: 'nightstand', mount: { on: 'floor', cell: [3, 2], facing: 's', offset: [0.055, -0.22] } },
+  { id: 'bedroom-nightstand-r', kind: 'nightstand', mount: { on: 'floor', cell: [3, 4], facing: 's', offset: [-0.055, -0.22] } },
+  { id: 'bedroom-wardrobe', kind: 'wardrobe', mount: { on: 'floor', cell: [5, 5], facing: 'w', offset: [0.12, 0] } },
+  // Moved off [3,3]'s back edge: that is now the bed's headboard wall. On the
+  // front wall it faces the bed instead of standing behind it.
+  { id: 'bedroom-tv', kind: 'tv', mount: { on: 'wall', cell: [6, 2], side: 'front', height: 0.55 } },
+
+  // ── Small bedroom. The room is only two cells deep and a bed is 2 m long, so
+  // this one runs ACROSS the room ('e') rather than head-to-back-wall: 2 m does
+  // not fit between two walls 1 m apart once the walls have thickness.
+  { id: 'small-bed', kind: 'bed', mount: { on: 'floor', cell: [1, 0], facing: 'e', offset: [0.58, -0.5] } },
+  { id: 'small-nightstand', kind: 'nightstand', mount: { on: 'floor', cell: [0, 2], facing: 's', offset: [0, -0.22] } },
 ];
 
 // ── The staircase. Rises up the living room's left column, bottom tread by the
