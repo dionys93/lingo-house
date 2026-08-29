@@ -141,16 +141,25 @@ export const WINDOWS: readonly Opening[] = [
 // always looks into the room. Ids must be unique; order doesn't matter, so a
 // laptop may be listed before its table. ──
 export const ITEMS: readonly ItemDef[] = [
-  // ── The kitchen run, along the back wall between the two windows.
+  // ── The kitchen run, along the back wall between the two windows. The
+  // dishwasher slots in at the far end, next to the dining wing.
   { id: 'kitchen-fridge', kind: 'fridge', mount: { on: 'floor', cell: [0, 0], facing: 's', offset: [-0.12, -0.095] } },
   { id: 'kitchen-counter-l', kind: 'counter', mount: { on: 'floor', cell: [0, 2], facing: 's', offset: [0, -0.12] } },
   { id: 'kitchen-oven', kind: 'oven', mount: { on: 'floor', cell: [0, 3], facing: 's', offset: [0, -0.12] } },
   { id: 'kitchen-counter-r', kind: 'counter', mount: { on: 'floor', cell: [0, 4], facing: 's', offset: [0, -0.12] } },
+  { id: 'kitchen-dishwasher', kind: 'dishwasher', mount: { on: 'floor', cell: [0, 6], facing: 's', offset: [0.1, -0.12] } },
 
-  // ── The dining wing: same room as the kitchen, just the far end of it.
-  { id: 'dining-table', kind: 'table', mount: { on: 'floor', cell: [2, 5], facing: 's' } },
-  { id: 'dining-chair-w', kind: 'chair', mount: { on: 'floor', cell: [2, 5], facing: 'e', offset: [-0.73, 0] } },
-  { id: 'dining-chair-e', kind: 'chair', mount: { on: 'floor', cell: [2, 5], facing: 'w', offset: [0.73, 0] } },
+  // ── The dining wing: a 2 m square table with its back to the WC partition,
+  // so it reads as belonging to that wall rather than marooned mid-room. Two
+  // cells square means the mounting cell is a corner of it, not its middle —
+  // the offsets do the centring, which is why they are large here and tiny
+  // everywhere else.
+  //
+  // Three chairs, on the three sides that aren't the wall.
+  { id: 'dining-table', kind: 'diningTable', mount: { on: 'floor', cell: [1, 6], facing: 's', offset: [-0.58, 0.5] } },
+  { id: 'dining-chair-w', kind: 'chair', mount: { on: 'floor', cell: [2, 4], facing: 'e', offset: [0.13, -0.5] } },
+  { id: 'dining-chair-n', kind: 'chair', mount: { on: 'floor', cell: [0, 5], facing: 's', offset: [0.42, 0.21] } },
+  { id: 'dining-chair-s', kind: 'chair', mount: { on: 'floor', cell: [3, 5], facing: 'n', offset: [0.42, -0.21] } },
 
   // ── The WC.
   { id: 'wc-toilet', kind: 'toilet', mount: { on: 'floor', cell: [0, 7], facing: 's', offset: [0, -0.07] } },

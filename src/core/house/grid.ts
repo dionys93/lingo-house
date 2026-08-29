@@ -128,7 +128,9 @@ export const ITEM_SPECS: Record<ItemKind, ItemSpec> = {
   laptop: { w: 0.15, d: 0.105, h: 0.095, supportsTop: null }, // 300 × 210 × 190 open
   tv: { w: 0.44, d: 0.02, h: 0.248, supportsTop: null }, //     880 ×   40 ×  495 — 40", true 16:9
   // ── Kitchen
+  diningTable: { w: 1.0, d: 1.0, h: 0.37, supportsTop: 0.37 }, // 2000 × 2000 × 740 — 2 cells square
   counter: { w: 0.6, d: 0.3, h: 0.45, supportsTop: 0.45 }, //  1200 ×  600 ×  900 — worktop
+  dishwasher: { w: 0.3, d: 0.3, h: 0.425, supportsTop: null }, // 600 × 600 × 850 — slots into the run
   oven: { w: 0.3, d: 0.3, h: 0.45, supportsTop: null }, //       600 ×  600 ×  900 — hob on top, so nothing rests here
   fridge: { w: 0.3, d: 0.325, h: 0.9, supportsTop: null }, //    600 ×  650 × 1800
   // ── Bathroom

@@ -18,6 +18,8 @@ import type { LabelTable } from '../core/house/labels';
 export const LABELS: LabelTable = {
   en: {
     nouns: {
+      diningTable: 'the dining table',
+      dishwasher: 'the dishwasher',
       table: 'the table',
       chair: 'the chair',
       sofa: 'the sofa',
@@ -64,6 +66,8 @@ export const LABELS: LabelTable = {
   },
   es: {
     nouns: {
+      diningTable: 'la mesa de comedor',
+      dishwasher: 'el lavavajillas',
       table: 'la mesa',
       chair: 'la silla',
       sofa: 'el sofá',
@@ -113,6 +117,8 @@ export const LABELS: LabelTable = {
   },
   de: {
     nouns: {
+      diningTable: 'der Esstisch',
+      dishwasher: 'die Spülmaschine',
       table: 'der Tisch',
       chair: 'der Stuhl',
       sofa: 'das Sofa',
