@@ -17,9 +17,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildNavGraph } from '../core/house/nav';
-import { DOOR_HEIGHT_FRAC } from '../core/house/grid';
+import { DOOR_HEIGHT_FRAC } from '../core/house/scale';
 import type { CompiledStair } from '../core/house/house';
-import type { CompiledOpening, WallSide } from '../core/house/grid';
+import type { CompiledOpening, WallSide } from '../core/house/compiled';
 
 // A minimal door fixture — only the fields the graph reads matter here.
 function door(id: string, a: WallSide, b: WallSide): CompiledOpening {

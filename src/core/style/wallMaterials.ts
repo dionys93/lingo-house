@@ -4,13 +4,13 @@
 // piece) colour faces the same way instead of duplicating it. Colour is always
 // driven by a face's SIDE — the room on it, or the house siding for 'outside'.
 
-import type { CompiledRoom, WallSide } from '../house/grid';
+import type { CompiledRoom, WallSide } from '../house/compiled';
 
 export type Triple = [number, number, number];
 
 // Wall depth lives in the core now (it extends corners by half this). Re-exported
 // so wall/door/window/roof shell code keeps importing it from one place.
-export { WALL_THICKNESS } from '../house/grid';
+export { WALL_THICKNESS } from '../house/scale';
 export const HOUSE_SIDING = '#dfd3c3'; // exterior default, for any face meeting 'outside'
 export const DEFAULT_INTERIOR = '#d8d2c8'; // rooms authored without a colour
 export const TRIM = '#c4b8a4'; // top / bottom / interior end faces

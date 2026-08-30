@@ -7,9 +7,9 @@
 // fills sill/head and drops the styled window in the gap.
 
 import { useMemo } from 'react';
-import type { CompiledGrid, CompiledOpening } from '../../core/house/grid';
+import type { CompiledGrid, CompiledOpening } from '../../core/house/compiled';
 import { pickable } from '../three/pickable';
-import { openingFloorY } from '../../core/house/grid';
+import { openingFloorY } from '../../core/house/compiled';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from '../../core/style/wallMaterials';
 import { roomOf, styleForRoom } from '../../core/style/windowStyles';
 import { IGNORED, SOLID } from '../../core/style/shadows';

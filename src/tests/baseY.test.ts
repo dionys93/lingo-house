@@ -13,7 +13,10 @@
 // forgets baseY fails here without anyone remembering to extend a list.
 
 import { describe, it, expect } from 'vitest';
-import { compileGrid, ITEM_SPECS, WALL_HEIGHT, type CompiledGrid } from '../core/house/grid';
+import type { CompiledGrid } from '../core/house/compiled';
+import { compileGrid } from '../core/house/grid';
+import { ITEM_SPECS } from '../core/house/items';
+import { WALL_HEIGHT } from '../core/house/scale';
 import { _, type Grid, type ItemDef, type Opening } from '../core/house/blocks';
 import { room } from './support';
 

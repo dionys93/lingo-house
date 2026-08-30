@@ -37,6 +37,8 @@ const L = defineRoom({
 // NounKey breaks this fixture too, so it can't rot back into stubs.
 const WORDS = {
   table: { en: 'the table', es: 'la mesa', de: 'der Tisch' },
+  diningTable: { en: 'the dining table', es: 'la mesa de comedor', de: 'der Esstisch' },
+  dishwasher: { en: 'the dishwasher', es: 'el lavavajillas', de: 'die Spülmaschine' },
   chair: { en: 'the chair', es: 'la silla', de: 'der Stuhl' },
   sofa: { en: 'the sofa', es: 'el sofá', de: 'das Sofa' },
   rug: { en: 'the rug', es: 'la alfombra', de: 'der Teppich' },

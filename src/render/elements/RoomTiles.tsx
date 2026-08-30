@@ -8,7 +8,8 @@
 // blocks the view up into the roof no matter which way it's turned.
 
 import * as THREE from 'three';
-import { CELL, type CompiledGrid, type Vec3 } from '../../core/house/grid';
+import type { CompiledGrid, Vec3 } from '../../core/house/compiled';
+import { CELL } from '../../core/house/scale';
 import type { Cell } from '../../core/shared/errors';
 import { pickable } from '../three/pickable';
 import { BLOCKS, CATCHES } from '../../core/style/shadows';

@@ -10,7 +10,7 @@
 // to hang the popup.
 
 import type { ThreeEvent } from '@react-three/fiber';
-import type { Vec3 } from '../../core/house/grid';
+import type { Vec3 } from '../../core/house/compiled';
 
 export interface PickHandlers {
   readonly onClick: (e: ThreeEvent<MouseEvent>) => void;

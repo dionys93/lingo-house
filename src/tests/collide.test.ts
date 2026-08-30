@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { blockersFor, blocksDoorway, boxSegments, closestOn, doorwayOf, ITEM_CLEARANCE, segmentsCross, slide, solidOpenings, stairwellOf, type Body, type Segment2, type Vec2 } from '../core/house/collide';
-import type { AABB, CompiledOpening, CompiledWall } from '../core/house/grid';
+import type { AABB, CompiledOpening, CompiledWall } from '../core/house/compiled';
 
 // A walker on the ground floor: steps over 180 mm, ducks nothing below 1.4 m.
 const BODY: Body = { floorY: 0, stepOver: 0.09, headY: 0.7 };

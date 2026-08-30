@@ -36,8 +36,9 @@
 // slab — the same trap `shadows.ts` documents for window glass.
 
 import type { JSX } from 'react';
-import type { CompiledGrid, CompiledItem } from '../../core/house/grid';
-import { ITEM_SPECS } from '../../core/house/grid';
+import { RoundedBox } from '@react-three/drei';
+import type { CompiledGrid, CompiledItem } from '../../core/house/compiled';
+import { ITEM_SPECS } from '../../core/house/items';
 import type { ItemKind } from '../../core/house/blocks';
 import { CATCHES, IGNORED, SOLID } from '../../core/style/shadows';
 import { FLOOR_Y } from './Floor';
@@ -63,6 +64,41 @@ function Slab({ at, size, color, roughness = 0.8, metalness = 0, rotation }: Par
       <boxGeometry args={size} />
       <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
     </mesh>
+  );
+}
+
+/**
+ * A box with its edges taken off — upholstery, bedding, anything that yields.
+ *
+ * Hard boxes are right for joinery and wrong for everything stuffed: a sofa
+ * built from them reads as a bench with slabs on it, because in life the giveaway
+ * of a cushion is that its corners are round and catch the light along the roll.
+ *
+ * `radius` is clamped below half the smallest side. RoundedBox degenerates —
+ * self-intersecting faces, black shading — the moment the fillet is larger than
+ * the box can hold, and a thin cushion is exactly where that happens.
+ */
+function Soft({
+  at,
+  size,
+  color,
+  radius,
+  roughness = 1,
+  metalness = 0,
+  rotation,
+}: PartProps & { readonly radius: number }): JSX.Element {
+  const safe = Math.min(radius, Math.min(...size) / 2 - 0.001);
+  return (
+    <RoundedBox
+      args={size}
+      radius={Math.max(safe, 0.001)}
+      smoothness={4}
+      position={at}
+      rotation={rotation ?? [0, 0, 0]}
+      {...SOLID}
+    >
+      <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
+    </RoundedBox>
   );
 }
 
@@ -245,72 +281,75 @@ const SOFA_CUSHION = '#7d8b9a';
 function Sofa(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.sofa;
   const footH = 0.035;
-  const frameTop = 0.155;
-  const seatTop = 0.21; // 420 mm — seat height
+  const frameTop = 0.15;
+  const seatTop = 0.215; // 430 mm — seat height
   const armTop = 0.3;
-  const armW = 0.075;
-  const backT = 0.085;
+  const armW = 0.085;
+  const backT = 0.09;
   const innerW = w - armW * 2;
   const seatD = d - backT;
   return (
     <>
-      {/* Feet, so light gets under it. A sofa sitting flush on the floor is the
-          commonest giveaway of a box with cushions on it. */}
+      {/* Turned feet. Everything above them is upholstery and rounded; the feet
+          are the one hard, small thing, which is what makes the rest read soft. */}
       {CORNERS.map(([sx, , sz]) => (
         <Tube
           key={`${String(sx)},${String(sz)}`}
-          at={[sx * (w / 2 - 0.05), footH / 2, sz * (d / 2 - 0.05)]}
-          rTop={0.012}
-          rBottom={0.009}
+          at={[sx * (w / 2 - 0.06), footH / 2, sz * (d / 2 - 0.06)]}
+          rTop={0.014}
+          rBottom={0.01}
           height={footH}
           color={WALNUT_DARK}
+          roughness={0.6}
         />
       ))}
       {/* Frame under the seat */}
-      <Slab
+      <Soft
         at={[0, (footH + frameTop) / 2, 0]}
         size={[w, frameTop - footH, d]}
         color={SOFA_BODY}
-        roughness={1}
+        radius={0.025}
       />
-      {/* Arms, running the full depth and standing proud of the seat. */}
+      {/* ROLLED ARMS: a generous fillet on a narrow box is a roll. At radius
+          0.042 on an 85 mm arm the flat is almost gone, so the highlight runs
+          along the top as a curve rather than breaking at an edge. */}
       {[-1, 1].map((s) => (
-        <Slab
+        <Soft
           key={s}
           at={[s * (w / 2 - armW / 2), (footH + armTop) / 2, 0]}
           size={[armW, armTop - footH, d]}
           color={SOFA_BODY}
-          roughness={1}
+          radius={0.042}
         />
       ))}
-      {/* Back, carried all the way UP to h. This used to stop short at 0.36 and
-          the back cushions floated in the gap above it. */}
-      <Slab
+      {/* Back, carried up to h. */}
+      <Soft
         at={[0, (frameTop + h) / 2, -d / 2 + backT / 2]}
         size={[innerW, h - frameTop, backT]}
         color={SOFA_BODY}
-        roughness={1}
+        radius={0.035}
       />
-      {/* Seat cushions — two, with a visible seam. One slab is a bench. */}
+      {/* Seat cushions — two, thicker than they were and rounded, so the seam
+          between them reads as a gap between two soft things rather than a
+          groove cut in one hard one. */}
       {[-1, 1].map((s) => (
-        <Slab
+        <Soft
           key={s}
-          at={[s * innerW * 0.25, (frameTop + seatTop) / 2, backT / 2]}
-          size={[innerW * 0.48, seatTop - frameTop, seatD - 0.02]}
+          at={[s * innerW * 0.253, (frameTop + seatTop) / 2 + 0.008, backT / 2]}
+          size={[innerW * 0.475, seatTop - frameTop + 0.03, seatD - 0.02]}
           color={SOFA_CUSHION}
-          roughness={1}
+          radius={0.03}
         />
       ))}
-      {/* Back cushions RESTING ON THE SEAT and leaning against the back, rather
-          than hovering in front of it. */}
+      {/* Back cushions, resting on the seat and leaning into the back. */}
       {[-1, 1].map((s) => (
-        <Slab
+        <Soft
           key={s}
-          at={[s * innerW * 0.25, seatTop + 0.085, -d / 2 + backT + 0.038]}
-          size={[innerW * 0.47, 0.17, 0.07]}
+          at={[s * innerW * 0.253, seatTop + 0.088, -d / 2 + backT + 0.045]}
+          size={[innerW * 0.465, 0.175, 0.085]}
           color={SOFA_CUSHION}
-          roughness={1}
-          rotation={[0.1, 0, 0]}
+          radius={0.035}
+          rotation={[0.12, 0, 0]}
         />
       ))}
     </>
@@ -512,8 +551,99 @@ const STEEL = '#c2c7cc';
 const PLINTH_H = 0.05;
 const PLINTH_INSET = 0.03;
 
+/**
+ * A base unit: worktop, one pull-out drawer directly under it, two cupboard
+ * doors below that.
+ *
+ * The drawer is what separates it from the appliance beside it. Its front is
+ * SHORTER than the doors and set off by its own shadow gap, because that
+ * horizontal band near the top is the single cue that says "drawer" — a run of
+ * identical full-height panels reads as a row of cupboards whatever you call it.
+ */
 function Counter(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.counter;
+  const topT = 0.02;
+  const bodyH = h - topT - PLINTH_H;
+  const gap = 0.006; // shadow gap between drawer and doors
+  const drawerH = bodyH * 0.26;
+  const doorH = bodyH - drawerH - gap;
+  const drawerY = PLINTH_H + doorH + gap + drawerH / 2;
+  return (
+    <>
+      <Slab
+        at={[0, PLINTH_H / 2, -PLINTH_INSET / 2]}
+        size={[w - 0.02, PLINTH_H, d - PLINTH_INSET]}
+        color="#3f4145"
+      />
+      <Slab at={[0, PLINTH_H + bodyH / 2, 0]} size={[w, bodyH, d]} color={CABINET} roughness={0.6} />
+
+      {/* TWO DOORS below, proud of the carcass with a seam between them. */}
+      {[-1, 1].map((sgn) => (
+        <Slab
+          key={sgn}
+          at={[sgn * w * 0.243, PLINTH_H + doorH / 2, d / 2 + 0.003]}
+          size={[w * 0.47, doorH - gap, 0.006]}
+          color={CABINET_LINE}
+          roughness={0.6}
+        />
+      ))}
+      {/* Their handles: vertical, either side of the centre seam, the way a
+          pair of cupboard doors is actually fitted. */}
+      {[-1, 1].map((sgn) => (
+        <Tube
+          key={sgn}
+          at={[sgn * 0.022, PLINTH_H + doorH * 0.62, d / 2 + 0.016]}
+          rTop={0.005}
+          rBottom={0.005}
+          height={doorH * 0.4}
+          color={STEEL}
+          roughness={0.25}
+          metalness={0.85}
+        />
+      ))}
+
+      {/* ONE DRAWER on top, full width. */}
+      <Slab
+        at={[0, drawerY, d / 2 + 0.004]}
+        size={[w - 0.014, drawerH, 0.008]}
+        color={CABINET_LINE}
+        roughness={0.6}
+      />
+      {/* A long horizontal bar across it — drawers pull, doors swing, and the
+          handle axis is how you tell at a glance. */}
+      <Tube
+        at={[0, drawerY, d / 2 + 0.019]}
+        rTop={0.006}
+        rBottom={0.006}
+        height={w * 0.62}
+        color={STEEL}
+        roughness={0.2}
+        metalness={0.9}
+        rotation={[0, 0, Math.PI / 2]}
+      />
+
+      {/* Worktop, overhanging the front — the overhang is the whole silhouette. */}
+      <Slab
+        at={[0, h - topT / 2, 0.008]}
+        size={[w + 0.008, topT, d + 0.016]}
+        color={WORKTOP}
+        roughness={0.35}
+      />
+    </>
+  );
+}
+
+/**
+ * An integrated dishwasher: one full-height door under a worktop, a control
+ * strip along its top edge, and a recessed handle.
+ *
+ * This is the old `counter` model, given the width it should always have had
+ * (600 mm, one appliance bay) and the two details that name it. Everything in a
+ * fitted kitchen is a box of the same height; what distinguishes them is the
+ * face, so that is where the effort goes.
+ */
+function Dishwasher(): JSX.Element {
+  const { w, d, h } = ITEM_SPECS.dishwasher;
   const topT = 0.02;
   const bodyH = h - topT - PLINTH_H;
   return (
@@ -523,38 +653,112 @@ function Counter(): JSX.Element {
         size={[w - 0.02, PLINTH_H, d - PLINTH_INSET]}
         color="#3f4145"
       />
-      <Slab at={[0, PLINTH_H + bodyH / 2, 0]} size={[w, bodyH, d]} color={CABINET} roughness={0.6} />
-      {/* Two doors and the seam between them. */}
-      {[-1, 1].map((s) => (
-        <Slab
-          key={s}
-          at={[s * w * 0.24, PLINTH_H + bodyH / 2, d / 2 + 0.002]}
-          size={[w * 0.46, bodyH * 0.92, 0.004]}
-          color={CABINET_LINE}
-          roughness={0.6}
-        />
-      ))}
-      {/* Bar handles, horizontal, near the top of each door. */}
-      {[-1, 1].map((s) => (
+      <Slab
+        at={[0, PLINTH_H + bodyH / 2, 0]}
+        size={[w, bodyH, d]}
+        color={STEEL}
+        roughness={0.4}
+        metalness={0.5}
+      />
+      {/* The door: one panel, nearly the whole face. */}
+      <Slab
+        at={[0, PLINTH_H + bodyH * 0.46, d / 2 + 0.004]}
+        size={[w - 0.012, bodyH * 0.84, 0.008]}
+        color="#cfd4d8"
+        roughness={0.3}
+        metalness={0.6}
+      />
+      {/* Control strip along the top edge, with three indicator lights. A
+          washing machine has the same door; this band is the difference. */}
+      <Slab
+        at={[0, PLINTH_H + bodyH * 0.94, d / 2 + 0.005]}
+        size={[w - 0.012, bodyH * 0.1, 0.01]}
+        color="#3a3f44"
+        roughness={0.35}
+      />
+      {[-1, 0, 1].map((sgn) => (
         <Tube
-          key={s}
-          at={[s * w * 0.24, PLINTH_H + bodyH * 0.86, d / 2 + 0.012]}
+          key={sgn}
+          at={[sgn * w * 0.12, PLINTH_H + bodyH * 0.94, d / 2 + 0.012]}
           rTop={0.005}
           rBottom={0.005}
-          height={w * 0.28}
-          color={STEEL}
-          roughness={0.25}
-          metalness={0.85}
-          rotation={[0, 0, Math.PI / 2]}
+          height={0.004}
+          color={sgn === 0 ? '#7fd08a' : '#5b6169'}
+          roughness={0.3}
+          metalness={0.2}
+          rotation={[Math.PI / 2, 0, 0]}
         />
       ))}
-      {/* Worktop, overhanging the front — the overhang is the whole silhouette. */}
+      {/* Recessed bar handle under the control strip. */}
+      <Tube
+        at={[0, PLINTH_H + bodyH * 0.83, d / 2 + 0.016]}
+        rTop={0.006}
+        rBottom={0.006}
+        height={w * 0.72}
+        color={STEEL}
+        roughness={0.2}
+        metalness={0.9}
+        rotation={[0, 0, Math.PI / 2]}
+      />
       <Slab
         at={[0, h - topT / 2, 0.008]}
         size={[w + 0.008, topT, d + 0.016]}
         color={WORKTOP}
         roughness={0.35}
       />
+    </>
+  );
+}
+
+/**
+ * The kitchen table: 2 m square, seating on all sides.
+ *
+ * Square rather than the living room's rectangle, and its own kind rather than
+ * a resized `table`, because a coffee table and a dining table are two objects
+ * with two words. The legs sit further in than a small table's would — at this
+ * span a leg on the corner looks like scaffolding, and the inset is what keeps
+ * the top reading as a slab you could sit at rather than a platform.
+ */
+function DiningTable(): JSX.Element {
+  const { w, d, h } = ITEM_SPECS.diningTable;
+  const topT = 0.032; // 64 mm — a 2 m top needs visible thickness or it sags to the eye
+  const apronT = 0.028;
+  const inset = 0.075;
+  const legTop = 0.045;
+  const legBottom = 0.032;
+  const legH = h - topT;
+  const lx = w / 2 - inset;
+  const lz = d / 2 - inset;
+  return (
+    <>
+      <Slab at={[0, h - topT / 2, 0]} size={[w, topT, d]} color={WALNUT} roughness={0.55} />
+      {/* Apron on all four sides, since all four are on show at a square table. */}
+      {[-1, 1].map((sgn) => (
+        <Slab
+          key={`z${String(sgn)}`}
+          at={[0, h - topT - apronT / 2, sgn * (lz - 0.014)]}
+          size={[w - inset * 2, apronT, 0.018]}
+          color={WALNUT_DARK}
+        />
+      ))}
+      {[-1, 1].map((sgn) => (
+        <Slab
+          key={`x${String(sgn)}`}
+          at={[sgn * (lx - 0.014), h - topT - apronT / 2, 0]}
+          size={[0.018, apronT, d - inset * 2]}
+          color={WALNUT_DARK}
+        />
+      ))}
+      {CORNERS.map(([sx, , sz]) => (
+        <Leg
+          key={`${String(sx)},${String(sz)}`}
+          at={[sx * lx, legH / 2, sz * lz]}
+          top={legTop}
+          bottom={legBottom}
+          height={legH}
+          color={WALNUT_DARK}
+        />
+      ))}
     </>
   );
 }
@@ -978,11 +1182,11 @@ function Bed(): JSX.Element {
       />
       {/* Duvet: covers the foot two-thirds and sits slightly proud of the
           mattress, so there's a fold line instead of one flat slab. */}
-      <Slab
-        at={[0, mattressTop + 0.012, d * 0.14]}
-        size={[w - 0.012, 0.03, d * 0.66]}
+      <Soft
+        at={[0, mattressTop + 0.016, d * 0.14]}
+        size={[w - 0.012, 0.038, d * 0.66]}
         color={DUVET}
-        roughness={1}
+        radius={0.017}
       />
       {/* Turn-back at the top edge of the duvet */}
       <Slab
@@ -991,15 +1195,17 @@ function Bed(): JSX.Element {
         color={LINEN}
         roughness={1}
       />
-      {/* Two pillows at the head */}
+      {/* Two pillows. Thicker and heavily rounded — a pillow is the softest
+          thing in the house and a 40 mm slab with square corners read as a
+          folded towel. The slight tilt sets them against the headboard. */}
       {[-1, 1].map((s) => (
-        <Slab
+        <Soft
           key={s}
-          at={[s * w * 0.22, mattressTop + 0.022, -d / 2 + 0.13]}
-          size={[w * 0.4, 0.04, 0.14]}
+          at={[s * w * 0.22, mattressTop + 0.035, -d / 2 + 0.135]}
+          size={[w * 0.42, 0.065, 0.155]}
           color={LINEN}
-          roughness={1}
-          rotation={[0.06, 0, 0]}
+          radius={0.03}
+          rotation={[0.09, 0, 0]}
         />
       ))}
     </>
@@ -1108,7 +1314,9 @@ const factories: Record<ItemKind, () => JSX.Element> = {
   bookshelf: Bookshelf,
   laptop: Laptop,
   tv: Tv,
+  diningTable: DiningTable,
   counter: Counter,
+  dishwasher: Dishwasher,
   oven: Oven,
   fridge: Fridge,
   toilet: Toilet,

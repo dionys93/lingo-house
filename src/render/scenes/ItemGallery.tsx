@@ -20,7 +20,10 @@ import type { CSSProperties } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { OrbitControls } from '@react-three/drei';
-import { compileGrid, ITEM_SPECS, CELL, type CompiledItem } from '../../core/house/grid';
+import type { CompiledItem } from '../../core/house/compiled';
+import { compileGrid } from '../../core/house/grid';
+import { ITEM_SPECS } from '../../core/house/items';
+import { CELL } from '../../core/house/scale';
 import { defineRoom, type Grid, type ItemDef, type ItemKind } from '../../core/house/blocks';
 import { LABELS } from '../../content/labels';
 import { LOCALES, LOCALE_NAMES, type Locale } from '../../core/house/labels';
@@ -73,10 +76,18 @@ const DEFS: readonly ItemDef[] = KINDS.map((kind, i) => ({
 // it off screen. Camera and OrbitControls target the origin because that is
 // where the subject already is.
 //
-// Distance: half the board's width over the tangent of the horizontal
-// half-angle, plus headroom for the labels above the tallest item.
+// Distance is derived from BOTH dimensions, not just the width. Adding a kind
+// eventually adds a row, and a camera framed on width alone then crops the
+// front row and squashes the back one — which is exactly what happened at
+// nineteen kinds. Growing with depth keeps the framing stable as the roster
+// grows, and the viewer can orbit from there.
 const BOARD_WIDTH = COLS * PITCH * CELL;
-const CAMERA: [number, number, number] = [0, 4.6, BOARD_WIDTH * 0.96];
+const BOARD_DEPTH = ROWS * PITCH * CELL;
+const CAMERA: [number, number, number] = [
+  0,
+  BOARD_WIDTH * 0.58 + BOARD_DEPTH * 0.16,
+  BOARD_WIDTH * 0.72 + BOARD_DEPTH * 0.42,
+];
 
 const bar: CSSProperties = {
   position: 'absolute',

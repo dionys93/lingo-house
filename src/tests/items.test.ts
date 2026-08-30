@@ -5,10 +5,12 @@
 // Coordinate oracle assumes CELL = 0.5 (asserted in grid.test.ts).
 
 import { describe, it, expect } from 'vitest';
-import { compileGrid, ITEM_SPECS, type CompiledGrid } from '../core/house/grid';
+import type { CompiledGrid } from '../core/house/compiled';
+import { compileGrid } from '../core/house/grid';
+import { ITEM_SPECS } from '../core/house/items';
 import { _, type Grid, type ItemDef } from '../core/house/blocks';
 import { room } from './support';
-import { WALL_THICKNESS } from '../core/house/grid';
+import { WALL_THICKNESS } from '../core/house/scale';
 
 const K = room('kitchen', 'Kitchen');
 const L = room('livingRoom', 'Living Room');
@@ -32,10 +34,38 @@ const onFloor = (cell: readonly [number, number], rest: object = {}): ItemDef['m
   ...rest,
 });
 
+// ── A room with space around the item ───────────────────────────────────────
+//
+// An offset big enough to SEE in a coordinate assertion is big enough to push
+// furniture out of a ONE-cell room, and that is now ItemOutsideRoom — correctly,
+// because the boundary between two rooms is a wall. The offset probes below
+// therefore get a living room three cells deep, so they test the arithmetic
+// rather than the fit. GRID above stays the oracle for cell-centre coordinates
+// and for every error path.
+const WIDE: Grid = [
+  [K, K, K],
+  [L, L, L],
+  [L, L, L],
+  [L, L, L],
+];
+const MIDDLE = [2, 1] as const; // a cell with living room on all sides of it
+
+const inWide = (items: readonly ItemDef[]): CompiledGrid => {
+  const r = compileGrid(WIDE, { items });
+  if (!r.ok) throw new Error(`expected Ok, got: ${JSON.stringify(r.error)}`);
+  return r.value;
+};
+
 const compiled = (items: readonly ItemDef[], baseY = 0): CompiledGrid => {
   const r = compileGrid(GRID, { items, baseY });
   if (!r.ok) throw new Error(`expected Ok, got: ${JSON.stringify(r.error)}`);
   return r.value;
+};
+
+const errorsOn = (grid: Grid, items: readonly ItemDef[]): readonly string[] => {
+  const r = compileGrid(grid, { items });
+  if (r.ok) throw new Error('expected Err, got Ok');
+  return r.error.map((e) => e.tag);
 };
 
 const errorTags = (items: readonly ItemDef[]): readonly string[] => {
@@ -58,9 +88,13 @@ describe('compileGrid — items', () => {
   });
 
   it('applies the within-cell offset in cell units', () => {
-    const [item] = compiled([table({ mount: onFloor([1, 0], { offset: [0.25, -0.25] }) })]).items;
-    expect(item.position[0]).toBeCloseTo(-0.25 + 0.25 * 0.5);
-    expect(item.position[2]).toBeCloseTo(0.25 - 0.25 * 0.5);
+    // Asserted as a DELTA against the same item unoffset, so it says what it
+    // means — "a quarter of a cell moves you a quarter of a cell" — instead of
+    // encoding where the grid's centre happens to fall.
+    const [plain] = inWide([table({ mount: onFloor(MIDDLE) })]).items;
+    const [nudged] = inWide([table({ mount: onFloor(MIDDLE, { offset: [0.25, -0.25] }) })]).items;
+    expect(nudged.position[0] - plain.position[0]).toBeCloseTo(0.25 * 0.5);
+    expect(nudged.position[2] - plain.position[2]).toBeCloseTo(-0.25 * 0.5);
   });
 
   it('baseY sweeps item position and bounds like every other Y', () => {
@@ -151,8 +185,8 @@ describe('compileGrid — mounting on another item', () => {
   it('applies the offset in the HOST’s rotated frame, not world axes', () => {
     // Same authored offset, host turned 90°: what was a +X nudge becomes −Z.
     const nudge = { offset: [0.5, 0] as const };
-    const south = compiled([table(), laptopOn('t1', nudge)]);
-    const east = compiled([table({ mount: onFloor([1, 0], { facing: 'e' }) }), laptopOn('t1', nudge)]);
+    const south = inWide([table({ mount: onFloor(MIDDLE) }), laptopOn('t1', nudge)]);
+    const east = inWide([table({ mount: onFloor(MIDDLE, { facing: 'e' }) }), laptopOn('t1', nudge)]);
     const half = 0.5 * ITEM_SPECS.table.w;
     const s = south.items.find((i) => i.id === 'l1')!;
     const e = east.items.find((i) => i.id === 'l1')!;
@@ -203,8 +237,15 @@ describe('compileGrid — mounting on a wall', () => {
   });
 
   it('slides along the wall with the scalar offset', () => {
-    const centred = compiled([tvOn({})]).items[0];
-    const slid = compiled([tvOn({ offset: 0.25 })]).items[0];
+    // On WIDE, where there is wall to slide ALONG: sliding a 880 mm TV a
+    // quarter cell inside a single-cell room walks it out of the room.
+    const wideTv = (over: object): ItemDef => ({
+      id: 'tv1',
+      kind: 'tv',
+      mount: { on: 'wall', cell: [1, 1], side: 'back', height: 0.5, ...over },
+    });
+    const centred = inWide([wideTv({})]).items[0];
+    const slid = inWide([wideTv({ offset: 0.25 })]).items[0];
     expect(slid.position[0] - centred.position[0]).toBeCloseTo(0.25 * 0.5);
     expect(slid.position[2]).toBeCloseTo(centred.position[2]); // still against the wall
   });
@@ -234,5 +275,80 @@ describe('compileGrid — mount kind is carried through', () => {
     ];
     const byId = new Map(compiled(items).items.map((i) => [i.id, i.mountedOn]));
     expect([byId.get('t'), byId.get('l'), byId.get('v')]).toEqual(['floor', 'item', 'wall']);
+  });
+});
+// ── Fit: does it actually go there? ─────────────────────────────────────────
+//
+// Every other check in this file validates an item against the GRID — is the
+// cell real, is there a wall, does the host exist. These two ask the different
+// question that kept going wrong in the authored house: does the thing FIT in
+// the space it ends up occupying. Both were verified by hand before this.
+
+describe('compileGrid — item fit', () => {
+  it('accepts an item that straddles CELLS of its own room', () => {
+    // A bed is two cells long and a sofa two wide. Spanning cells is normal;
+    // only spanning ROOMS is a wall in the way.
+    const bed: ItemDef = { id: 'b1', kind: 'bed', mount: onFloor(MIDDLE) };
+    expect(inWide([bed]).items).toHaveLength(1);
+  });
+
+  it('rejects an item that overhangs into another room', () => {
+    // Hard against the kitchen partition and then pushed through it.
+    const wardrobe: ItemDef = {
+      id: 'w1',
+      kind: 'wardrobe',
+      mount: onFloor([1, 1], { offset: [0, -0.9] }),
+    };
+    expect(errorsOn(WIDE, [wardrobe])).toEqual(['ItemOutsideRoom']);
+  });
+
+  it('rejects an item that overhangs the edge of the house', () => {
+    const wardrobe: ItemDef = {
+      id: 'w1',
+      kind: 'wardrobe',
+      mount: onFloor([3, 1], { offset: [0, 0.9] }),
+    };
+    expect(errorsOn(WIDE, [wardrobe])).toEqual(['ItemOutsideRoom']);
+  });
+
+  it('rejects two items in the same space', () => {
+    const a: ItemDef = { id: 'a', kind: 'nightstand', mount: onFloor(MIDDLE) };
+    const b: ItemDef = { id: 'b', kind: 'nightstand', mount: onFloor(MIDDLE) };
+    expect(errorsOn(WIDE, [a, b])).toEqual(['ItemsOverlap']);
+  });
+
+  it('lets a rug lie under the furniture standing on it', () => {
+    // The whole point of a rug. Its box really does intersect the table's —
+    // 12 mm of it — so no purely geometric rule can allow this; `underfoot`
+    // says what the object IS.
+    const rug: ItemDef = { id: 'r1', kind: 'rug', mount: onFloor(MIDDLE) };
+    const t: ItemDef = { id: 't1', kind: 'table', mount: onFloor(MIDDLE) };
+    expect(inWide([rug, t]).items).toHaveLength(2);
+  });
+
+  it('lets a rug cross a threshold, but not a wardrobe', () => {
+    const at = (kind: ItemDef['kind']): ItemDef => ({
+      id: 'x',
+      kind,
+      mount: onFloor([1, 1], { offset: [0, -0.5] }),
+    });
+    expect(inWide([at('rug')]).items).toHaveLength(1);
+    expect(errorsOn(WIDE, [at('wardrobe')])).toEqual(['ItemOutsideRoom']);
+  });
+
+  it('lets a mounted item sink into its host', () => {
+    // A laptop on a BED rests at the mattress, well below the top of the
+    // headboard that the bed's own bounds include. Host and dependent are never
+    // a clash, however deeply the two boxes intersect.
+    const bed: ItemDef = { id: 'b1', kind: 'bed', mount: onFloor(MIDDLE) };
+    const laptop: ItemDef = { id: 'l1', kind: 'laptop', mount: { on: 'item', host: 'b1' } };
+    expect(inWide([bed, laptop]).items).toHaveLength(2);
+  });
+
+  it('still flags two things sharing one host', () => {
+    const t: ItemDef = { id: 't1', kind: 'table', mount: onFloor(MIDDLE) };
+    const one: ItemDef = { id: 'l1', kind: 'laptop', mount: { on: 'item', host: 't1' } };
+    const two: ItemDef = { id: 'l2', kind: 'laptop', mount: { on: 'item', host: 't1' } };
+    expect(errorsOn(WIDE, [t, one, two])).toEqual(['ItemsOverlap']);
   });
 });

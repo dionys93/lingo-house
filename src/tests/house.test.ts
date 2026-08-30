@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { compileHouse } from '../core/house/house';
-import { WALL_HEIGHT } from '../core/house/grid';
+import { WALL_HEIGHT } from '../core/house/scale';
 import type { Opening, Stair, Storey } from '../core/house/blocks';
 import type { HouseError } from '../core/shared/errors';
 import { room } from './support';

@@ -18,7 +18,7 @@
 // gap where two wall segments meet at a corner, which is the classic way to end
 // up outside a sealed house.
 
-import type { AABB, CompiledOpening, CompiledWall, Vec3 } from './grid';
+import type { AABB, CompiledOpening, CompiledWall, Vec3 } from './compiled';
 
 export type Vec2 = readonly [x: number, z: number];
 

@@ -108,7 +108,13 @@ export type ItemKind =
   | 'laptop'
   | 'tv'
   // Kitchen
+  // `diningTable` is its own kind rather than a bigger `table`: the living
+  // room's table is a coffee table, and one shared kind cannot be 2 m square
+  // there and 0.9 m here. Separate kinds also give the learner two words,
+  // which is the point of the app.
+  | 'diningTable'
   | 'counter'
+  | 'dishwasher'
   | 'oven'
   | 'fridge'
   // Bathroom

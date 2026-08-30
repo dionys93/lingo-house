@@ -23,7 +23,7 @@ import { houseFor } from '../content/house';
 import { MONTHS } from '../core/house/month';
 import { blockersFor, slide, type Segment2, type Vec2 } from '../core/house/collide';
 import { stairwellOf } from '../core/house/collide';
-import { CELL } from '../core/house/grid';
+import { CELL } from '../core/house/scale';
 import { type Grid, type ItemDef, type ItemKind } from '../core/house/blocks';
 import { room } from './support';
 
@@ -145,9 +145,12 @@ describe('what counts as an obstacle is decided by height', () => {
   const DOOR = { kind: 'door', cell: [1, 1], side: 'right', swing: 'in' } as const;
 
   const crossing = (kind: ItemKind) => {
-    // Dead centre of the doorway, which is the worst case for both.
+    // Pushed up against the doorway from the kitchen side, its face flush with
+    // the wall, so it covers the opening while staying in one room. Dead centre
+    // ON the boundary is what this used to do, and the compiler now rejects it
+    // as ItemOutsideRoom — correctly, since that is an item inside a wall.
     const items: readonly ItemDef[] = [
-      { id: 'x', kind, mount: { on: 'floor', cell: [1, 1], facing: 's', offset: [0.5, 0] } },
+      { id: 'x', kind, mount: { on: 'floor', cell: [1, 1], facing: 's', offset: [-0.02, 0] } },
     ];
     const c = compileGrid(GRID, { openings: [DOOR], items });
     if (!c.ok) throw new Error(`fixture did not compile: ${JSON.stringify(c.error)}`);

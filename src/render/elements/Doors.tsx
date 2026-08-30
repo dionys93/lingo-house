@@ -16,7 +16,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { boxMesh, rotatedY90 } from '../../core/geometry/mesh';
 import { panelDoorMesh, doorKnobMesh, CROSS_AND_BIBLE } from '../../core/geometry/door';
-import { openingFloorY, type CompiledGrid, type CompiledOpening } from '../../core/house/grid';
+import { openingFloorY, type CompiledGrid, type CompiledOpening } from '../../core/house/compiled';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple } from '../../core/style/wallMaterials';
 import { meshGeometry } from '../three/meshGeometry';
 import { SurfaceMaterialSlot, useTiledSurface, type SurfaceMaterial } from '../surfaces/SurfaceProvider';

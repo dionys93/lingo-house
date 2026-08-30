@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import type { Vec3 } from '../../core/house/grid';
+import type { Vec3 } from '../../core/house/compiled';
 import type { RoofMesh } from '../../core/geometry/roof';
 import { WALL_THICKNESS, HOUSE_SIDING, SIDING_ROUGHNESS } from '../../core/style/wallMaterials';
 import { pickable } from '../three/pickable';
