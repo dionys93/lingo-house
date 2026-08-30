@@ -62,6 +62,15 @@ export type HouseError =
   | { readonly tag: 'ItemNotMountable'; readonly id: string; readonly host: string }
   | { readonly tag: 'ItemNotOnWall'; readonly id: string; readonly cell: Cell; readonly side: Side }
   | { readonly tag: 'ItemTooHigh'; readonly id: string; readonly top: number; readonly limit: number }
+  // ── Fit. The two ways furniture can be placed somewhere it does not go, both
+  // of which used to compile cleanly and were caught, if at all, by eye.
+  | {
+      readonly tag: 'ItemOutsideRoom';
+      readonly id: string;
+      readonly room: RoomKey;
+      readonly cell: Cell; // the cell it reaches into that isn't its room
+    }
+  | { readonly tag: 'ItemsOverlap'; readonly a: string; readonly b: string }
 
   // ── House level: storeys stacked together ──
   | { readonly tag: 'EmptyHouse' }
@@ -143,6 +152,10 @@ export function describeError(e: HouseError): string {
       return `Item '${e.id}' hangs on the ${e.side} of ${fmtCell(e.cell)}, but there's no wall there.`;
     case 'ItemTooHigh':
       return `Item '${e.id}' reaches ${e.top.toFixed(2)}, above the ${e.limit.toFixed(2)} wall — it would poke through the ceiling.`;
+    case 'ItemOutsideRoom':
+      return `Item '${e.id}' is in '${e.room}' but overhangs ${fmtCell(e.cell)}, which isn't — it would stick through a wall.`;
+    case 'ItemsOverlap':
+      return `Items '${e.a}' and '${e.b}' occupy the same space.`;
     case 'EmptyHouse':
       return `The house has no storeys.`;
     case 'DuplicateStorey':

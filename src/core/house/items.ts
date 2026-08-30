@@ -33,13 +33,23 @@ interface ItemSpec {
   readonly d: number;
   readonly h: number;
   readonly supportsTop: number | null;
+  /**
+   * Floor covering: other things stand ON this, so sharing its space is the
+   * point rather than a mistake.
+   *
+   * The fit check needs this and no geometric rule can supply it. A rug's box
+   * really does intersect the table standing on it — 12 mm of it — and the only
+   * thing that distinguishes that from a chair inside a wardrobe is what the
+   * object IS. Same fact `collide` reads as "you step over it".
+   */
+  readonly underfoot?: boolean;
 }
 export const ITEM_SPECS: Record<ItemKind, ItemSpec> = {
   // ── Living / general
   table: { w: 0.44, d: 0.3, h: 0.37, supportsTop: 0.37 }, //   880 ×  600 ×  740
   chair: { w: 0.225, d: 0.25, h: 0.45, supportsTop: null }, //  450 ×  500 ×  900
   sofa: { w: 1.0, d: 0.45, h: 0.425, supportsTop: null }, //   2000 ×  900 ×  850 — 2 cells wide
-  rug: { w: 1.0, d: 0.75, h: 0.006, supportsTop: null }, //    2000 × 1500 ×   12 — lies under other items
+  rug: { w: 1.0, d: 0.75, h: 0.006, supportsTop: null, underfoot: true }, // 2000 × 1500 × 12
   bookshelf: { w: 0.4, d: 0.15, h: 0.9, supportsTop: null }, // 800 ×  300 × 1800
   // ── Electronics
   laptop: { w: 0.15, d: 0.105, h: 0.095, supportsTop: null }, // 300 × 210 × 190 open
@@ -270,5 +280,92 @@ export function compileItems(
     if (placed !== null) compiledItems.push(placed);
   }
 
+  // ── FIT. Everything above validates one item against the GRID; these two
+  // check items against the space they actually end up occupying, which is a
+  // different question and the one that kept going wrong.
+  //
+  // Both were verified by hand until now — by eye in the running app, or by a
+  // throwaway script written three separate times, which is the clearest signal
+  // there is that a check belongs in the compiler. Between them they caught a
+  // nightstand inside a bed and a chair through a wall.
+  itemErrors.push(...fitErrors(compiledItems, byId, ctx));
+
   return { itemErrors, compiledItems };
+}
+
+/** Does this world X (or Z) fall in a cell of the grid, and which one? */
+const cellIndex = (v: number, origin: number): number => Math.floor((v - origin) / CELL + 1e-6);
+
+/**
+ * The cells a footprint touches. The max edge is pulled in by an epsilon: an
+ * item pressed exactly against a boundary ends ON it, and without the nudge it
+ * would report the neighbouring cell it does not actually enter.
+ */
+function cellsUnder(b: AABB, ctx: ItemCtx): readonly Cell[] {
+  const { xAt, zAt } = ctx;
+  const out: Cell[] = [];
+  const c0 = cellIndex(b.min[0], xAt(0));
+  const c1 = cellIndex(b.max[0] - 1e-6, xAt(0));
+  const r0 = cellIndex(b.min[2], zAt(0));
+  const r1 = cellIndex(b.max[2] - 1e-6, zAt(0));
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) out.push([r, c]);
+  return out;
+}
+
+/** Strict 3-D intersection. Touching is not overlapping — a laptop whose base
+ *  sits exactly on a table top shares a plane with it, not a volume. */
+const intersects = (p: AABB, q: AABB): boolean =>
+  Math.min(p.max[0], q.max[0]) - Math.max(p.min[0], q.min[0]) > 1e-6 &&
+  Math.min(p.max[1], q.max[1]) - Math.max(p.min[1], q.min[1]) > 1e-6 &&
+  Math.min(p.max[2], q.max[2]) - Math.max(p.min[2], q.min[2]) > 1e-6;
+
+function fitErrors(
+  items: readonly CompiledItem[],
+  byId: ReadonlyMap<string, ItemDef>,
+  ctx: ItemCtx,
+): readonly HouseError[] {
+  const { keyAt, R, C } = ctx;
+  const errors: HouseError[] = [];
+
+  // ── Does each item stay inside its own room?
+  //
+  // Straddling CELLS is normal and expected — a bed is two cells long and a
+  // sofa two wide. Straddling ROOMS is not: the boundary between two rooms is
+  // a wall, so an item over it is an item through a wall.
+  for (const item of items) {
+    // Floor coverings are exempt: a runner through a doorway is a normal thing
+    // to own, and `underfoot` already says this one lies on the floor rather
+    // than standing on it. A wardrobe across a threshold is still an error.
+    if (ITEM_SPECS[item.kind].underfoot === true) continue;
+    for (const [r, c] of cellsUnder(item.bounds, ctx)) {
+      const here = r < 0 || r >= R || c < 0 || c >= C ? 'outside' : keyAt(r, c);
+      if (here !== item.room) {
+        errors.push({ tag: 'ItemOutsideRoom', id: item.id, room: item.room, cell: [r, c] });
+        break; // one error per item: the first offending cell names the problem
+      }
+    }
+  }
+
+  // ── Does anything share space with anything else?
+  //
+  // Two exemptions, both real rather than convenient. Floor coverings are meant
+  // to be stood on (see `underfoot`). And an item mounted on another may sink
+  // into its host's box — a pillow on a bed rests at the mattress, well below
+  // the headboard the bed's bounds include — so a host and its dependent are
+  // not a clash however deeply they intersect.
+  const hostOf = (id: string): string | null => {
+    const m = byId.get(id)?.mount;
+    return m !== undefined && m.on === 'item' ? m.host : null;
+  };
+  const solid = items.filter((i) => ITEM_SPECS[i.kind].underfoot !== true);
+  for (let i = 0; i < solid.length; i++) {
+    for (let j = i + 1; j < solid.length; j++) {
+      const a = solid[i];
+      const b = solid[j];
+      if (hostOf(a.id) === b.id || hostOf(b.id) === a.id) continue;
+      if (intersects(a.bounds, b.bounds)) errors.push({ tag: 'ItemsOverlap', a: a.id, b: b.id });
+    }
+  }
+
+  return errors;
 }
