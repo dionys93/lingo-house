@@ -11,7 +11,10 @@
 // so they genuinely cannot run until phase one succeeded. Everything within a
 // phase still accumulates; you never fix one storey to discover the next.
 
-import { abutsOf, boxOfCells, compileGrid, roofOver, uncoveredRects, WALL_HEIGHT, type CompiledGrid, type Vec3, type WallSide } from './grid';
+import type { CompiledGrid, Vec3, WallSide } from './compiled';
+import { abutsOf, boxOfCells, roofOver, uncoveredRects } from './footprint';
+import { compileGrid } from './grid';
+import { WALL_HEIGHT } from './scale';
 import type { RoofMesh } from '../geometry/roof';
 import { indexOf } from './cells';
 import type { Storey } from './blocks';

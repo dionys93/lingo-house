@@ -16,7 +16,7 @@
 
 import { assertNever } from '../shared/errors';
 import type { Locale, PartKey } from '../house/labels';
-import type { Vec3 } from '../house/grid';
+import type { Vec3 } from '../house/compiled';
 
 // WHAT was clicked. A union rather than a bare id, because the four things you
 // can click are identified differently: items and openings have ids, but a wall

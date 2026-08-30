@@ -6,7 +6,8 @@
 // walls always match). Single-sided facing down: invisible from outside (the roof
 // covers the top anyway), visible when you look up from inside.
 
-import { WALL_HEIGHT, type CompiledGrid, type Vec3 } from '../../core/house/grid';
+import type { CompiledGrid, Vec3 } from '../../core/house/compiled';
+import { WALL_HEIGHT } from '../../core/house/scale';
 import type { Cell } from '../../core/shared/errors';
 import { DEFAULT_INTERIOR } from '../../core/style/wallMaterials';
 import { RoomTiles } from './RoomTiles';

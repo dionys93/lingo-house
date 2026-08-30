@@ -8,7 +8,8 @@
 // Doors so the door's lintel matches the wall around it.
 
 import { useMemo } from 'react';
-import { WALL_THICKNESS as WT, type CompiledGrid, type CompiledItem, type CompiledWall, type Vec3 } from '../../core/house/grid';
+import type { CompiledGrid, CompiledItem, CompiledWall, Vec3 } from '../../core/house/compiled';
+import { WALL_THICKNESS as WT } from '../../core/house/scale';
 import { pickable } from '../three/pickable';
 import { WALL_THICKNESS, buildColorOf, faceColors, type Triple, SIDING_ROUGHNESS } from '../../core/style/wallMaterials';
 import { SOLID } from '../../core/style/shadows';

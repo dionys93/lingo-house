@@ -37,8 +37,8 @@
 
 import type { JSX } from 'react';
 import { RoundedBox } from '@react-three/drei';
-import type { CompiledGrid, CompiledItem } from '../../core/house/grid';
-import { ITEM_SPECS } from '../../core/house/grid';
+import type { CompiledGrid, CompiledItem } from '../../core/house/compiled';
+import { ITEM_SPECS } from '../../core/house/items';
 import type { ItemKind } from '../../core/house/blocks';
 import { CATCHES, IGNORED, SOLID } from '../../core/style/shadows';
 import { FLOOR_Y } from './Floor';

@@ -10,7 +10,8 @@ import { useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { compileGrid, roofFor } from '../../core/house/grid';
+import { roofFor } from '../../core/house/footprint';
+import { compileGrid } from '../../core/house/grid';
 // Every preset is a solid rectangle today. When non-rectangular footprints stop
 // being deferred, import `_` here and add an L-shaped preset — eyeballing that
 // roof is exactly what this sandbox is for.

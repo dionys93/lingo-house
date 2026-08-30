@@ -5,7 +5,7 @@
 // emits where the window is and which room it touches, and the shell picks the
 // look from here. Same "style follows the room" idea as wall colour, one level up.
 
-import type { WallSide } from '../house/grid';
+import type { WallSide } from '../house/compiled';
 
 export interface WindowStyle {
   readonly frame: string;

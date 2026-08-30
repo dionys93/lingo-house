@@ -8,7 +8,7 @@
 import { useCallback, useMemo, useReducer, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { compileHouse } from '../../core/house/house';
-import { CELL } from '../../core/house/grid';
+import { CELL } from '../../core/house/scale';
 import { describeError, type HouseError } from '../../core/shared/errors';
 import { buildNavGraph } from '../../core/house/nav';
 import { locationOf, startWalking, walkReducer, type Stance } from '../../core/session/walk';

@@ -23,7 +23,7 @@ import { houseFor } from '../content/house';
 import { MONTHS } from '../core/house/month';
 import { blockersFor, slide, type Segment2, type Vec2 } from '../core/house/collide';
 import { stairwellOf } from '../core/house/collide';
-import { CELL } from '../core/house/grid';
+import { CELL } from '../core/house/scale';
 import { type Grid, type ItemDef, type ItemKind } from '../core/house/blocks';
 import { room } from './support';
 

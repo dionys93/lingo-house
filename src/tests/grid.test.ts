@@ -27,7 +27,8 @@
 import { describe, it, expect } from 'vitest';
 import { _ } from '../core/house/blocks';
 import { room } from './support';
-import { compileGrid, consecutiveRanges, CELL, WALL_HEIGHT, WALL_THICKNESS } from '../core/house/grid';
+import { compileGrid, consecutiveRanges } from '../core/house/grid';
+import { CELL, WALL_HEIGHT, WALL_THICKNESS } from '../core/house/scale';
 import type { HouseError } from '../core/shared/errors';
 import type { Result } from '../core/shared/result';
 

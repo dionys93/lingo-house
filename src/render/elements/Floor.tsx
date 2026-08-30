@@ -3,7 +3,7 @@
 // Interior floors — one CELL×CELL tile per cell, in the room's colour, just above
 // the grass. Layout is shared with the ceiling via RoomTiles.
 
-import { type CompiledGrid, type Vec3 } from '../../core/house/grid';
+import type { CompiledGrid, Vec3 } from '../../core/house/compiled';
 import type { Cell } from '../../core/shared/errors';
 import { RoomTiles } from './RoomTiles';
 

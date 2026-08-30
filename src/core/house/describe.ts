@@ -14,7 +14,7 @@
 // the surface registry lands, the material ("the linoleum") is one more entry
 // under the floor's room.
 
-import type { CompiledOpening, Vec3 } from './grid';
+import type { CompiledOpening, Vec3 } from './compiled';
 import type { RoomLabels } from './blocks';
 import type { CompiledHouse } from './house';
 import type { NavGraph, Location } from './nav';

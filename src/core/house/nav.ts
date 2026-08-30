@@ -35,7 +35,7 @@
 // kitchen"). Note the direction of the dependency: the graph knows nothing
 // about where you are. It is queried, never stepped.
 
-import type { CompiledOpening, WallSide } from './grid';
+import type { CompiledOpening, WallSide } from './compiled';
 import type { CompiledStair } from './house';
 
 // A place the camera can be: inside a room, or 'outside'. Structurally a

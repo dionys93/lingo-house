@@ -10,7 +10,8 @@
 // Same direction `described` and `rigFor` already went. Nothing to keep in sync,
 // nothing that can disagree with the camera.
 
-import { CELL, type CompiledGrid, type Vec3 } from './grid';
+import type { CompiledGrid, Vec3 } from './compiled';
+import { CELL } from './scale';
 import type { Location } from './nav';
 import type { Vec2 } from './collide';
 
