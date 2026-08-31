@@ -13,7 +13,7 @@ import { describeError, type HouseError } from '../../core/shared/errors';
 import { buildNavGraph } from '../../core/house/nav';
 import { locationOf, startWalking, walkReducer, type Stance } from '../../core/session/walk';
 import { locationAt } from '../../core/house/locate';
-import { blocksDoorway, blockersFor, doorwayOf, stairwellOf, type Vec2 } from '../../core/house/collide';
+import { blocksDoorway, blockersFor, blockingFootprint, doorwayOf, obstructs, stairwellBox, stairwellOf, type Box2, type Vec2 } from '../../core/house/collide';
 import { explorerReducer, START_EXPLORER, type Selection } from '../../core/session/explorer';
 import { describe as describeSelection } from '../../core/house/describe';
 import { houseFor } from '../../content/house';
@@ -123,6 +123,11 @@ export function HouseScene() {
 
   // Walls, shut doors and furniture, flattened to 2D. Rebuilt when a door opens,
   // which is the only thing that changes them.
+  const body = useMemo(
+    () => ({ floorY: standingOn?.baseY ?? 0, stepOver: STEP_OVER, headY: HEAD }),
+    [standingOn],
+  );
+
   const blockers = useMemo(
     () =>
       standingOn && house
@@ -132,7 +137,7 @@ export function HouseScene() {
             standingOn.grid.openings,
             standingOn.grid.items.map((i) => i.bounds),
             walk.openDoors,
-            { floorY: standingOn.baseY, stepOver: STEP_OVER, headY: HEAD },
+            body,
           ),
           // A stair blocks the storey it rises from AND the one it rises into —
           // the flight below, the hole above. Same footprint, two reasons.
@@ -141,7 +146,30 @@ export function HouseScene() {
             .flatMap((st) => stairwellOf(st.treads, CELL)),
         ]
         : [],
-    [standingOn, house, walkLevel, walk.openDoors],
+    [standingOn, house, walkLevel, walk.openDoors, body],
+  );
+
+  // The same things again as INTERIORS rather than edges. Recovery has to ask
+  // "am I inside that?", which four loose segments cannot answer for anything
+  // wider than the body — a bed is 0.62 m across the short way, the stairwell
+  // 0.50, against a 0.36 m walker. Filtered by `obstructs` and built with
+  // `blockingFootprint`, so these are exactly the boxes whose edges `blockers`
+  // is drawing; any disagreement between the two would shove the walker off a
+  // spot the blockers consider perfectly legal.
+  const solids = useMemo<readonly Box2[]>(
+    () =>
+      standingOn && house
+        ? [
+          ...standingOn.grid.items
+            .filter((i) => obstructs(i.bounds, body))
+            .map((i) => blockingFootprint(i.bounds)),
+          ...house.stairs
+            .filter((st) => st.level === walkLevel || st.level + 1 === walkLevel)
+            .map((st) => stairwellBox(st.treads, CELL))
+            .filter((b): b is Box2 => b !== null),
+        ]
+        : [],
+    [standingOn, house, walkLevel, body],
   );
 
   // Mirrored in a ref, not state: onAct needs to know where you're standing, and
@@ -306,6 +334,7 @@ export function HouseScene() {
         <ScenePost ao={rig.ao} />
         <WalkControls
           blockers={blockers}
+          solids={solids}
           start={start}
           // 0, not PI. The camera looks down -Z at yaw 0 and the spawn is on the
           // lawn at the house's +Z side, so PI turned you to face the empty

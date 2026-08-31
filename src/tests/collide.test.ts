@@ -10,7 +10,7 @@
 //   corners don't leak, and degenerate input doesn't produce NaN
 
 import { describe, expect, it } from 'vitest';
-import { blockersFor, blocksDoorway, boxSegments, closestOn, doorwayOf, ITEM_CLEARANCE, segmentsCross, slide, solidOpenings, stairwellOf, type Body, type Segment2, type Vec2 } from '../core/house/collide';
+import { blockersFor, blocksDoorway, boxSegments, canStand, closestOn, doorwayOf, ITEM_CLEARANCE, nearestStandable, segmentsCross, slide, solidOpenings, stairwellBox, stairwellOf, type Body, type Box2, type Segment2, type Vec2 } from '../core/house/collide';
 import type { AABB, CompiledOpening, CompiledWall } from '../core/house/compiled';
 
 // A walker on the ground floor: steps over 180 mm, ducks nothing below 1.4 m.
@@ -310,6 +310,91 @@ describe('stairwellOf', () => {
   });
 
   it('is empty for a run with no treads rather than throwing', () => {
+    expect(stairwellOf([], 0.5)).toEqual([]);
+  });
+});
+// ── Recovery ────────────────────────────────────────────────────────────────
+//
+// `slide` refuses to rescue an illegal start, on purpose. These restore the
+// precondition when the WORLD moves instead — a month switch recompiling the
+// house, or a wall placed in edit mode around where you happen to be standing.
+
+describe('canStand', () => {
+  const box = (min: Vec2, max: Vec2): Box2 => ({ min, max });
+  const seg = (a: Vec2, b: Vec2): Segment2 => ({ a, b });
+
+  it('accepts open ground', () => {
+    expect(canStand([0, 0], [], [], R)).toBe(true);
+  });
+
+  it('rejects standing closer to a wall than your own radius', () => {
+    const w = [seg([-1, 0], [1, 0])];
+    expect(canStand([0, R * 1.5], w, [], R)).toBe(true);
+    expect(canStand([0, R * 0.5], w, [], R)).toBe(false);
+  });
+
+  it('rejects the inside of a box the segments alone would call clear', () => {
+    // THE CASE THAT NEEDS `solids`. A bed's inset footprint is 0.62 across
+    // against a 0.36 body, so its centre is further than radius from all four
+    // sides — failure mode 2 from the move design, which a distance test cannot
+    // see. Same numbers, both answers.
+    const min: Vec2 = [-0.31, -0.46];
+    const max: Vec2 = [0.31, 0.46];
+    const edges = boxSegments(min, max);
+    expect(edges.every((s) => Math.abs(s.a[0]) >= R || Math.abs(s.a[1]) >= R)).toBe(true);
+    expect(canStand([0, 0], edges, [], R)).toBe(true); // segments alone: fooled
+    expect(canStand([0, 0], edges, [box(min, max)], R)).toBe(false); // with the box: caught
+  });
+
+  it('still lets you stand in a doorway', () => {
+    // The tightest legal spot in the house. If recovery called this illegal it
+    // would shove you out of every threshold you paused in.
+    const gap: readonly Segment2[] = [seg([-1.25, 0], [-0.25, 0]), seg([0.25, 0], [1.25, 0])];
+    expect(canStand([0, 0], gap, [], R)).toBe(true);
+  });
+});
+
+describe('nearestStandable', () => {
+  it('leaves a legal position exactly where it is', () => {
+    expect(nearestStandable([0, 0], [], [], R)).toEqual([0, 0]);
+  });
+
+  it('lifts you out of a box that appeared around you', () => {
+    const min: Vec2 = [-0.31, -0.46];
+    const max: Vec2 = [0.31, 0.46];
+    const solids = [{ min, max }];
+    const got = nearestStandable([0, 0], boxSegments(min, max), solids, R);
+    expect(got).not.toBeNull();
+    if (got) {
+      expect(canStand(got, boxSegments(min, max), solids, R)).toBe(true);
+      // Out the short way — it is the nearest way out, not just any way out.
+      expect(Math.abs(got[0])).toBeGreaterThan(Math.abs(got[1]));
+    }
+  });
+
+  it('gives up rather than teleporting you across the map', () => {
+    // Sealed in a box far larger than `reach`: there is no near answer, and
+    // inventing a distant one would be worse than saying so.
+    const min: Vec2 = [-40, -40];
+    const max: Vec2 = [40, 40];
+    expect(nearestStandable([0, 0], boxSegments(min, max), [{ min, max }], R)).toBeNull();
+  });
+});
+
+describe('stairwellBox', () => {
+  it('is the box stairwellOf draws its four sides from', () => {
+    const treads = [[0, 0, 0], [0, 0, 0.5], [0, 0, 1]] as const;
+    const b = stairwellBox(treads, 0.5);
+    expect(b).not.toBeNull();
+    expect(stairwellOf(treads, 0.5)).toHaveLength(4);
+    if (b) {
+      expect(b.min).toEqual([-0.25, -0.25]);
+      expect(b.max).toEqual([0.25, 1.25]);
+    }
+  });
+
+  it('has no box when there are no treads', () => {
+    expect(stairwellBox([], 0.5)).toBeNull();
     expect(stairwellOf([], 0.5)).toEqual([]);
   });
 });

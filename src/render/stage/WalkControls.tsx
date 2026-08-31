@@ -19,6 +19,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { slide, type Segment2, type Vec2 } from '../../core/house/collide';
 import type { Stance } from '../../core/session/walk';
+import { canStand, nearestStandable, type Box2 } from '../../core/house/collide';
 
 /**
  * Eye height in world units. 1 unit = 2m.
@@ -108,6 +109,7 @@ const ease = (t: number): number => t * t * (3 - 2 * t);
 
 export function WalkControls({
   blockers,
+  solids,
   start,
   startYaw = 0,
   level,
@@ -118,6 +120,9 @@ export function WalkControls({
   onMoved,
 }: {
   blockers: readonly Segment2[];
+  /** The interiors you must not be inside. Required, not defaulted: forgetting
+   *  it would silently lose the only check that catches a bed or a stairwell. */
+  solids: readonly Box2[];
   start: Vec2;
   startYaw?: number;
   /** Which storey you're on. */
@@ -166,6 +171,26 @@ export function WalkControls({
       HELD.clear();
     };
   }, []);
+
+  // ── The world can move while you stand still ──────────────────────────────
+  //
+  // `slide` assumes it starts from a legal position and deliberately refuses to
+  // rescue a bad one — right for movement, since a spawn inside a wall is an
+  // authoring bug that should be loud. But switching the month recompiles the
+  // house, and edit mode places walls, so geometry can change AROUND a
+  // stationary walker through nobody's fault. This restores slide's
+  // precondition at the one moment it can legitimately break.
+  //
+  // Not during a climb: position is being animated along the flight, so a
+  // teleport would fight the animation and land you where the reducer does not
+  // think you are. The next change of blockers after landing will catch it.
+  useEffect(() => {
+    if (climb.current !== null) return;
+    if (canStand(pos.current, blockers, solids, BODY_RADIUS)) return;
+    // Falling back to `start` rather than staying stuck: the spawn is on the
+    // lawn and is the one position the scene guarantees is standable.
+    pos.current = nearestStandable(pos.current, blockers, solids, BODY_RADIUS) ?? start;
+  }, [blockers, solids, start]);
 
   // Mouse-look. Lives here rather than in its own component because this is the
   // one place that owns camera orientation; splitting yaw across two owners is
