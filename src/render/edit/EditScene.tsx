@@ -28,11 +28,11 @@ import { LABELS } from '../../content/labels';
 import { MONTHS, type Month } from '../../core/house/month';
 import { describeError } from '../../core/shared/errors';
 import { gridFrame, floorMountAt } from '../../core/house/frame';
-import { applyEdit, itemsOn, nextItemId, openingsOn } from '../../core/edit/plan';
+import { applyEdit, itemsOn, mountOnto, nextItemId, openingsOn, slotsOf } from '../../core/edit/plan';
 import { edgeKey, wallEdges, type WallEdge } from '../../core/edit/edges';
 import { emitMonthFile } from '../../core/edit/emit';
 import { ITEM_SPECS } from '../../core/house/items';
-import type { Facing, ItemKind, Storey } from '../../core/house/blocks';
+import type { Facing, ItemKind, Mount, Storey } from '../../core/house/blocks';
 import { MonthBar } from '../ui/MonthBar';
 import { PlanView, type Hit } from './PlanView';
 
@@ -174,12 +174,37 @@ export function EditScene() {
   const selectedOpening =
     edge === null ? null : (openingsOn(plan, level).find((o) => edgeKey(o.cell, o.side) === edge.key) ?? null);
 
+  /** Place a new item of the armed kind, and select it. */
+  const place = (mount: Mount, kind: ItemKind) => {
+    const id = nextItemId(plan, kind);
+    edit(applyEdit(plan, { tag: 'addItem', level, item: { id, kind, mount } }));
+    setItem(id);
+    // Back to select, so a click doesn't scatter a second sofa every time you
+    // mean to deselect.
+    setTool({ t: 'select' });
+  };
+
   const onHit = (hit: Hit) => {
     switch (hit.on) {
-      case 'item':
-        setItem(hit.id);
+      case 'item': {
         setEdge(null);
+        // With the palette armed, clicking an item means PUT IT ON THAT — a
+        // lamp on a nightstand, a cup in a cupboard. Without a host you could
+        // only ever author floor mounts here, which is most of the mount model
+        // unreachable from the surface built to author it.
+        const host = tool.t === 'item' ? itemsOn(plan, level).find((i) => i.id === hit.id) : undefined;
+        const slot = host === undefined ? undefined : slotsOf(host.kind)[0];
+        const mount = host !== undefined && slot !== undefined ? mountOnto(host, slot) : null;
+        if (tool.t === 'item' && mount !== null) {
+          place(mount, tool.kind);
+          return;
+        }
+        // Either nothing armed, or a host that can hold nothing — select it, so
+        // clicking a rug with a lamp armed does something obvious rather than
+        // failing silently.
+        setItem(hit.id);
         return;
+      }
       case 'edge': {
         setItem(null);
         setEdge(hit.edge);
@@ -203,16 +228,7 @@ export function EditScene() {
         setEdge(null);
         if (tool.t !== 'item') return;
         const { cell, offset } = floorMountAt(frame, hit.at[0], hit.at[1]);
-        const id = nextItemId(plan, tool.kind);
-        edit(applyEdit(plan, {
-          tag: 'addItem',
-          level,
-          item: { id, kind: tool.kind, mount: { on: 'floor', cell, offset, facing: 's' } },
-        }));
-        setItem(id);
-        // Back to select, so a click on the floor doesn't scatter a second
-        // sofa every time you mean to deselect.
-        setTool({ t: 'select' });
+        place({ on: 'floor', cell, offset, facing: 's' }, tool.kind);
         return;
       }
     }
@@ -223,6 +239,24 @@ export function EditScene() {
     if (def === undefined || def.mount.on !== 'floor') return;
     const { cell, offset } = floorMountAt(frame, at[0], at[1]);
     edit(applyEdit(plan, { tag: 'setMount', level, id, mount: { ...def.mount, cell, offset } }), `drag:${id}`);
+  };
+
+  const reMount = (id: string, mount: Mount | null) => {
+    if (mount === null) return;
+    edit(applyEdit(plan, { tag: 'setMount', level, id, mount }));
+  };
+
+  /**
+   * Take a hosted item off its host and stand it on the floor where it already
+   * is — which is what makes hosting reversible without deleting anything.
+   * Its compiled position is a world point, so frame.ts turns that straight
+   * back into the cell and offset that puts it in the same place.
+   */
+  const detach = (id: string) => {
+    const placed = storey?.grid.items.find((i) => i.id === id);
+    if (placed === undefined) return;
+    const { cell, offset } = floorMountAt(frame, placed.position[0], placed.position[2]);
+    reMount(id, { on: 'floor', cell, offset, facing: 's' });
   };
 
   const setFacing = (f: Facing) => {
@@ -395,6 +429,47 @@ export function EditScene() {
                   ))}
                 </div>
               )}
+              {(mount.on === 'item' || mount.on === 'inside') && (() => {
+                // Which slot of the host, and which shelf. Clicking a host puts
+                // things on TOP; this is where you say "in the drawer" instead,
+                // and where you get a hosted item back onto the floor without
+                // deleting it.
+                const host = itemsOn(plan, level).find((i) => i.id === mount.host);
+                const slots = host === undefined ? [] : slotsOf(host.kind);
+                const shelves = host === undefined ? [] : (ITEM_SPECS[host.kind].opens?.shelves ?? []);
+                return (
+                  <div style={{ marginTop: 6 }}>
+                    {slots.map((sl) => (
+                      <button
+                        key={sl}
+                        type="button"
+                        style={chip((mount.on === 'inside' ? 'inside' : 'top') === sl)}
+                        onClick={() => { if (host) reMount(selectedItem.id, mountOnto(host, sl)); }}
+                      >
+                        {sl === 'top' ? 'on top' : 'inside'}
+                      </button>
+                    ))}
+                    {mount.on === 'inside' &&
+                      shelves.map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          style={chip((mount.shelf ?? 0) === i)}
+                          onClick={() => { if (host) reMount(selectedItem.id, mountOnto(host, 'inside', i)); }}
+                        >
+                          shelf {String(i + 1)}
+                        </button>
+                      ))}
+                    <button
+                      type="button"
+                      style={chip(false)}
+                      onClick={() => { detach(selectedItem.id); }}
+                    >
+                      to the floor
+                    </button>
+                  </div>
+                );
+              })()}
               <button type="button" style={wide('#7a2e22')} onClick={remove}>Delete item</button>
             </div>
           );

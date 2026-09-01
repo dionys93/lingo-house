@@ -26,6 +26,7 @@ export const LABELS: LabelTable = {
       rug: 'the rug',
       bookshelf: 'the bookshelf',
       lamp: 'the lamp',
+      floorLamp: 'the floor lamp',
       pottedPlant: 'the potted plant',
       laptop: 'the laptop',
       tv: 'the television',
@@ -69,8 +70,13 @@ export const LABELS: LabelTable = {
     outside: 'outside',
     goOutside: 'Go outside',
     closeDoor: 'Close the door',
-    openIt: 'Open',
-    closeIt: 'Close',
+    // One sentence per openable kind, written out. See LocaleLabels.opens.
+    opens: {
+      cupboard: { open: 'Open the cupboard', close: 'Close the cupboard' },
+      wardrobe: { open: 'Open the wardrobe', close: 'Close the wardrobe' },
+      fridge: { open: 'Open the fridge', close: 'Close the fridge' },
+      nightstand: { open: 'Open the drawer', close: 'Close the drawer' },
+    },
   },
   es: {
     nouns: {
@@ -82,6 +88,7 @@ export const LABELS: LabelTable = {
       rug: 'la alfombra',
       bookshelf: 'la estantería',
       lamp: 'la lámpara',
+      floorLamp: 'la lámpara de pie',
       pottedPlant: 'la planta en maceta',
       laptop: 'el portátil',
       tv: 'la televisión',
@@ -128,8 +135,12 @@ export const LABELS: LabelTable = {
     outside: 'afuera',
     goOutside: 'Sal afuera',
     closeDoor: 'Cierra la puerta',
-    openIt: 'Abre',
-    closeIt: 'Cierra',
+    opens: {
+      cupboard: { open: 'Abre el armario de cocina', close: 'Cierra el armario de cocina' },
+      wardrobe: { open: 'Abre el armario', close: 'Cierra el armario' },
+      fridge: { open: 'Abre la nevera', close: 'Cierra la nevera' },
+      nightstand: { open: 'Abre el cajón', close: 'Cierra el cajón' },
+    },
   },
   de: {
     nouns: {
@@ -141,6 +152,7 @@ export const LABELS: LabelTable = {
       rug: 'der Teppich',
       bookshelf: 'das Bücherregal',
       lamp: 'die Lampe',
+      floorLamp: 'die Stehlampe',
       pottedPlant: 'die Topfpflanze',
       laptop: 'der Laptop',
       tv: 'der Fernseher',
@@ -184,7 +196,14 @@ export const LABELS: LabelTable = {
     outside: 'draußen',
     goOutside: 'Geh nach draußen',
     closeDoor: 'Schließ die Tür',
-    openIt: 'Öffne',
-    closeIt: 'Schließe',
+    // ACCUSATIVE, which is the whole reason these are written out: "der
+    // Küchenschrank" becomes "den Küchenschrank" after öffne, and no amount of
+    // gluing the noun onto the verb would have produced that.
+    opens: {
+      cupboard: { open: 'Öffne den Küchenschrank', close: 'Schließ den Küchenschrank' },
+      wardrobe: { open: 'Öffne den Kleiderschrank', close: 'Schließ den Kleiderschrank' },
+      fridge: { open: 'Öffne den Kühlschrank', close: 'Schließ den Kühlschrank' },
+      nightstand: { open: 'Öffne die Schublade', close: 'Schließ die Schublade' },
+    },
   },
 };

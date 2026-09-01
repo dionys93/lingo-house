@@ -21,7 +21,7 @@ import type { NavGraph, Location } from './nav';
 import type { Selection } from '../session/explorer';
 import { noun, type Bilingual, type LabelTable, type Locale } from './labels';
 import { CELL } from './scale';
-import { ITEM_SPECS } from './items';
+import { openableKind } from './items';
 
 // An action the popup offers as a button. describe() decides WHAT can be done,
 // the shell decides when it happens.
@@ -132,17 +132,17 @@ export function describe({
       // Openable is a property of the KIND, from the same spec that decides how
       // big it is — so a wardrobe opens wherever one stands, and nothing has to
       // be authored per item to say so.
-      if (ITEM_SPECS[item.kind].opens === undefined) return base;
+      // `openable` narrows the kind to OpenableKind, which is what makes the
+      // phrase lookup below total rather than a lookup with a fallback. The
+      // runtime test and the type test are the same test: the union is derived
+      // from the very field it checks.
+      const kind = openableKind(item.kind);
+      if (kind === null) return base;
       const shut = !openItems.has(item.id);
+      const phrase = (l: Locale) => (shut ? labels[l].opens[kind].open : labels[l].opens[kind].close);
       return {
         ...base,
-        action: {
-          label: shut
-            ? { from: labels[from].openIt, to: labels[to].openIt }
-            : { from: labels[from].closeIt, to: labels[to].closeIt },
-          on: 'item',
-          id: item.id,
-        },
+        action: { label: { from: phrase(from), to: phrase(to) }, on: 'item', id: item.id },
       };
     }
 

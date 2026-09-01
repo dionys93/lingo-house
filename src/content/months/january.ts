@@ -59,9 +59,10 @@ export const JANUARY_PLAN: readonly Storey[] = furnish(BASE_PLAN, {
       { id: 'living-tv', kind: 'tv', mount: { on: 'wall', cell: [8, 4], side: 'back', height: 0.55 } },
       { id: 'living-bookshelf', kind: 'bookshelf', mount: { on: 'floor', cell: [12, 8], facing: 'w', offset: [0.27, 0] } },
       { id: 'reading-chair', kind: 'chair', mount: { on: 'floor', cell: [8, 8], facing: 's', offset: [0, 0.05] } },
-      { id: 'reading-lamp', kind: 'lamp', mount: { on: 'floor', cell: [10, 8], facing: 'w', offset: [0.15, 0.3] } },
+      { id: 'reading-nightstand', kind: 'nightstand', mount: { on: 'floor', cell: [11, 8], facing: 'w', offset: [0.2, 0.05] } },
+      { id: 'reading-lamp', kind: 'lamp', mount: { on: 'item', host: 'reading-nightstand' } },
+      { id: 'living-floor-lamp', kind: 'floorLamp', mount: { on: 'floor', cell: [11, 0], facing: 'e', offset: [-0.18, 0] } },
       { id: 'living-plant', kind: 'pottedPlant', mount: { on: 'floor', cell: [12, 0], facing: 's', offset: [0.22, -0.22] } },
-      { id: 'nightstand-1', kind: 'nightstand', mount: { on: 'floor', cell: [11, 8], facing: 'w', offset: [0.2, 0.05] } },
     ],
   },
   1: {

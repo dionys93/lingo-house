@@ -8,7 +8,7 @@ import { describe as suite, it, expect } from 'vitest';
 import { compileHouse } from '../core/house/house';
 import { buildNavGraph } from '../core/house/nav';
 import { describe } from '../core/house/describe';
-import type { LabelTable, Locale, NounKey } from '../core/house/labels';
+import type { LabelTable, Locale, LocaleLabels, NounKey } from '../core/house/labels';
 import { MONTHS, type Month } from '../core/house/month';
 import type { Selection } from '../core/session/explorer';
 import { defineRoom, type Grid, type ItemDef, type Opening } from '../core/house/blocks';
@@ -44,6 +44,7 @@ const WORDS = {
   rug: { en: 'the rug', es: 'la alfombra', de: 'der Teppich' },
   bookshelf: { en: 'the bookshelf', es: 'la estantería', de: 'das Bücherregal' },
   lamp: { en: 'the lamp', es: 'la lámpara', de: 'die Lampe' },
+  floorLamp: { en: 'the floor lamp', es: 'la lámpara de pie', de: 'die Stehlampe' },
   pottedPlant: { en: 'the potted plant', es: 'la planta en maceta', de: 'die Topfpflanze' },
   cupboard: { en: 'the cupboard', es: 'el armario de cocina', de: 'der Küchenschrank' },
   plate: { en: 'the plate', es: 'el plato', de: 'der Teller' },
@@ -81,10 +82,34 @@ const nounsIn = (l: Locale): Record<NounKey, string> =>
 const monthsIn = (l: Locale): Record<Month, string> =>
   Object.fromEntries(MONTHS.map((m) => [m, `${m}-${l}`])) as Record<Month, string>;
 
+// The sentences, per openable kind. German is accusative on purpose — it is
+// the case that made composing these impossible, so the fixture has to carry it
+// or the test proves nothing about the design.
+const OPENS: Record<Locale, LocaleLabels['opens']> = {
+  en: {
+    cupboard: { open: 'Open the cupboard', close: 'Close the cupboard' },
+    wardrobe: { open: 'Open the wardrobe', close: 'Close the wardrobe' },
+    fridge: { open: 'Open the fridge', close: 'Close the fridge' },
+    nightstand: { open: 'Open the drawer', close: 'Close the drawer' },
+  },
+  es: {
+    cupboard: { open: 'Abre el armario de cocina', close: 'Cierra el armario de cocina' },
+    wardrobe: { open: 'Abre el armario', close: 'Cierra el armario' },
+    fridge: { open: 'Abre la nevera', close: 'Cierra la nevera' },
+    nightstand: { open: 'Abre el cajón', close: 'Cierra el cajón' },
+  },
+  de: {
+    cupboard: { open: 'Öffne den Küchenschrank', close: 'Schließ den Küchenschrank' },
+    wardrobe: { open: 'Öffne den Kleiderschrank', close: 'Schließ den Kleiderschrank' },
+    fridge: { open: 'Öffne den Kühlschrank', close: 'Schließ den Kühlschrank' },
+    nightstand: { open: 'Öffne die Schublade', close: 'Schließ die Schublade' },
+  },
+};
+
 const LABELS: LabelTable = {
-  en: { nouns: nounsIn('en'), months: monthsIn('en'), outside: 'outside', goOutside: 'Go outside', closeDoor: 'Close the door', openIt: 'Open', closeIt: 'Close' },
-  es: { nouns: nounsIn('es'), months: monthsIn('es'), outside: 'afuera', goOutside: 'Sal afuera', closeDoor: 'Cierra la puerta', openIt: 'Abre', closeIt: 'Cierra' },
-  de: { nouns: nounsIn('de'), months: monthsIn('de'), outside: 'draußen', goOutside: 'Geh nach draußen', closeDoor: 'Schließ die Tür', openIt: 'Öffne', closeIt: 'Schließe' },
+  en: { nouns: nounsIn('en'), months: monthsIn('en'), outside: 'outside', goOutside: 'Go outside', closeDoor: 'Close the door', opens: OPENS.en },
+  es: { nouns: nounsIn('es'), months: monthsIn('es'), outside: 'afuera', goOutside: 'Sal afuera', closeDoor: 'Cierra la puerta', opens: OPENS.es },
+  de: { nouns: nounsIn('de'), months: monthsIn('de'), outside: 'draußen', goOutside: 'Geh nach draußen', closeDoor: 'Schließ die Tür', opens: OPENS.de },
 };
 
 const PATIO = defineRoom({
@@ -251,14 +276,41 @@ suite('describe — opening things', () => {
 
   it('offers to open what opens', () => {
     expect(say('cb').action).toEqual({
-      label: { from: 'Open', to: 'Abre' },
+      label: { from: 'Open the cupboard', to: 'Abre el armario de cocina' },
       on: 'item',
       id: 'cb',
     });
   });
 
   it('offers to close it once it is open — same click, opposite word', () => {
-    expect(say('cb', new Set(['cb'])).action?.label).toEqual({ from: 'Close', to: 'Cierra' });
+    expect(say('cb', new Set(['cb'])).action?.label).toEqual({
+      from: 'Close the cupboard',
+      to: 'Cierra el armario de cocina',
+    });
+  });
+
+  it('says the whole sentence, inflected — which is why it is not composed', () => {
+    // THE TEST THAT JUSTIFIES THE TABLE. German puts the object of `öffne` in
+    // the accusative, so "der Küchenschrank" becomes "den Küchenschrank" — a
+    // form no amount of gluing the noun onto the verb produces, because the
+    // noun's own entry says "der". German will not be the last language here
+    // with case, so the phrase is written out rather than derived, exactly as
+    // the room phrases already are.
+    const inGerman = describe({
+      selection: { on: 'item', id: 'cb' },
+      where: 'kitchen',
+      house: withCupboard,
+      graph: g,
+      labels: LABELS,
+      from: 'en',
+      to: 'de',
+      openDoors: SHUT,
+      openItems: SHUT,
+    });
+    expect(inGerman?.action?.label.to).toBe('Öffne den Küchenschrank');
+    // …and the bare noun, which the popup shows above the button, still says
+    // "der". Both forms are true; only a table can hold both.
+    expect(inGerman?.subject.to).toBe('der Küchenschrank');
   });
 
   it('offers nothing on something that does not open', () => {

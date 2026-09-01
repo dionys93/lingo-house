@@ -144,7 +144,11 @@ export type ItemKind =
   | 'sofa'
   | 'rug'
   | 'bookshelf'
+  // Two lamps, not one with a height knob. A table lamp and a floor lamp are
+  // two words in every language this teaches, and a learner who meets "la
+  // lámpara de pie" has learned something a taller `lamp` would have hidden.
   | 'lamp'
+  | 'floorLamp'
   | 'pottedPlant'
   // Electronics
   | 'laptop'

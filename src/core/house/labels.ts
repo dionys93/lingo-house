@@ -16,6 +16,7 @@
 // at runtime, the error variant comes back.
 
 import type { ItemKind } from './blocks';
+import type { OpenableKind } from './items';
 import type { Month } from './month';
 
 export type Locale = 'en' | 'es' | 'de';
@@ -72,20 +73,28 @@ export interface LocaleLabels {
   // goOutside is here.
   readonly closeDoor: string;
   /**
-   * The bare imperative, for opening and shutting an ITEM.
+   * The whole sentence, per openable kind: "Open the cupboard", "Abre el
+   * armario de cocina", "Öffne den Küchenschrank".
    *
-   * Bare on purpose. A door says "Abre la puerta de la cocina" because that
-   * phrase is written out per room, and writing one out per openable item would
-   * be fine in English and wrong in German the moment it is composed: "Öffne" +
-   * "der Kleiderschrank" needs the accusative "den", and gluing a verb to a noun
-   * that carries its own article is exactly the composition this codebase
-   * already refused for room phrases ("sube al baño" but "sube a la cocina").
+   * WRITTEN OUT, NEVER COMPOSED. This started as a bare imperative — "Open" /
+   * "Abre" / "Öffne" — precisely because gluing a verb to a noun that carries
+   * its own article breaks in German the moment you try it: "Öffne" + "der
+   * Kleiderschrank" needs the accusative "den". But a bare verb is a worse
+   * answer than it looked. German is not going to be the last language here
+   * with case, and a learner reading "Abre" learns an imperative with nothing
+   * to do; the sentence is the thing worth teaching.
    *
-   * The popup renders the item's name directly above the button, so the pairing
-   * is on screen without being glued together in a string.
+   * So it follows the rule the room phrases already follow, for the same
+   * reason: "sube al baño" but "sube a la cocina" is why RoomLabels writes
+   * `up`/`down`/`enter` out in full rather than deriving them. Composition is
+   * what does not survive a new language; a table of sentences does.
+   *
+   * Keyed by OPENABLE kind, not by every kind, so the table costs a line per
+   * thing that opens rather than per thing that exists — and being a complete
+   * Record over a union DERIVED from ITEM_SPECS, marking a new kind openable
+   * fails the build here until it has a sentence in every language.
    */
-  readonly openIt: string;
-  readonly closeIt: string;
+  readonly opens: Record<OpenableKind, { readonly open: string; readonly close: string }>;
 }
 
 export type LabelTable = Record<Locale, LocaleLabels>;

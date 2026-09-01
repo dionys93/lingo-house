@@ -4,7 +4,9 @@
 // the kind that look obvious and are wrong in the interesting direction.
 
 import { describe, it, expect } from 'vitest';
-import { applyEdit, itemsOn, nextItemId, openingsOn } from '../core/edit/plan';
+import { applyEdit, itemsOn, mountOnto, nextItemId, openingsOn, slotsOf } from '../core/edit/plan';
+import { compileHouse } from '../core/house/house';
+import type { ItemDef } from '../core/house/blocks';
 import { houseFor } from '../content/house';
 import type { Storey } from '../core/house/blocks';
 
@@ -108,5 +110,54 @@ describe('deleting a host takes what it holds', () => {
     const after = itemsOn(applyEdit(PLAN, { tag: 'removeItem', level: 0, id: 'kitchen-cupboard' }), 0);
     expect(after.map((i) => i.id)).toContain('kitchen-fridge');
     expect(after.length).toBe(itemsOn(PLAN, 0).length - 5); // the cupboard, three cups and the plates
+  });
+});
+
+describe('putting one item on another', () => {
+  const hostOf = (kind: Parameters<typeof slotsOf>[0]): ItemDef => ({ id: 'h', kind, mount: { on: 'floor', cell: [0, 0] } });
+
+  it('offers the top of anything with a surface', () => {
+    expect(slotsOf('table')).toEqual(['top']);
+    expect(slotsOf('counter')).toEqual(['top']);
+  });
+
+  it('offers the inside of anything that opens', () => {
+    expect(slotsOf('wardrobe')).toEqual(['inside']);
+    expect(slotsOf('fridge')).toEqual(['inside']);
+  });
+
+  it('offers both on a nightstand, top first', () => {
+    // The ordering IS the placement rule: dropping something on a piece of
+    // furniture means the surface. You have to say "in the drawer".
+    expect(slotsOf('nightstand')).toEqual(['top', 'inside']);
+  });
+
+  it('offers nothing on a rug', () => {
+    expect(slotsOf('rug')).toEqual([]);
+    expect(mountOnto(hostOf('rug'), 'top')).toBeNull();
+  });
+
+  it('builds the mount the compiler wants', () => {
+    expect(mountOnto(hostOf('nightstand'), 'top')).toEqual({ on: 'item', host: 'h' });
+    expect(mountOnto(hostOf('cupboard'), 'inside', 1)).toEqual({ on: 'inside', host: 'h', shelf: 1 });
+  });
+
+  it('refuses a slot the host does not have', () => {
+    // Not a nearest-legal guess: a lamp "inside" a table would compile to
+    // ItemHasNoInside and blame the lamp.
+    expect(mountOnto(hostOf('table'), 'inside')).toBeNull();
+    expect(mountOnto(hostOf('wardrobe'), 'top')).toBeNull();
+  });
+
+  it('and what it builds actually compiles', () => {
+    const stand = itemsOn(PLAN, 1).find((i) => i.id === 'bedroom-nightstand-l');
+    expect(stand).toBeDefined();
+    if (!stand) return;
+    const mount = mountOnto(stand, 'inside', 0);
+    expect(mount).not.toBeNull();
+    if (!mount) return;
+    const next = applyEdit(PLAN, { tag: 'addItem', level: 1, item: { id: 'in-drawer', kind: 'cup', mount } });
+    const c = compileHouse(next);
+    expect(c.ok).toBe(true);
   });
 });

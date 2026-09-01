@@ -829,30 +829,53 @@ function Oven(): JSX.Element {
   );
 }
 
+const FRIDGE_BODY = '#b9bfc4';
+const FRIDGE_LINER = '#eef3f5';
+
 function Fridge({ open }: ItemProps): JSX.Element {
   const { w, d, h } = ITEM_SPECS.fridge;
   const freezerH = h * 0.34; // freezer on top
   const gap = 0.006;
   return (
     <>
+      {/* A CARCASS, not a solid block. The body used to be one box the full
+          size of the fridge, which meant swinging the door open revealed the
+          front face of a solid — so an open fridge looked exactly like a shut
+          one with a panel beside it, and no amount of moving the door was ever
+          going to fix that. The cavity is what makes "open" legible.
+
+          Freezer compartment above stays solid: its door does not open, so
+          there is nothing to see in it. */}
+      <Slab at={[0, h / 2, -d / 2 + 0.01]} size={[w, h, 0.02]} color={FRIDGE_BODY} roughness={0.45} metalness={0.5} />
+      {[-1, 1].map((sx) => (
+        <Slab
+          key={sx}
+          at={[sx * (w / 2 - 0.01), h / 2, 0]}
+          size={[0.02, h, d]}
+          color={FRIDGE_BODY}
+          roughness={0.45}
+          metalness={0.5}
+        />
+      ))}
+      <Slab at={[0, h - 0.01, 0]} size={[w, 0.02, d]} color={FRIDGE_BODY} roughness={0.45} metalness={0.5} />
+      <Slab at={[0, 0.01, 0]} size={[w, 0.02, d]} color={FRIDGE_BODY} roughness={0.45} metalness={0.5} />
+      {/* The freezer, solid, above the divider. */}
+      <Slab at={[0, h - freezerH / 2, 0]} size={[w - 0.04, freezerH - 0.02, d - 0.02]} color={FRIDGE_LINER} roughness={0.5} />
+      <Slab at={[0, h - freezerH, 0]} size={[w, 0.016, d]} color={FRIDGE_BODY} roughness={0.45} metalness={0.5} />
+      {/* Lining and shelves — what you actually see when the door swings. */}
       <Slab
-        at={[0, h / 2, 0]}
-        size={[w, h, d]}
-        color="#b9bfc4"
-        roughness={0.45}
-        metalness={0.5}
+        at={[0, (h - freezerH) / 2, -d / 2 + 0.028]}
+        size={[w - 0.04, h - freezerH - 0.02, 0.014]}
+        color={FRIDGE_LINER}
+        roughness={0.55}
       />
-      {/* The fridge compartment's shelves, visible once its door swings. The
-          freezer above keeps its fixed panel — one door that opens is the one
-          you reach for, and two swinging doors on one hinge side read as a
-          cabinet coming apart. */}
       {ITEM_SPECS.fridge.opens && (
         <Shelves
           w={w}
           d={d}
           inset={ITEM_SPECS.fridge.opens.inset ?? 0}
           heights={ITEM_SPECS.fridge.opens.shelves}
-          color="#e9eef1"
+          color="#dbe6ea"
         />
       )}
       <Slab
@@ -863,7 +886,7 @@ function Fridge({ open }: ItemProps): JSX.Element {
         metalness={0.6}
       />
       <Tube
-        at={[w * 0.32, h - freezerH * 0.5, d / 2 + 0.018]}
+        at={[-w * 0.32, h - freezerH * 0.5, d / 2 + 0.018]}
         rTop={0.006}
         rBottom={0.006}
         height={freezerH * 0.5}
@@ -871,15 +894,20 @@ function Fridge({ open }: ItemProps): JSX.Element {
         roughness={0.2}
         metalness={0.9}
       />
-      {/* Hinged on the LEFT (-x), so its handle stays on the right where the
-          freezer's is — a fridge whose two handles are on opposite sides reads
-          as two appliances stacked. */}
+      {/* Hinged on the RIGHT (+x), and that is a placement fact rather than a
+          styling one. The fridge stands in the kitchen's back-LEFT corner with
+          its left side flush to the exterior wall, so a left hinge swings the
+          leaf's far edge back past the hinge line — the 100° overswing is
+          exactly that overhang — and it comes out through the wall. Hinging on
+          the far side from the wall puts the same overswing into open room.
+          Hinge side is per kind today; a fridge in the other corner would want
+          the mirror, and that is the day this becomes an authored field. */}
       <SwingDoor
-        hinge={[-w / 2, (h - freezerH - gap) / 2, d / 2 + 0.004]}
+        hinge={[w / 2, (h - freezerH - gap) / 2, d / 2 + 0.004]}
         width={w - 0.01}
         height={h - freezerH - gap}
         thickness={0.008}
-        sign={1}
+        sign={-1}
         open={open}
         color="#ced4d9"
         handle={STEEL}
@@ -889,67 +917,147 @@ function Fridge({ open }: ItemProps): JSX.Element {
 }
 
 // ── Bathroom ────────────────────────────────────────────────────────────────
+//
+// GLAZE, and ROUNDED EDGES. These two things are what separate porcelain from
+// painted plastic, and both were missing: the pieces were built from hard boxes
+// at roughness 0.2–0.35, drifting per factory, which under the same sun reads
+// as matte and moulded rather than fired and glazed.
+//
+// Sanitaryware has no sharp arrises anywhere — a bath rim, a basin lip and a WC
+// cistern are all softened, because that is what slip-cast clay does. So every
+// ceramic part here goes through `Glazed`, which is `Soft` (RoundedBox) with
+// one shared material, and every chrome part through `Chrome`. One constant
+// each, so the bath and the basin cannot disagree about what porcelain is.
+
+// envMapIntensity is the half that actually sells it: glaze is a mirror with a
+// rough coat, so what makes it read is the ENVIRONMENT in it, not the diffuse
+// colour. Turning it up is cheaper and truer than lightening the white.
+const GLAZE = { roughness: 0.07, metalness: 0.04, envMapIntensity: 1.7 } as const;
+const CHROME_MAT = { roughness: 0.06, metalness: 1, envMapIntensity: 2 } as const;
+
+function Glazed({
+  at,
+  size,
+  radius = 0.014,
+  color = CERAMIC,
+  rotation,
+}: {
+  readonly at: V3;
+  readonly size: V3;
+  readonly radius?: number;
+  readonly color?: string;
+  readonly rotation?: V3;
+}): JSX.Element {
+  const safe = Math.max(Math.min(radius, Math.min(...size) / 2 - 0.0005), 0.0005);
+  return (
+    <RoundedBox
+      args={size}
+      radius={safe}
+      smoothness={3}
+      position={at}
+      rotation={rotation ?? [0, 0, 0]}
+      {...SOLID}
+    >
+      <meshStandardMaterial color={color} {...GLAZE} />
+    </RoundedBox>
+  );
+}
+
+function GlazedTube({
+  at,
+  rTop,
+  rBottom,
+  height,
+  segments = 20,
+  color = CERAMIC,
+  rotation,
+}: Omit<TubeProps, 'color' | 'roughness' | 'metalness'> & { readonly color?: string }): JSX.Element {
+  return (
+    <mesh position={at} rotation={rotation ?? [0, 0, 0]} {...SOLID}>
+      <cylinderGeometry args={[rTop, rBottom, height, segments]} />
+      <meshStandardMaterial color={color} {...GLAZE} />
+    </mesh>
+  );
+}
+
+function Chrome({
+  at,
+  rTop,
+  rBottom,
+  height,
+  segments = 14,
+  rotation,
+}: Omit<TubeProps, 'color' | 'roughness' | 'metalness'>): JSX.Element {
+  return (
+    <mesh position={at} rotation={rotation ?? [0, 0, 0]} {...SOLID}>
+      <cylinderGeometry args={[rTop, rBottom, height, segments]} />
+      <meshStandardMaterial color={CHROME} {...CHROME_MAT} />
+    </mesh>
+  );
+}
+
+/** Standing water: a mirror with almost no roughness, which is what says vessel. */
+function Water({ at, size }: { readonly at: V3; readonly size: V3 }): JSX.Element {
+  return (
+    <mesh position={at} {...IGNORED}>
+      <boxGeometry args={size} />
+      <meshStandardMaterial
+        color="#bcd8e2"
+        roughness={0.02}
+        metalness={0.3}
+        envMapIntensity={2}
+        transparent
+        opacity={0.5}
+      />
+    </mesh>
+  );
+}
 
 function Toilet(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.toilet;
   const cisternD = d * 0.28;
   const cisternH = h * 0.55;
-  const bowlTop = h * 0.42; // 330 mm — seat height
+  const seatY = h * 0.42; // 330 mm — seat height
   const bowlR = w / 2;
   return (
     <>
-      {/* Cistern at the back, standing on the floor. */}
-      <Slab
+      {/* Cistern at the back, standing on the floor, with a softened lid. */}
+      <Glazed
         at={[0, cisternH / 2, -d / 2 + cisternD / 2]}
         size={[w, cisternH, cisternD]}
-        color={CERAMIC}
-        roughness={0.25}
+        radius={0.016}
       />
-      <Slab
-        at={[0, cisternH, -d / 2 + cisternD / 2]}
-        size={[w + 0.008, 0.012, cisternD + 0.008]}
-        color={CERAMIC}
-        roughness={0.25}
+      <Glazed
+        at={[0, cisternH + 0.004, -d / 2 + cisternD / 2]}
+        size={[w + 0.008, 0.014, cisternD + 0.008]}
+        radius={0.006}
       />
       {/* Flush plate */}
       <Slab
         at={[0, cisternH * 0.78, -d / 2 + cisternD + 0.002]}
         size={[w * 0.3, 0.018, 0.004]}
         color={CHROME}
-        roughness={0.15}
-        metalness={0.9}
+        roughness={0.06}
+        metalness={1}
       />
       {/* Pedestal — narrower at the floor, which is what makes it a toilet and
           not a bucket. */}
-      <Tube
-        at={[0, bowlTop * 0.42, 0.01]}
-        rTop={bowlR * 0.72}
-        rBottom={bowlR * 0.5}
-        height={bowlTop * 0.84}
-        color={CERAMIC}
-        roughness={0.25}
-      />
-      {/* Bowl */}
-      <Tube
-        at={[0, bowlTop - 0.02, 0.02]}
-        rTop={bowlR}
-        rBottom={bowlR * 0.78}
-        height={0.06}
-        color={CERAMIC}
-        roughness={0.25}
-      />
-      {/* Seat ring: a flattened torus, which is exactly the shape and costs one
-          mesh. */}
-      <mesh position={[0, bowlTop + 0.012, 0.02]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 1, 0.45]} {...SOLID}>
-        <torusGeometry args={[bowlR * 0.8, bowlR * 0.22, 8, 20]} />
-        <meshStandardMaterial color="#fbfaf6" roughness={0.3} />
+      <GlazedTube at={[0, seatY * 0.42, 0.01]} rTop={bowlR * 0.72} rBottom={bowlR * 0.5} height={seatY * 0.84} />
+      {/* Bowl, then the water in it, then the seat ring and the lifted lid. The
+          seat is what the old version was missing, and its absence is most of
+          why it read as a bollard. */}
+      <GlazedTube at={[0, seatY - 0.028, 0.02]} rTop={bowlR} rBottom={bowlR * 0.76} height={0.058} />
+      <Water at={[0, seatY - 0.03, 0.02]} size={[bowlR * 1.4, 0.002, d * 0.42]} />
+      <mesh position={[0, seatY + 0.004, 0.02]} rotation={[Math.PI / 2, 0, 0]} scale={[1, d / w, 1]} {...SOLID}>
+        <torusGeometry args={[bowlR * 0.78, 0.011, 8, 20]} />
+        <meshStandardMaterial color={CERAMIC} {...GLAZE} />
       </mesh>
-      {/* Lid, up against the cistern */}
-      <Slab
-        at={[0, cisternH * 0.62, -d / 2 + cisternD + 0.012]}
-        size={[w * 0.9, bowlR * 1.5, 0.012]}
-        color="#fbfaf6"
-        roughness={0.3}
+      {/* Lid, up and resting against the cistern. */}
+      <Glazed
+        at={[0, seatY + 0.052, -d / 2 + cisternD + 0.016]}
+        size={[w * 0.92, 0.09, 0.014]}
+        radius={0.006}
+        rotation={[0.24, 0, 0]}
       />
     </>
   );
@@ -957,196 +1065,150 @@ function Toilet(): JSX.Element {
 
 function Bathtub(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.bathtub;
-  const wall = 0.022;
-  const floorT = 0.02;
+  const wall = 0.024;
+  const floorT = 0.022;
   const innerW = w - wall * 2;
   const innerD = d - wall * 2;
   return (
     <>
       {/* Four rims and a base around a real void. A solid box with a painted
-          top is the version that never reads as a bath. */}
-      <Slab at={[0, floorT / 2, 0]} size={[w, floorT, d]} color={CERAMIC} roughness={0.2} />
+          top is the version that never reads as a bath. Rounded now, and the
+          rim proud of the sides — an unbroken box the same width top to bottom
+          is a trough. */}
+      <Glazed at={[0, floorT / 2, 0]} size={[w, floorT, d]} radius={0.01} />
       {[-1, 1].map((s) => (
-        <Slab
+        <Glazed
           key={`x${String(s)}`}
           at={[s * (w / 2 - wall / 2), h / 2, 0]}
           size={[wall, h, d]}
-          color={CERAMIC}
-          roughness={0.2}
+          radius={0.009}
         />
       ))}
       {[-1, 1].map((s) => (
-        <Slab
+        <Glazed
           key={`z${String(s)}`}
           at={[0, h / 2, s * (d / 2 - wall / 2)]}
           size={[innerW, h, wall]}
-          color={CERAMIC}
-          roughness={0.2}
+          radius={0.009}
         />
       ))}
-      {/* A shallow pool of water: it catches the environment map and instantly
-          says "this is a vessel". */}
-      <mesh position={[0, floorT + 0.02, 0]} {...IGNORED}>
-        <boxGeometry args={[innerW - 0.004, 0.002, innerD - 0.004]} />
-        <meshStandardMaterial
-          color="#bcd8e2"
-          roughness={0.05}
-          metalness={0.25}
-          transparent
-          opacity={0.55}
-        />
-      </mesh>
-      {/* Mixer tap at one end. */}
-      <Tube
-        at={[-w / 2 + 0.05, h + 0.022, 0]}
-        rTop={0.008}
-        rBottom={0.009}
-        height={0.045}
-        color={CHROME}
-        roughness={0.12}
-        metalness={0.95}
-      />
-      <Tube
-        at={[-w / 2 + 0.082, h + 0.04, 0]}
+      {/* The rolled rim, all the way round and slightly overhanging. */}
+      <Glazed at={[0, h + 0.004, 0]} size={[w + 0.012, 0.018, d + 0.012]} radius={0.008} />
+      <Water at={[0, floorT + 0.05, 0]} size={[innerW - 0.006, 0.002, innerD - 0.006]} />
+      {/* Mixer tap at one end, and the waste under it. */}
+      <Chrome at={[-w / 2 + 0.055, h + 0.03, 0]} rTop={0.008} rBottom={0.009} height={0.05} />
+      <Chrome
+        at={[-w / 2 + 0.088, h + 0.05, 0]}
         rTop={0.006}
         rBottom={0.006}
         height={0.062}
-        color={CHROME}
-        roughness={0.12}
-        metalness={0.95}
         rotation={[0, 0, Math.PI / 2]}
       />
+      <Chrome at={[-w / 2 + 0.07, floorT + 0.008, 0]} rTop={0.017} rBottom={0.017} height={0.006} />
     </>
   );
 }
 
 function Shower(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.shower;
-  const trayH = 0.045;
+  const trayH = 0.05;
   const frame = 0.012;
+  const glassH = h - trayH;
   return (
     <>
-      <Slab at={[0, trayH / 2, 0]} size={[w, trayH, d]} color={CERAMIC} roughness={0.25} />
+      {/* A tray, not a slab: an upstand round the edge is what stops a shower
+          floor reading as a tile laid on the ground. */}
+      <Glazed at={[0, trayH / 2, 0]} size={[w, trayH, d]} radius={0.012} />
+      <Chrome at={[0, trayH - 0.004, 0]} rTop={0.019} rBottom={0.019} height={0.005} />
       {/* Back and left walls are solid panels; front and right are glass, so
           you can see in. */}
-      <Slab
-        at={[0, h / 2, -d / 2 + 0.006]}
-        size={[w, h - trayH, 0.012]}
-        color="#dfe3e2"
-        roughness={0.35}
-      />
-      <Slab
-        at={[-w / 2 + 0.006, h / 2, 0]}
-        size={[0.012, h - trayH, d]}
-        color="#dfe3e2"
-        roughness={0.35}
-      />
-      {/* Glass takes IGNORED: at opacity 0.22 a SOLID role would cast a black
-          box, the exact trap shadows.ts documents for window panes. */}
+      <Glazed at={[0, h / 2, -d / 2 + 0.007]} size={[w, glassH, 0.014]} radius={0.004} color="#e6eae9" />
+      <Glazed at={[-w / 2 + 0.007, h / 2, 0]} size={[0.014, glassH, d]} radius={0.004} color="#e6eae9" />
+      {/* Glass takes IGNORED: at this opacity a SOLID role would cast a black
+          box, the exact trap shadows.ts documents for window panes. Barely
+          rough and strongly environment-lit, because clean glass is a mirror
+          more than it is a tint. */}
       {[
-        { at: [0, trayH + (h - trayH) / 2, d / 2 - 0.006] as V3, size: [w, h - trayH, 0.008] as V3 },
-        {
-          at: [w / 2 - 0.006, trayH + (h - trayH) / 2, 0] as V3,
-          size: [0.008, h - trayH, d] as V3,
-        },
+        { at: [0, trayH + glassH / 2, d / 2 - 0.006] as V3, size: [w, glassH, 0.008] as V3 },
+        { at: [w / 2 - 0.006, trayH + glassH / 2, 0] as V3, size: [0.008, glassH, d] as V3 },
       ].map(({ at, size }, i) => (
         <mesh key={i} position={at} {...IGNORED}>
           <boxGeometry args={size} />
           <meshStandardMaterial
             color={GLASS}
-            roughness={0.05}
-            metalness={0.1}
+            roughness={0.02}
+            metalness={0.2}
+            envMapIntensity={2.2}
             transparent
-            opacity={0.22}
+            opacity={0.18}
           />
         </mesh>
       ))}
-      {/* Chrome frame on the two open corners — the edge that makes glass legible. */}
-      <Tube
-        at={[w / 2 - 0.006, trayH + (h - trayH) / 2, d / 2 - 0.006]}
+      {/* Chrome on every open edge — top rail and both corner posts. Glass
+          without an edge is a smear; the frame is what makes it legible. */}
+      <Chrome
+        at={[w / 2 - 0.006, trayH + glassH / 2, d / 2 - 0.006]}
         rTop={frame / 2}
         rBottom={frame / 2}
-        height={h - trayH}
-        color={CHROME}
-        roughness={0.15}
-        metalness={0.9}
+        height={glassH}
+      />
+      <Chrome
+        at={[-w / 2 + 0.014, trayH + glassH / 2, d / 2 - 0.006]}
+        rTop={frame / 2}
+        rBottom={frame / 2}
+        height={glassH}
+      />
+      <Chrome
+        at={[0, h - 0.006, d / 2 - 0.006]}
+        rTop={frame / 2}
+        rBottom={frame / 2}
+        height={w}
+        rotation={[0, 0, Math.PI / 2]}
       />
       {/* Riser rail and head on the back wall. */}
-      <Tube
-        at={[0, h * 0.62, -d / 2 + 0.022]}
-        rTop={0.007}
-        rBottom={0.007}
-        height={h * 0.42}
-        color={CHROME}
-        roughness={0.15}
-        metalness={0.9}
-      />
-      <Tube
-        at={[0, h * 0.84, -d / 2 + 0.055]}
-        rTop={0.032}
-        rBottom={0.028}
-        height={0.012}
-        color={CHROME}
-        roughness={0.15}
-        metalness={0.9}
-      />
+      <Chrome at={[0, h * 0.62, -d / 2 + 0.024]} rTop={0.007} rBottom={0.007} height={h * 0.42} />
+      <Chrome at={[0, h * 0.84, -d / 2 + 0.058]} rTop={0.034} rBottom={0.03} height={0.012} />
     </>
   );
 }
 
 function Sink(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.sink;
-  const basinH = 0.055;
-  const wall = 0.014;
+  const basinH = 0.058;
+  const wall = 0.015;
   return (
     <>
       {/* Pedestal, waisted: narrow at the middle, flared at the foot. */}
-      <Tube
-        at={[0, (h - basinH) / 2, -0.01]}
-        rTop={w * 0.16}
-        rBottom={w * 0.24}
-        height={h - basinH}
-        color={CERAMIC}
-        roughness={0.25}
-      />
-      {/* Basin as a rim around a void, same reason as the bath. */}
-      <Slab at={[0, h - basinH + wall / 2, 0]} size={[w, wall, d]} color={CERAMIC} roughness={0.2} />
+      <GlazedTube at={[0, (h - basinH) / 2, -0.01]} rTop={w * 0.16} rBottom={w * 0.24} height={h - basinH} />
+      {/* Basin as a rim around a void, same reason as the bath — and softened,
+          because a basin with square corners is a sink you would not put in a
+          house. */}
+      <Glazed at={[0, h - basinH + wall / 2, 0]} size={[w, wall, d]} radius={0.008} />
       {[-1, 1].map((s) => (
-        <Slab
+        <Glazed
           key={`x${String(s)}`}
           at={[s * (w / 2 - wall / 2), h - basinH / 2, 0]}
           size={[wall, basinH, d]}
-          color={CERAMIC}
-          roughness={0.2}
+          radius={0.007}
         />
       ))}
       {[-1, 1].map((s) => (
-        <Slab
+        <Glazed
           key={`z${String(s)}`}
           at={[0, h - basinH / 2, s * (d / 2 - wall / 2)]}
           size={[w - wall * 2, basinH, wall]}
-          color={CERAMIC}
-          roughness={0.2}
+          radius={0.007}
         />
       ))}
+      <Water at={[0, h - basinH + wall + 0.004, 0]} size={[w - wall * 2.4, 0.002, d - wall * 2.4]} />
+      <Chrome at={[0, h - basinH + wall + 0.006, 0]} rTop={0.013} rBottom={0.013} height={0.005} />
       {/* Tap */}
-      <Tube
-        at={[0, h + 0.02, -d / 2 + 0.03]}
-        rTop={0.007}
-        rBottom={0.008}
-        height={0.04}
-        color={CHROME}
-        roughness={0.12}
-        metalness={0.95}
-      />
-      <Tube
-        at={[0, h + 0.038, -d / 2 + 0.052]}
+      <Chrome at={[0, h + 0.024, -d / 2 + 0.032]} rTop={0.007} rBottom={0.008} height={0.046} />
+      <Chrome
+        at={[0, h + 0.044, -d / 2 + 0.054]}
         rTop={0.005}
         rBottom={0.005}
         height={0.045}
-        color={CHROME}
-        roughness={0.12}
-        metalness={0.95}
         rotation={[Math.PI / 2, 0, 0]}
       />
     </>
@@ -1531,6 +1593,42 @@ function Lamp(): JSX.Element {
   );
 }
 
+/**
+ * A floor lamp: a weighted base, a slim stem, and a drum shade at 1.5 m.
+ *
+ * A separate factory rather than the table lamp scaled up, because the two are
+ * not the same object at two sizes — a floor lamp's proportions invert (a
+ * narrow stem carrying a wide shade, a base sized to stop it toppling), and a
+ * table lamp stretched to 1.6 m reads as a table lamp on stilts.
+ *
+ * Its light reaches further and sits higher, so the room gets a pool of warmth
+ * rather than a glow on a nightstand. Still no shadow, for the reason in Lamp.
+ */
+function FloorLamp(): JSX.Element {
+  const { w, h } = ITEM_SPECS.floorLamp;
+  const shadeH = h * 0.2;
+  const shadeY = h - shadeH / 2;
+  return (
+    <>
+      {/* A base wide and low enough to look like it would actually stand up. */}
+      <Tube at={[0, 0.008, 0]} rTop={w * 0.42} rBottom={w * 0.46} height={0.016} color={LAMP_BASE} roughness={0.45} metalness={0.4} />
+      <Tube at={[0, 0.026, 0]} rTop={0.014} rBottom={w * 0.3} height={0.022} color={LAMP_BASE} roughness={0.45} metalness={0.4} />
+      <Tube at={[0, h * 0.5, 0]} rTop={0.008} rBottom={0.011} height={h * 0.94} color={LAMP_BASE} roughness={0.4} metalness={0.45} />
+      <mesh position={[0, shadeY, 0]} {...SOLID}>
+        <cylinderGeometry args={[w * 0.44, w * 0.5, shadeH, 22, 1, true]} />
+        <meshStandardMaterial
+          color={LAMP_SHADE}
+          roughness={0.9}
+          side={THREE.DoubleSide}
+          emissive={LAMP_SHADE}
+          emissiveIntensity={0.5}
+        />
+      </mesh>
+      <pointLight position={[0, shadeY - shadeH * 0.3, 0]} intensity={0.5} distance={3.6} decay={2} color="#ffd9a0" />
+    </>
+  );
+}
+
 // ── Potted plant ────────────────────────────────────────────────────────────
 
 const TERRACOTTA = '#b5673f';
@@ -1644,6 +1742,7 @@ const factories: Record<ItemKind, (props: ItemProps) => JSX.Element> = {
   rug: Rug,
   bookshelf: Bookshelf,
   lamp: Lamp,
+  floorLamp: FloorLamp,
   pottedPlant: PottedPlant,
   laptop: Laptop,
   tv: Tv,
