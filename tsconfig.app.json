@@ -23,5 +23,10 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Tests are a NODE program, not a browser one — they read and write files.
+  // Giving them node's types in here would give every app module node's types
+  // too, and `fs` would typecheck in a file that ships to a browser. So they
+  // get their own project (tsconfig.test.json) and this one stops at the door.
+  "exclude": ["src/tests"]
 }
