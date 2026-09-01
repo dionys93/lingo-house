@@ -267,11 +267,13 @@ export const ITEMS: readonly ItemDef[] = [
   // A reading corner in the far right of the room, well clear of the walkways.
   { id: 'living-bookshelf', kind: 'bookshelf', mount: { on: 'floor', cell: [12, 8], facing: 'w', offset: [0.27, 0] } },
   { id: 'reading-chair', kind: 'chair', mount: { on: 'floor', cell: [12, 7], facing: 'w' } },
-  // A floor lamp beside the reading chair — the one that stands at eye height
-  // and lights the corner — and a table lamp on the coffee table for the pair
-  // of words. Both are lights; see their factories.
-  { id: 'reading-lamp', kind: 'floorLamp', mount: { on: 'floor', cell: [11, 8], facing: 'w', offset: [0.2, 0] } },
-  { id: 'living-lamp', kind: 'lamp', mount: { on: 'item', host: 'living-table', offset: [0.28, 0] } },
+  // The reading corner: a nightstand beside the chair with the little lamp ON
+  // it, and a floor lamp in the far corner. Two lamps and two words — la
+  // lámpara and la lámpara de pie — met a metre apart, which is the cheapest
+  // way there is to teach that they are different things.
+  { id: 'reading-nightstand', kind: 'nightstand', mount: { on: 'floor', cell: [11, 8], facing: 'w', offset: [0.2, 0.05] } },
+  { id: 'reading-lamp', kind: 'lamp', mount: { on: 'item', host: 'reading-nightstand' } },
+  { id: 'living-floor-lamp', kind: 'floorLamp', mount: { on: 'floor', cell: [11, 0], facing: 'e', offset: [-0.18, 0] } },
   { id: 'living-plant', kind: 'pottedPlant', mount: { on: 'floor', cell: [12, 0], facing: 's', offset: [0.22, -0.22] } },
 ];
 
