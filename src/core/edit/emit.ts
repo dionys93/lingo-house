@@ -75,6 +75,14 @@ function emitMount(m: ItemDef['mount']): string {
         ['facing', m.facing ? str(m.facing) : null],
         ['offset', m.offset && (m.offset[0] !== 0 || m.offset[1] !== 0) ? tuple(m.offset) : null],
       ])} }`;
+    case 'inside':
+      return `{ ${fields([
+        ['on', str('inside')],
+        ['host', str(m.host)],
+        ['shelf', m.shelf !== undefined && m.shelf !== 0 ? num(m.shelf) : null],
+        ['facing', m.facing ? str(m.facing) : null],
+        ['offset', m.offset && (m.offset[0] !== 0 || m.offset[1] !== 0) ? tuple(m.offset) : null],
+      ])} }`;
     case 'wall':
       return `{ ${fields([
         ['on', str('wall')],

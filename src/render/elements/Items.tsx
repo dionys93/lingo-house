@@ -36,6 +36,7 @@
 // slab — the same trap `shadows.ts` documents for window glass.
 
 import type { JSX } from 'react';
+import * as THREE from 'three';
 import { RoundedBox } from '@react-three/drei';
 import type { CompiledGrid, CompiledItem } from '../../core/house/compiled';
 import { ITEM_SPECS } from '../../core/house/items';
@@ -828,7 +829,7 @@ function Oven(): JSX.Element {
   );
 }
 
-function Fridge(): JSX.Element {
+function Fridge({ open }: ItemProps): JSX.Element {
   const { w, d, h } = ITEM_SPECS.fridge;
   const freezerH = h * 0.34; // freezer on top
   const gap = 0.006;
@@ -841,7 +842,19 @@ function Fridge(): JSX.Element {
         roughness={0.45}
         metalness={0.5}
       />
-      {/* Two doors as proud panels, with a real gap between them. */}
+      {/* The fridge compartment's shelves, visible once its door swings. The
+          freezer above keeps its fixed panel — one door that opens is the one
+          you reach for, and two swinging doors on one hinge side read as a
+          cabinet coming apart. */}
+      {ITEM_SPECS.fridge.opens && (
+        <Shelves
+          w={w}
+          d={d}
+          inset={ITEM_SPECS.fridge.opens.inset ?? 0}
+          heights={ITEM_SPECS.fridge.opens.shelves}
+          color="#e9eef1"
+        />
+      )}
       <Slab
         at={[0, h - freezerH / 2 - gap / 2, d / 2 + 0.004]}
         size={[w - 0.01, freezerH - gap, 0.008]}
@@ -849,29 +862,28 @@ function Fridge(): JSX.Element {
         roughness={0.3}
         metalness={0.6}
       />
-      <Slab
-        at={[0, (h - freezerH - gap) / 2, d / 2 + 0.004]}
-        size={[w - 0.01, h - freezerH - gap, 0.008]}
-        color="#ced4d9"
-        roughness={0.3}
-        metalness={0.6}
+      <Tube
+        at={[w * 0.32, h - freezerH * 0.5, d / 2 + 0.018]}
+        rTop={0.006}
+        rBottom={0.006}
+        height={freezerH * 0.5}
+        color={STEEL}
+        roughness={0.2}
+        metalness={0.9}
       />
-      {/* Vertical bar handles, both hinged on the same side like a real one. */}
-      {([
-        [h - freezerH * 0.5, freezerH * 0.5],
-        [(h - freezerH) * 0.55, (h - freezerH) * 0.5],
-      ] as const).map(([y, len]) => (
-        <Tube
-          key={y}
-          at={[w * 0.32, y, d / 2 + 0.018]}
-          rTop={0.006}
-          rBottom={0.006}
-          height={len}
-          color={STEEL}
-          roughness={0.2}
-          metalness={0.9}
-        />
-      ))}
+      {/* Hinged on the LEFT (-x), so its handle stays on the right where the
+          freezer's is — a fridge whose two handles are on opposite sides reads
+          as two appliances stacked. */}
+      <SwingDoor
+        hinge={[-w / 2, (h - freezerH - gap) / 2, d / 2 + 0.004]}
+        width={w - 0.01}
+        height={h - freezerH - gap}
+        thickness={0.008}
+        sign={1}
+        open={open}
+        color="#ced4d9"
+        handle={STEEL}
+      />
     </>
   );
 }
@@ -1212,10 +1224,12 @@ function Bed(): JSX.Element {
   );
 }
 
-function Wardrobe(): JSX.Element {
+function Wardrobe({ open }: ItemProps): JSX.Element {
   const { w, d, h } = ITEM_SPECS.wardrobe;
+  const opens = ITEM_SPECS.wardrobe.opens;
   const plinth = 0.045;
   const bodyH = h - plinth - 0.018;
+  const leaf = w * 0.47;
   return (
     <>
       <Slab
@@ -1223,28 +1237,51 @@ function Wardrobe(): JSX.Element {
         size={[w - 0.03, plinth, d - 0.02]}
         color="#4a3826"
       />
-      <Slab at={[0, plinth + bodyH / 2, 0]} size={[w, bodyH, d]} color={OAK} roughness={0.65} />
-      {/* Two doors, proud of the carcass, with a shadow gap between them. */}
-      {[-1, 1].map((s) => (
+      {/* Carcass open at the front — a back and two sides — so swinging the
+          doors reveals a space rather than the front face of a solid block. */}
+      <Slab at={[0, plinth + bodyH / 2, -d / 2 + 0.01]} size={[w, bodyH, 0.02]} color={OAK} roughness={0.65} />
+      {[-1, 1].map((sx) => (
         <Slab
-          key={s}
-          at={[s * w * 0.245, plinth + bodyH / 2, d / 2 + 0.005]}
-          size={[w * 0.47, bodyH - 0.014, 0.01]}
-          color="#bb9670"
-          roughness={0.6}
+          key={sx}
+          at={[sx * (w / 2 - 0.01), plinth + bodyH / 2, 0]}
+          size={[0.02, bodyH, d]}
+          color={OAK}
+          roughness={0.65}
         />
       ))}
-      {/* Long vertical handles either side of the seam. */}
-      {[-1, 1].map((s) => (
-        <Tube
-          key={s}
-          at={[s * 0.022, plinth + bodyH * 0.5, d / 2 + 0.016]}
-          rTop={0.006}
-          rBottom={0.006}
-          height={bodyH * 0.34}
-          color={STEEL}
-          roughness={0.25}
-          metalness={0.85}
+      <Slab at={[0, plinth + bodyH - 0.01, 0]} size={[w, 0.02, d]} color={OAK} roughness={0.65} />
+      {opens && (
+        <Shelves
+          w={w}
+          d={d}
+          inset={opens.inset ?? 0}
+          heights={opens.shelves}
+          color="#c9ab86"
+        />
+      )}
+      {/* The hanging rail, between the two shelves — what makes it a wardrobe
+          rather than a bookcase with doors. */}
+      <Tube
+        at={[0, plinth + bodyH * 0.72, 0]}
+        rTop={0.008}
+        rBottom={0.008}
+        height={w - 0.05}
+        color={STEEL}
+        roughness={0.25}
+        metalness={0.85}
+        rotation={[0, 0, Math.PI / 2]}
+      />
+      {([-1, 1] as const).map((sx) => (
+        <SwingDoor
+          key={sx}
+          hinge={[sx * (w / 2), plinth + bodyH / 2, d / 2 + 0.005]}
+          width={leaf}
+          height={bodyH - 0.014}
+          thickness={0.01}
+          sign={sx === -1 ? 1 : -1}
+          open={open}
+          color="#bb9670"
+          handle={STEEL}
         />
       ))}
       {/* Cornice */}
@@ -1258,7 +1295,7 @@ function Wardrobe(): JSX.Element {
   );
 }
 
-function Nightstand(): JSX.Element {
+function Nightstand({ open }: ItemProps): JSX.Element {
   const { w, d, h } = ITEM_SPECS.nightstand;
   const topT = 0.016;
   const legH = 0.05;
@@ -1276,29 +1313,45 @@ function Nightstand(): JSX.Element {
         />
       ))}
       <Slab at={[0, legH + bodyH / 2, 0]} size={[w, bodyH, d]} color={WALNUT} roughness={0.6} />
-      {/* Two drawer fronts with a gap, and round knobs. */}
-      {[-1, 1].map((s) => (
-        <Slab
-          key={s}
-          at={[0, legH + bodyH * (s < 0 ? 0.27 : 0.73), d / 2 + 0.003]}
-          size={[w * 0.88, bodyH * 0.4, 0.006]}
-          color="#8d6a4c"
-          roughness={0.6}
-        />
-      ))}
-      {[-1, 1].map((s) => (
-        <Tube
-          key={s}
-          at={[0, legH + bodyH * (s < 0 ? 0.27 : 0.73), d / 2 + 0.014]}
-          rTop={0.009}
-          rBottom={0.007}
-          height={0.014}
-          color={STEEL}
-          roughness={0.3}
-          metalness={0.8}
-          rotation={[Math.PI / 2, 0, 0]}
-        />
-      ))}
+      {/* Two drawers, and the TOP one pulls out. A drawer slides rather than
+          swings, so the whole drawer — front, box and knob — rides in a group
+          that translates along +Z, and what is on the shelf inside rides with
+          the world rather than with the drawer. Pulled out most of its depth,
+          not all: a drawer clear of its carcass is a drawer on the floor. */}
+      {([-1, 1] as const).map((sy) => {
+        const y = legH + bodyH * (sy < 0 ? 0.27 : 0.73);
+        const out = sy > 0 && open ? d * 0.62 : 0;
+        return (
+          <group key={sy} position={[0, 0, out]}>
+            <Slab at={[0, y, d / 2 + 0.003]} size={[w * 0.88, bodyH * 0.4, 0.006]} color="#8d6a4c" roughness={0.6} />
+            {out > 0 && (
+              <>
+                {/* The box behind the front, only worth drawing when you can
+                    see into it. */}
+                <Slab at={[0, y - bodyH * 0.19, d * 0.5 - out * 0.5]} size={[w * 0.82, 0.008, out]} color="#6f5439" />
+                {[-1, 1].map((sx) => (
+                  <Slab
+                    key={sx}
+                    at={[sx * w * 0.41, y - bodyH * 0.06, d * 0.5 - out * 0.5]}
+                    size={[0.008, bodyH * 0.26, out]}
+                    color="#6f5439"
+                  />
+                ))}
+              </>
+            )}
+            <Tube
+              at={[0, y, d / 2 + 0.014]}
+              rTop={0.009}
+              rBottom={0.007}
+              height={0.014}
+              color={STEEL}
+              roughness={0.3}
+              metalness={0.8}
+              rotation={[Math.PI / 2, 0, 0]}
+            />
+          </group>
+        );
+      })}
       <Slab at={[0, h - topT / 2, 0]} size={[w + 0.012, topT, d + 0.012]} color={WALNUT} roughness={0.5} />
     </>
   );
@@ -1306,19 +1359,302 @@ function Nightstand(): JSX.Element {
 
 // kind → local-space mesh builder. Record over the closed union = exhaustive:
 // add a kind and this line stops compiling until it has a factory.
-const factories: Record<ItemKind, () => JSX.Element> = {
+
+// ── Openable carcasses ──────────────────────────────────────────────────────
+//
+// A door that swings has to turn about its HINGE, not its centre, and a mesh
+// turns about its own origin. So every swinging door is a `<group>` placed at
+// the hinge with the leaf offset half its width inside it — the same trick the
+// house's own doors use, and the reason a leaf that "rotates in place" reads as
+// a panel spinning in a doorway rather than opening.
+function SwingDoor({
+  hinge,
+  width,
+  height,
+  thickness,
+  sign,
+  open,
+  color,
+  handle,
+}: {
+  /** World-local position of the hinge edge, at the door's mid-height. */
+  readonly hinge: V3;
+  readonly width: number;
+  readonly height: number;
+  readonly thickness: number;
+  /** +1 hinges on the left and swings anticlockwise; -1 mirrors it. */
+  readonly sign: 1 | -1;
+  readonly open: boolean;
+  readonly color: string;
+  readonly handle?: string;
+}): JSX.Element {
+  // NEGATIVE. A positive rotation about Y carries +X toward -Z, so a leaf
+  // hinged at the left of the carcass and extending to the right swings INTO
+  // the box — which, viewed head on, looks almost exactly like a door that
+  // never moved, because the two leaves end up crossing the interior roughly
+  // where they started. It reads as nothing happening, not as a bug.
+  //
+  // 100° rather than 90: a door stopped exactly square to the carcass reads as
+  // a panel that happens to be perpendicular, and the extra ten degrees is what
+  // makes it read as swung.
+  const angle = open ? -sign * (Math.PI * 100) / 180 : 0;
+  return (
+    <group position={hinge} rotation={[0, angle, 0]}>
+      <Slab at={[(sign * width) / 2, 0, 0]} size={[width, height, thickness]} color={color} roughness={0.6} />
+      {handle !== undefined && (
+        <Tube
+          at={[sign * (width - 0.022), 0, thickness / 2 + 0.008]}
+          rTop={0.005}
+          rBottom={0.005}
+          height={height * 0.3}
+          color={handle}
+          roughness={0.25}
+          metalness={0.85}
+        />
+      )}
+    </group>
+  );
+}
+
+const SHELF_INK = '#d6cfc2';
+
+/** The shelves you see once the doors are open. */
+function Shelves({
+  w,
+  d,
+  inset,
+  heights,
+  color = SHELF_INK,
+}: {
+  readonly w: number;
+  readonly d: number;
+  readonly inset: number;
+  readonly heights: readonly number[];
+  readonly color?: string;
+}): JSX.Element {
+  const iw = w * (1 - 2 * inset);
+  const id = d * (1 - 2 * inset);
+  return (
+    <>
+      {heights.map((y, i) => (
+        <Slab key={i} at={[0, y - 0.006, 0]} size={[iw, 0.012, id]} color={color} roughness={0.8} />
+      ))}
+    </>
+  );
+}
+
+// A base unit. Same carcass language as Counter — plinth, body, doors — but
+// without the worktop's overhang, and its doors move.
+function Cupboard({ open }: ItemProps): JSX.Element {
+  const { w, d, h } = ITEM_SPECS.cupboard;
+  const opens = ITEM_SPECS.cupboard.opens;
+  // Stops BELOW the worktop rather than running to the full height. Sharing the
+  // top 16 mm with the worktop slab put two surfaces in the same plane, which
+  // reads as a moiré band along the front edge and not as joinery.
+  const top = 0.016;
+  const bodyH = h - PLINTH_H - top;
+  const leaf = w / 2 - 0.008;
+  return (
+    <>
+      <Slab
+        at={[0, PLINTH_H / 2, -PLINTH_INSET / 2]}
+        size={[w - 0.01, PLINTH_H, d - PLINTH_INSET]}
+        color="#3f4247"
+      />
+      {/* The carcass, open at the front — a back, two sides and a top, so the
+          inside is a space rather than a solid you have painted a door onto. */}
+      <Slab at={[0, PLINTH_H + bodyH / 2, -d / 2 + 0.008]} size={[w, bodyH, 0.016]} color={CABINET_LINE} />
+      {[-1, 1].map((sx) => (
+        <Slab
+          key={sx}
+          at={[sx * (w / 2 - 0.008), PLINTH_H + bodyH / 2, 0]}
+          size={[0.016, bodyH, d]}
+          color={CABINET_LINE}
+        />
+      ))}
+      <Slab at={[0, h - top / 2, 0]} size={[w, top, d]} color={WORKTOP} roughness={0.4} />
+      {opens && (
+        <Shelves w={w} d={d} inset={opens.inset ?? 0} heights={opens.shelves.map((y) => y + PLINTH_H)} />
+      )}
+      {/* Two doors, hinged on the outer edges so they open outward from the
+          middle — which is what lets you see in from straight ahead. */}
+      {([-1, 1] as const).map((sx) => (
+        <SwingDoor
+          key={sx}
+          hinge={[sx * (w / 2), PLINTH_H + bodyH / 2, d / 2 + 0.006]}
+          width={leaf}
+          height={bodyH - 0.01}
+          thickness={0.012}
+          sign={sx === -1 ? 1 : -1}
+          open={open}
+          color={CABINET}
+          handle={STEEL}
+        />
+      ))}
+    </>
+  );
+}
+
+// ── Lamp ────────────────────────────────────────────────────────────────────
+
+const LAMP_SHADE = '#e8dcc0';
+const LAMP_BASE = '#54463a';
+
+/**
+ * A table lamp, and the one item in the house that is also a light.
+ *
+ * The `pointLight` casts no shadow deliberately. Shadow-casting point lights
+ * are six shadow maps each, and there is a lamp in three rooms — that is
+ * eighteen extra passes to make a warm patch on a wall that the emissive shade
+ * already implies. The sun is what casts shadows here.
+ */
+function Lamp(): JSX.Element {
+  const { w, h } = ITEM_SPECS.lamp;
+  const shadeH = h * 0.42;
+  const shadeY = h - shadeH / 2;
+  return (
+    <>
+      <Tube at={[0, 0.012, 0]} rTop={w * 0.3} rBottom={w * 0.36} height={0.024} color={LAMP_BASE} roughness={0.5} />
+      <Tube at={[0, h * 0.42, 0]} rTop={0.008} rBottom={0.009} height={h * 0.62} color={LAMP_BASE} roughness={0.4} metalness={0.3} />
+      <mesh position={[0, shadeY, 0]} {...SOLID}>
+        <cylinderGeometry args={[w * 0.34, w * 0.5, shadeH, 18, 1, true]} />
+        <meshStandardMaterial
+          color={LAMP_SHADE}
+          roughness={0.9}
+          side={THREE.DoubleSide}
+          emissive={LAMP_SHADE}
+          emissiveIntensity={0.45}
+        />
+      </mesh>
+      <pointLight position={[0, shadeY, 0]} intensity={0.25} distance={2.2} decay={2} color="#ffd9a0" />
+    </>
+  );
+}
+
+// ── Potted plant ────────────────────────────────────────────────────────────
+
+const TERRACOTTA = '#b5673f';
+const SOIL = '#3c2f26';
+const LEAF = '#4e7d46';
+const LEAF_DARK = '#3d6338';
+
+// Leaves as flattened, tilted ellipsoids on stems. Deterministic — a plant that
+// reshuffles on every re-render is a plant that twitches when you walk past it.
+const FRONDS: readonly (readonly [angle: number, tilt: number, len: number, up: number])[] = [
+  [0.0, 0.55, 1.0, 0.62],
+  [1.1, 0.75, 0.86, 0.5],
+  [2.2, 0.45, 0.94, 0.72],
+  [3.3, 0.8, 0.8, 0.46],
+  [4.4, 0.5, 0.9, 0.66],
+  [5.5, 0.7, 0.84, 0.55],
+];
+
+function PottedPlant(): JSX.Element {
+  const { w, h } = ITEM_SPECS.pottedPlant;
+  const potH = h * 0.34;
+  const rim = w / 2;
+  return (
+    <>
+      <Tube at={[0, potH / 2, 0]} rTop={rim} rBottom={rim * 0.72} height={potH} color={TERRACOTTA} roughness={0.85} segments={18} />
+      <Tube at={[0, potH - 0.004, 0]} rTop={rim * 1.06} rBottom={rim * 1.06} height={0.018} color={TERRACOTTA} roughness={0.85} segments={18} />
+      <Tube at={[0, potH - 0.012, 0]} rTop={rim * 0.94} rBottom={rim * 0.94} height={0.01} color={SOIL} roughness={1} segments={18} />
+      {FRONDS.map(([angle, tilt, len, up], i) => {
+        const reach = w * 0.62 * len;
+        const top = potH + (h - potH) * up;
+        return (
+          <group key={i} rotation={[0, angle, 0]}>
+            {/* Stem: a thin tapered tube leaning out from the soil. */}
+            <Tube
+              at={[reach * 0.28, potH + (top - potH) * 0.5, 0]}
+              rTop={0.003}
+              rBottom={0.005}
+              height={top - potH}
+              color={LEAF_DARK}
+              roughness={0.9}
+              segments={6}
+              rotation={[0, 0, -tilt * 0.5]}
+            />
+            {/* Leaf: a squashed sphere, so it reads as a blade rather than a ball. */}
+            <mesh position={[reach, top, 0]} rotation={[0, 0, -tilt]} scale={[1, 0.28, 0.62]} {...SOLID}>
+              <sphereGeometry args={[w * 0.34, 10, 8]} />
+              <meshStandardMaterial color={i % 2 === 0 ? LEAF : LEAF_DARK} roughness={0.85} />
+            </mesh>
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
+// ── Shelf things ────────────────────────────────────────────────────────────
+
+// A stack of three, which is what the spec's height is measured as. Each plate
+// is a shallow truncated cone — wider at the rim than at the foot — so the
+// stack reads as crockery rather than as a cylinder with lines on it.
+function Plate(): JSX.Element {
+  const { w, h } = ITEM_SPECS.plate;
+  const one = h / 3;
+  return (
+    <>
+      {[0, 1, 2].map((i) => (
+        <Tube
+          key={i}
+          at={[0, one * (i + 0.5), 0]}
+          rTop={w / 2}
+          rBottom={w * 0.4}
+          height={one * 0.9}
+          color={CERAMIC}
+          roughness={0.35}
+          segments={20}
+        />
+      ))}
+    </>
+  );
+}
+
+function Cup(): JSX.Element {
+  const { w, h } = ITEM_SPECS.cup;
+  return (
+    <>
+      <mesh position={[0, h / 2, 0]} {...SOLID}>
+        <cylinderGeometry args={[w / 2, w * 0.4, h, 14, 1, true]} />
+        <meshStandardMaterial color={CERAMIC} roughness={0.3} side={THREE.DoubleSide} />
+      </mesh>
+      <Tube at={[0, 0.004, 0]} rTop={w * 0.4} rBottom={w * 0.4} height={0.008} color={CERAMIC} roughness={0.3} segments={14} />
+      {/* The handle, as a torus on its side. */}
+      <mesh position={[w * 0.5, h * 0.55, 0]} rotation={[0, Math.PI / 2, 0]} {...SOLID}>
+        <torusGeometry args={[h * 0.24, 0.004, 6, 12, Math.PI * 1.3]} />
+        <meshStandardMaterial color={CERAMIC} roughness={0.3} />
+      </mesh>
+    </>
+  );
+}
+
+// Every factory takes the same props, and all but the openable ones ignore them
+// — a zero-argument function is assignable here, so a chair does not have to
+// declare a parameter it will never read.
+export interface ItemProps {
+  readonly open: boolean;
+}
+
+const factories: Record<ItemKind, (props: ItemProps) => JSX.Element> = {
   table: Table,
   chair: Chair,
   sofa: Sofa,
   rug: Rug,
   bookshelf: Bookshelf,
+  lamp: Lamp,
+  pottedPlant: PottedPlant,
   laptop: Laptop,
   tv: Tv,
   diningTable: DiningTable,
   counter: Counter,
+  cupboard: Cupboard,
   dishwasher: Dishwasher,
   oven: Oven,
   fridge: Fridge,
+  plate: Plate,
+  cup: Cup,
   toilet: Toilet,
   bathtub: Bathtub,
   shower: Shower,
@@ -1381,10 +1717,12 @@ function ClickProxy({
 
 function Item({
   item,
+  open,
   selected,
   onSelect,
 }: {
   item: CompiledItem;
+  open: boolean;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -1398,7 +1736,7 @@ function Item({
         position={[item.position[0], item.position[1] + FLOOR_Y, item.position[2]]}
         rotation={[0, item.yaw, 0]}
       >
-        <Build />
+        <Build open={open} />
       </group>
       <ClickProxy item={item} selected={selected} onSelect={onSelect} />
     </>
@@ -1407,25 +1745,36 @@ function Item({
 
 export function Items({
   grid,
+  openItems,
   selectedId,
   onSelect,
 }: {
   grid: CompiledGrid;
+  /** Which items are open. Decides both how a cupboard is drawn and whether
+   *  what is inside it is drawn at all. */
+  openItems: ReadonlySet<string>;
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
   return (
     <>
-      {grid.items.map((item) => (
-        <Item
-          key={item.id}
-          item={item}
-          selected={item.id === selectedId}
-          onSelect={() => {
-            onSelect(item.id);
-          }}
-        />
-      ))}
+      {grid.items
+        // A cup on a shelf behind a shut door is not drawn, and — because the
+        // click proxy goes with it — not clickable either. Rendering it and
+        // letting the carcass hide it would leave an invisible, pickable cup
+        // floating inside a closed cupboard.
+        .filter((item) => item.inside === undefined || openItems.has(item.inside))
+        .map((item) => (
+          <Item
+            key={item.id}
+            item={item}
+            open={openItems.has(item.id)}
+            selected={item.id === selectedId}
+            onSelect={() => {
+              onSelect(item.id);
+            }}
+          />
+        ))}
     </>
   );
 }

@@ -36,6 +36,37 @@ export type EditAction =
 const sameEdge = (o: Opening, cell: Cell, side: Side): boolean =>
   edgeKey(o.cell, o.side) === edgeKey(cell, side);
 
+/** What an item is mounted on, when it is mounted on another item. */
+const hostOf = (i: ItemDef): string | null =>
+  i.mount.on === 'item' || i.mount.on === 'inside' ? i.mount.host : null;
+
+/**
+ * An item and everything that would be left hanging without it.
+ *
+ * Deleting a cupboard with cups in it used to leave the cups behind, mounted on
+ * a host that no longer existed — so the plan stopped compiling, and the error
+ * it gave named the CUP. You would be told about a cup you never touched while
+ * looking at the cupboard you had just deleted.
+ *
+ * Transitive, because a lamp on a nightstand is one link and a cup on a shelf in
+ * a cupboard is another, and nothing stops the two composing.
+ */
+function withDependents(items: readonly ItemDef[], id: string): ReadonlySet<string> {
+  const doomed = new Set([id]);
+  // Repeat until nothing new falls: a dependent may be listed before its host.
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const i of items) {
+      const host = hostOf(i);
+      if (host !== null && doomed.has(host) && !doomed.has(i.id)) {
+        doomed.add(i.id);
+        grew = true;
+      }
+    }
+  }
+  return doomed;
+}
+
 /** Apply one action. Unknown levels and ids are no-ops: the plan is the truth. */
 export function applyEdit(plan: readonly Storey[], action: EditAction): readonly Storey[] {
   const onStorey = (s: Storey): Storey => {
@@ -47,8 +78,11 @@ export function applyEdit(plan: readonly Storey[], action: EditAction): readonly
           ...s,
           items: (s.items ?? []).map((i) => (i.id === action.id ? { ...i, mount: action.mount } : i)),
         };
-      case 'removeItem':
-        return { ...s, items: (s.items ?? []).filter((i) => i.id !== action.id) };
+      case 'removeItem': {
+        const items = s.items ?? [];
+        const doomed = withDependents(items, action.id);
+        return { ...s, items: items.filter((i) => !doomed.has(i.id)) };
+      }
       case 'addOpening':
         return { ...s, openings: [...(s.openings ?? []), action.opening] };
       case 'removeOpening':

@@ -60,6 +60,10 @@ export type HouseError =
   | { readonly tag: 'UnknownMountHost'; readonly id: string; readonly host: string }
   | { readonly tag: 'MountCycle'; readonly ids: readonly string[] }
   | { readonly tag: 'ItemNotMountable'; readonly id: string; readonly host: string }
+  // Mounted INSIDE something that doesn't open. A closed box with a cup in it is
+  // a cup nobody can ever see, which is a mistake and not a hiding place.
+  | { readonly tag: 'ItemHasNoInside'; readonly id: string; readonly host: string }
+  | { readonly tag: 'NoSuchShelf'; readonly id: string; readonly host: string; readonly shelf: number; readonly shelves: number }
   | { readonly tag: 'ItemNotOnWall'; readonly id: string; readonly cell: Cell; readonly side: Side }
   | { readonly tag: 'ItemTooHigh'; readonly id: string; readonly top: number; readonly limit: number }
   // ── Fit. The two ways furniture can be placed somewhere it does not go, both
@@ -146,6 +150,12 @@ export function describeError(e: HouseError): string {
       return `Item '${e.id}' is mounted on '${e.host}', but there is no item with that id.`;
     case 'MountCycle':
       return `These items are mounted on each other in a loop: ${e.ids.join(' → ')}.`;
+    case 'ItemHasNoInside':
+      return `Item '${e.id}' is mounted inside '${e.host}', which does not open — nothing put in it could ever be seen.`;
+
+    case 'NoSuchShelf':
+      return `Item '${e.id}' asks for shelf ${String(e.shelf)} of '${e.host}', which has ${String(e.shelves)}.`;
+
     case 'ItemNotMountable':
       return `Item '${e.id}' can't sit on '${e.host}' — nothing rests on that kind of item.`;
     case 'ItemNotOnWall':

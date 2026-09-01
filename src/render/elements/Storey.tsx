@@ -19,11 +19,13 @@ import { Items } from './Items';
 export function Storey({
   storey,
   openDoors,
+  openItems,
   selectedItemId,
   select,
 }: {
   storey: CompiledStorey;
   openDoors: ReadonlySet<string>;
+  openItems: ReadonlySet<string>;
   selectedItemId: string | null;
   select: (selection: Selection) => void;
 }) {
@@ -45,6 +47,7 @@ export function Storey({
       <Walls grid={grid} onPick={(at) => select({ on: 'part', part: 'wall', at })} />
       <Items
         grid={grid}
+        openItems={openItems}
         selectedId={selectedItemId}
         onSelect={(id) => select({ on: 'item', id })}
       />

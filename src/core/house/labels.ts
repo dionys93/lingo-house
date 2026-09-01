@@ -71,6 +71,21 @@ export interface LocaleLabels {
   // kitchen" it names no room — so there's no RoomDef to carry it. Same reason
   // goOutside is here.
   readonly closeDoor: string;
+  /**
+   * The bare imperative, for opening and shutting an ITEM.
+   *
+   * Bare on purpose. A door says "Abre la puerta de la cocina" because that
+   * phrase is written out per room, and writing one out per openable item would
+   * be fine in English and wrong in German the moment it is composed: "Öffne" +
+   * "der Kleiderschrank" needs the accusative "den", and gluing a verb to a noun
+   * that carries its own article is exactly the composition this codebase
+   * already refused for room phrases ("sube al baño" but "sube a la cocina").
+   *
+   * The popup renders the item's name directly above the button, so the pairing
+   * is on screen without being glued together in a string.
+   */
+  readonly openIt: string;
+  readonly closeIt: string;
 }
 
 export type LabelTable = Record<Locale, LocaleLabels>;

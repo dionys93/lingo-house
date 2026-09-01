@@ -188,7 +188,14 @@ export function ItemGallery() {
             <meshStandardMaterial color="#b8b2a7" roughness={1} />
           </mesh>
           <group>
-            <Items grid={grid} selectedId={null} onSelect={() => undefined} />
+            {/* Everything OPEN, because the gallery exists to show what each item
+                looks like and half of a cupboard is what is inside it. */}
+            <Items
+              grid={grid}
+              openItems={new Set(grid.items.map((i) => i.id))}
+              selectedId={null}
+              onSelect={() => undefined}
+            />
           </group>
         </SurfaceProvider>
         <LabelProjector items={grid.items} nodes={nodes} />

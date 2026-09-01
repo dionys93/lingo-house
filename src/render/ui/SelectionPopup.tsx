@@ -53,7 +53,8 @@ export function SelectionPopup({
   described: Described;
   from: Locale;
   to: Locale;
-  onAct: (edgeId: string) => void;
+  /** The whole action, so the shell doesn't have to work out what the id names. */
+  onAct: (action: NonNullable<Described['action']>) => void;
   onDismiss: () => void;
 }) {
   // Escape closes. A subscription to something outside React is exactly what an
@@ -97,7 +98,7 @@ export function SelectionPopup({
         {action && (
           <button
             type="button"
-            onClick={() => onAct(action.edgeId)}
+            onClick={() => { onAct(action); }}
             style={{
               display: 'block',
               width: '100%',

@@ -83,3 +83,30 @@ describe('an opening is its edge, not the name it was written under', () => {
     expect(openingsOn(after, 0).some((o) => o.cell[0] === 5 && o.cell[1] === 7 && o.side === 'front')).toBe(false);
   });
 });
+
+describe('deleting a host takes what it holds', () => {
+  it('removes the cups when the cupboard goes', () => {
+    // Leaving them behind is not "keeping the user's work": their host is gone,
+    // so the plan stops compiling and the error names a cup nobody touched.
+    const before = itemsOn(PLAN, 0);
+    const cups = before.filter((i) => i.mount.on === 'inside' && i.mount.host === 'kitchen-cupboard');
+    expect(cups.length).toBeGreaterThan(0);
+    const after = itemsOn(applyEdit(PLAN, { tag: 'removeItem', level: 0, id: 'kitchen-cupboard' }), 0);
+    expect(after.map((i) => i.id)).not.toContain('kitchen-cupboard');
+    for (const c of cups) expect(after.map((i) => i.id)).not.toContain(c.id);
+  });
+
+  it('follows the chain, not just one link', () => {
+    // A laptop on a table is one link; a cup on a shelf in a cupboard on a
+    // table would be two. Nothing forbids the second, so removal cannot stop
+    // at the first.
+    const plan = applyEdit(PLAN, { tag: 'removeItem', level: 0, id: 'living-table' });
+    expect(itemsOn(plan, 0).map((i) => i.id)).not.toContain('work-laptop');
+  });
+
+  it('leaves everything else alone', () => {
+    const after = itemsOn(applyEdit(PLAN, { tag: 'removeItem', level: 0, id: 'kitchen-cupboard' }), 0);
+    expect(after.map((i) => i.id)).toContain('kitchen-fridge');
+    expect(after.length).toBe(itemsOn(PLAN, 0).length - 5); // the cupboard, three cups and the plates
+  });
+});

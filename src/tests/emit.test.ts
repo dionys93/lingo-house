@@ -56,6 +56,8 @@ describe('what edit mode saves is what edit mode was showing', () => {
       // Against the living room's front wall, clear of the door and the windows.
       item: { id, kind: 'bookshelf', mount: { on: 'floor', cell: [11, 6], facing: 'n', offset: [0.15, -0.2] } },
     });
+    // The nightstand has a lamp on it, so this also exercises the cascade —
+    // both must be gone from the file, and the file must still compile.
     plan = applyEdit(plan, { tag: 'removeItem', level: 1, id: 'small-nightstand' });
     plan = applyEdit(plan, {
       tag: 'addOpening',
@@ -77,6 +79,7 @@ describe('what edit mode saves is what edit mode was showing', () => {
     // plan could not pass by being self-consistent.
     expect(after.storeys[0].grid.items.map((i) => i.id)).toContain(id);
     expect(after.storeys[1].grid.items.map((i) => i.id)).not.toContain('small-nightstand');
+    expect(after.storeys[1].grid.items.map((i) => i.id)).not.toContain('small-lamp');
     expect(after.storeys[0].grid.openings.length).toBe(
       compiledOf(start).storeys[0].grid.openings.length + 1,
     );

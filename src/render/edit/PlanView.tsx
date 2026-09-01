@@ -43,10 +43,14 @@ const WALL_INK = '#3c3a35';
 // Items are drawn by what holds them up, because that is what you can and
 // cannot drag: a floor item moves anywhere, a wall item slides along its wall,
 // and something sitting on a table follows the table.
-const ITEM_FILL: Record<'floor' | 'item' | 'wall', string> = {
+const ITEM_FILL: Record<'floor' | 'item' | 'wall' | 'inside', string> = {
   floor: '#c98b5e',
   item: '#d9b382',
   wall: '#8fa9c0',
+  // Inside something, so its footprint sits within its host's and would
+  // otherwise read as a stray rectangle drawn on top of a cupboard. Pale, and
+  // like the other non-floor mounts it is selected rather than dragged.
+  inside: '#efe0c6',
 };
 
 export function PlanView({

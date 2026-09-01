@@ -32,6 +32,7 @@ export type WalkState =
       readonly level: number;
       readonly location: Location;
       readonly openDoors: ReadonlySet<string>;
+      readonly openItems: ReadonlySet<string>;
     }
   | {
       readonly tag: 'climbing';
@@ -49,12 +50,19 @@ export type WalkState =
       readonly to: Stance;
       readonly toLocation: Location;
       readonly openDoors: ReadonlySet<string>;
+      readonly openItems: ReadonlySet<string>;
     };
 
 export type WalkEvent =
   /** The shell noticed you crossed into a different room. Ignored mid-climb. */
   | { readonly tag: 'entered'; readonly location: Location }
   | { readonly tag: 'toggleDoor'; readonly doorId: string }
+  // A cupboard, a wardrobe, a drawer. Separate from toggleDoor because the two
+  // ids live in different namespaces — an opening's id is derived from its wall
+  // edge and an item's is authored — and one set holding both would make
+  // "is this open" a question you could ask of the wrong thing and get an
+  // answer to.
+  | { readonly tag: 'toggleItem'; readonly itemId: string }
   | {
       readonly tag: 'climb';
       readonly edgeId: string;
@@ -69,6 +77,7 @@ export const startWalking = (location: Location): WalkState => ({
   level: 0,
   location,
   openDoors: new Set(),
+  openItems: new Set(),
 });
 
 export function walkReducer(state: WalkState, event: WalkEvent): WalkState {
@@ -89,6 +98,16 @@ export function walkReducer(state: WalkState, event: WalkEvent): WalkState {
       return { ...state, openDoors };
     }
 
+    case 'toggleItem': {
+      // No equivalent of the doorway check below: shutting a cupboard cannot
+      // trap you, because a cupboard's footprint blocks you whether it is open
+      // or shut. Its door swinging through the air you stand in is a liberty
+      // every kitchen takes.
+      const openItems = new Set(state.openItems);
+      if (!openItems.delete(event.itemId)) openItems.add(event.itemId);
+      return { ...state, openItems };
+    }
+
     case 'climb':
       // Refuse to interrupt a climb, exactly as the old reducer refused to
       // interrupt a traverse. Two overlapping camera animations is a bug you
@@ -101,6 +120,7 @@ export function walkReducer(state: WalkState, event: WalkEvent): WalkState {
         to: event.to,
         toLocation: event.toLocation,
         openDoors: state.openDoors,
+        openItems: state.openItems,
       };
 
     case 'arrived':
@@ -110,6 +130,7 @@ export function walkReducer(state: WalkState, event: WalkEvent): WalkState {
         level: state.to.level,
         location: state.toLocation,
         openDoors: state.openDoors,
+        openItems: state.openItems,
       };
 
     default:

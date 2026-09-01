@@ -197,6 +197,28 @@ export const ITEMS: readonly ItemDef[] = [
   { id: 'kitchen-oven', kind: 'oven', mount: { on: 'floor', cell: [3, 3], facing: 's', offset: [0, -0.12] } },
   { id: 'kitchen-counter-r', kind: 'counter', mount: { on: 'floor', cell: [3, 4], facing: 's', offset: [0, -0.12] } },
   { id: 'kitchen-dishwasher', kind: 'dishwasher', mount: { on: 'floor', cell: [3, 6], facing: 's', offset: [0.1, -0.12] } },
+  // The cupboard, and the whole reason opening was worth building: it holds
+  // plates and cups, and a learner meets those two words by opening the door of
+  // the room they live in. Contents are authored INSIDE it — `shelf` indexes the
+  // heights on its spec, `offset` is a fraction of the shelf, not of the cell.
+  //
+  // NOT on the back wall with the rest of the run: every cell of it is an
+  // appliance, a window or the back door, and standing the cupboard in front of
+  // the back door sealed the whole yard off. The fit checks passed it happily —
+  // it was in a room and overlapped nothing — and walkable.test is what caught
+  // it, which is the division of labour those two are for.
+  //
+  // So it turns the corner onto the left-hand wall, below the fridge and past
+  // the window. Which also means you can stand back and look at it: the first
+  // place it went was a one-metre alcove beside the WC, where opening it filled
+  // the only space there was to see it from.
+  { id: 'kitchen-cupboard', kind: 'cupboard', mount: { on: 'floor', cell: [5, 0], facing: 'e', offset: [-0.12, 0] } },
+  { id: 'kitchen-plates', kind: 'plate', mount: { on: 'inside', host: 'kitchen-cupboard', shelf: 0, offset: [-0.22, 0] } },
+  { id: 'kitchen-cup-a', kind: 'cup', mount: { on: 'inside', host: 'kitchen-cupboard', shelf: 1, offset: [-0.3, 0] } },
+  { id: 'kitchen-cup-b', kind: 'cup', mount: { on: 'inside', host: 'kitchen-cupboard', shelf: 1, offset: [0, 0] } },
+  { id: 'kitchen-cup-c', kind: 'cup', mount: { on: 'inside', host: 'kitchen-cupboard', shelf: 1, offset: [0.3, 0] } },
+  // A plant on the worktop by the window.
+  { id: 'kitchen-plant', kind: 'pottedPlant', mount: { on: 'item', host: 'kitchen-counter-l', offset: [0.28, 0] } },
 
   // ── The dining table, against the partition the two living-room doorways sit
   // in, and centred BETWEEN them so neither is obstructed.
@@ -224,6 +246,8 @@ export const ITEMS: readonly ItemDef[] = [
   { id: 'patio-chair-a', kind: 'chair', mount: { on: 'floor', cell: [1, 2], facing: 'e', offset: [-0.1, 0.2] } },
   { id: 'patio-chair-b', kind: 'chair', mount: { on: 'floor', cell: [1, 4], facing: 'w', offset: [0.1, 0.2] } },
   { id: 'patio-chair-c', kind: 'chair', mount: { on: 'floor', cell: [0, 3], facing: 's', offset: [0, 0.24] } },
+  { id: 'patio-plant-a', kind: 'pottedPlant', mount: { on: 'floor', cell: [2, 2], facing: 's', offset: [-0.22, 0.22] } },
+  { id: 'patio-plant-b', kind: 'pottedPlant', mount: { on: 'floor', cell: [2, 8], facing: 's', offset: [0.22, 0.22] } },
 
   // ── The WC.
   { id: 'wc-toilet', kind: 'toilet', mount: { on: 'floor', cell: [3, 7], facing: 's', offset: [0, -0.07] } },
@@ -243,6 +267,10 @@ export const ITEMS: readonly ItemDef[] = [
   // A reading corner in the far right of the room, well clear of the walkways.
   { id: 'living-bookshelf', kind: 'bookshelf', mount: { on: 'floor', cell: [12, 8], facing: 'w', offset: [0.27, 0] } },
   { id: 'reading-chair', kind: 'chair', mount: { on: 'floor', cell: [12, 7], facing: 'w' } },
+  // A lamp beside the reading chair, and a plant in the far corner. The lamp is
+  // the one item that is also a light — see its factory.
+  { id: 'reading-lamp', kind: 'lamp', mount: { on: 'floor', cell: [11, 8], facing: 'w', offset: [0.24, 0] } },
+  { id: 'living-plant', kind: 'pottedPlant', mount: { on: 'floor', cell: [12, 0], facing: 's', offset: [0.22, -0.22] } },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -355,12 +383,14 @@ export const UPPER_ITEMS: readonly ItemDef[] = [
   { id: 'bedroom-wardrobe', kind: 'wardrobe', mount: { on: 'floor', cell: [9, 8], facing: 'w', offset: [0.12, 0] } },
   // On the front wall between the two windows, facing the foot of the bed.
   { id: 'bedroom-tv', kind: 'tv', mount: { on: 'wall', cell: [10, 4], side: 'front', height: 0.55 } },
+  { id: 'bedroom-lamp', kind: 'lamp', mount: { on: 'item', host: 'bedroom-nightstand-l' } },
 
   // ── Small bedroom. The room is three cells deep and a bed is 2 m long, so
   // this one runs ACROSS the room ('e') with its head to the left-hand wall.
   { id: 'small-bed', kind: 'bed', mount: { on: 'floor', cell: [4, 0], facing: 'e', offset: [0.58, -0.5] } },
   { id: 'small-nightstand', kind: 'nightstand', mount: { on: 'floor', cell: [3, 2], facing: 's', offset: [0, -0.22] } },
   { id: 'small-wardrobe', kind: 'wardrobe', mount: { on: 'floor', cell: [5, 3], facing: 'n', offset: [0, 0.12] } },
+  { id: 'small-lamp', kind: 'lamp', mount: { on: 'item', host: 'small-nightstand' } },
 ];
 
 // ── The staircase. Rises up the living room's left column, bottom tread by the
