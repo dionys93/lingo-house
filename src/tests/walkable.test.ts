@@ -40,7 +40,15 @@ const STEP = 0.1; // 200 mm sample grid — finer than the body, coarser than th
 const snap = (v: number) => Math.round(v / STEP) * STEP;
 const key = (p: Vec2) => `${snap(p[0]).toFixed(2)},${snap(p[1]).toFixed(2)}`;
 
-/** Every point you can reach from `start`, walking the way the app walks. */
+/**
+ * Every point you can reach from `start`, walking the way the app walks.
+ *
+ * Every candidate is SNAPPED before use, so the fill lands on exact multiples
+ * of STEP and its keys can be compared with a sweep of the same lattice.
+ * Stepping by raw addition instead lets error accumulate until `Math.round(1.25
+ * / 0.1)` comes out 12 here and 13 there — two names for one place, which reads
+ * as an unreachable tile that is standing right where you are.
+ */
 function reachable(start: Vec2, blockers: readonly Segment2[], bounds: readonly number[]): Set<string> {
   const [x0, z0, x1, z1] = bounds as [number, number, number, number];
   const seen = new Set<string>([key(start)]);
@@ -49,7 +57,7 @@ function reachable(start: Vec2, blockers: readonly Segment2[], bounds: readonly 
     const at = queue.pop();
     if (at === undefined) break;
     for (const [dx, dz] of [[STEP, 0], [-STEP, 0], [0, STEP], [0, -STEP]] as const) {
-      const to: Vec2 = [at[0] + dx, at[1] + dz];
+      const to: Vec2 = [snap(at[0] + dx), snap(at[1] + dz)];
       if (to[0] < x0 || to[0] > x1 || to[1] < z0 || to[1] > z1) continue;
       if (seen.has(key(to))) continue;
       // Did the move actually land where it was aimed? `slide` returns the
@@ -61,6 +69,22 @@ function reachable(start: Vec2, blockers: readonly Segment2[], bounds: readonly 
     }
   }
   return seen;
+}
+
+/** Every point on the same lattice that a body could legally occupy. */
+function standable(
+  bbox: { x0: number; z0: number; x1: number; z1: number },
+  blockers: readonly Segment2[],
+  solids: readonly Box2[],
+): Vec2[] {
+  const out: Vec2[] = [];
+  for (let x = snap(bbox.x0); x <= bbox.x1; x = snap(x + STEP)) {
+    for (let z = snap(bbox.z0); z <= bbox.z1; z = snap(z + STEP)) {
+      const p: Vec2 = [x, z];
+      if (canStand(p, blockers, solids, RADIUS)) out.push(p);
+    }
+  }
+  return out;
 }
 
 const compiled = compileHouse(houseFor(MONTHS[0]));
@@ -122,6 +146,32 @@ describe('the authored house is walkable', () => {
         })
         .map((room) => room.key);
       expect(unreachable).toEqual([]);
+    });
+
+    // The assertion the sofa bug needed, and the one "every room is reachable"
+    // cannot make: a room stays reachable while most of it is sealed off, because
+    // one tile inside its doorway counts for the whole room. This asks about every
+    // POINT instead, at the same 100mm resolution the fill walks.
+    //
+    // Scope is every point a body could legally occupy — `canStand`, the core's
+    // own definition, the same one the walker's rescue uses. A point under the bed
+    // is not standable and is not asked about; a point in the open behind the
+    // dining table is, and if the fill never got there, something is walled in.
+    //
+    // Restricted to points inside a room so the garden doesn't count. The house
+    // has one exterior door and the fill opens it, so without this the whole
+    // lawn is in scope and every assertion is about grass.
+    it(`level ${String(storey.level)}: every point you can stand on can be walked to`, () => {
+      const inRoom = (p: Vec2) =>
+        storey.grid.rooms.some((r) =>
+          r.floor.some((t) => Math.abs(t[0] - p[0]) <= CELL / 2 && Math.abs(t[2] - p[1]) <= CELL / 2),
+        );
+      const stranded = standable(b, blockers, solids)
+        .filter(inRoom)
+        .filter((p) => !seen.has(key(p)));
+      // Named by position, because a bare count tells you a room is walled in
+      // without telling you which end of which room to go and look at.
+      expect(stranded.map((p) => `[${p[0].toFixed(2)}, ${p[1].toFixed(2)}]`)).toEqual([]);
     });
 
     it(`level ${String(storey.level)}: furniture leaves a route, not just a room`, () => {

@@ -97,7 +97,11 @@ export const GROUND_FLOOR: Grid = [
   // The kitchen runs full width beneath the WC, which is what makes the WC an
   // interior room with one door rather than a block bitten out of the corner.
   /* row 3 */ [K, K, K, K, K, K, K, K, K],
-  /* row 4 */ [L, L, L, L, L, L, L, L, L],
+  // The kitchen takes row 4 as well — everything except column 0, which stays
+  // living room because the staircase rises through it. That extra row is what
+  // gives the dining table a wall to stand against without the table then
+  // sealing off the cooking end of the room.
+  /* row 4 */ [L, K, K, K, K, K, K, K, K],
   /* row 5 */ [L, L, L, L, L, L, L, L, L],
   /* row 6 */ [L, L, L, L, L, L, L, L, L],
   /* row 7 */ [L, L, L, L, L, L, L, L, L],
@@ -113,8 +117,8 @@ export const DOORS: readonly Opening[] = [
   { kind: 'door', cell: [9, 4], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] },
   // The two kitchen doorways. Far enough apart that furniture in the middle of
   // the living room can never block both.
-  { kind: 'door', cell: [4, 2], side: 'back', swing: 'in', between: ['livingRoom', 'kitchen'] },
-  { kind: 'door', cell: [4, 6], side: 'back', swing: 'in', between: ['livingRoom', 'kitchen'] },
+  { kind: 'door', cell: [5, 2], side: 'back', swing: 'in', between: ['livingRoom', 'kitchen'] },
+  { kind: 'door', cell: [5, 6], side: 'back', swing: 'in', between: ['livingRoom', 'kitchen'] },
   { kind: 'door', cell: [2, 7], side: 'front', swing: 'in', between: ['bathroom', 'kitchen'] },
 ];
 
@@ -149,17 +153,22 @@ export const ITEMS: readonly ItemDef[] = [
   { id: 'kitchen-counter-r', kind: 'counter', mount: { on: 'floor', cell: [0, 4], facing: 's', offset: [0, -0.12] } },
   { id: 'kitchen-dishwasher', kind: 'dishwasher', mount: { on: 'floor', cell: [0, 6], facing: 's', offset: [0.1, -0.12] } },
 
-  // ── The dining wing: a 2 m square table with its back to the WC partition,
-  // so it reads as belonging to that wall rather than marooned mid-room. Two
-  // cells square means the mounting cell is a corner of it, not its middle —
-  // the offsets do the centring, which is why they are large here and tiny
-  // everywhere else.
+  // ── The dining table, against the partition the two living-room doorways sit
+  // in, and centred BETWEEN them so neither is obstructed.
   //
-  // Three chairs, on the three sides that aren't the wall.
-  { id: 'dining-table', kind: 'diningTable', mount: { on: 'floor', cell: [1, 6], facing: 's', offset: [-0.58, 0.5] } },
-  { id: 'dining-chair-w', kind: 'chair', mount: { on: 'floor', cell: [2, 4], facing: 'e', offset: [0.13, -0.5] } },
-  { id: 'dining-chair-n', kind: 'chair', mount: { on: 'floor', cell: [0, 5], facing: 's', offset: [0.42, 0.21] } },
-  { id: 'dining-chair-s', kind: 'chair', mount: { on: 'floor', cell: [3, 5], facing: 'n', offset: [0.42, -0.21] } },
+  // It used to stand across the back-right corner, floating clear of every wall,
+  // with chairs on all four sides. The route past it to the counters, oven and
+  // fridge was a body's width and threaded between two chairs — walkable.test
+  // could find it and a person could not. A 2 m table parked in the middle of a
+  // room is a wall with legs; against a wall it is furniture, and what used to
+  // be a gap to be found is now simply the room.
+  //
+  // The chairs go on the three open sides, and deliberately NOT in columns 2 and
+  // 6 — those are the routes in from the two doors.
+  { id: 'dining-table', kind: 'diningTable', mount: { on: 'floor', cell: [4, 3], facing: 's', offset: [0.5, -0.58] } },
+  { id: 'dining-chair-a', kind: 'chair', mount: { on: 'floor', cell: [2, 3], facing: 's', offset: [0, 0.13] } },
+  { id: 'dining-chair-b', kind: 'chair', mount: { on: 'floor', cell: [2, 4], facing: 's', offset: [0, 0.13] } },
+  { id: 'dining-chair-e', kind: 'chair', mount: { on: 'floor', cell: [3, 5], facing: 'w', offset: [-0.21, 0.42] } },
 
   // ── The WC.
   { id: 'wc-toilet', kind: 'toilet', mount: { on: 'floor', cell: [0, 7], facing: 's', offset: [0, -0.07] } },
@@ -172,7 +181,10 @@ export const ITEMS: readonly ItemDef[] = [
   { id: 'living-table', kind: 'table', mount: { on: 'floor', cell: [7, 4], facing: 's' } },
   { id: 'work-laptop', kind: 'laptop', mount: { on: 'item', host: 'living-table', offset: [-0.2, -0.1] } },
   { id: 'living-sofa', kind: 'sofa', mount: { on: 'floor', cell: [8, 4], facing: 'n' } },
-  { id: 'living-tv', kind: 'tv', mount: { on: 'wall', cell: [4, 4], side: 'back', height: 0.55 } },
+  // On the kitchen partition, which moved down a row with the kitchen. Back to
+  // back with the dining table through the same wall, which is what a partition
+  // between a kitchen and a living room usually carries.
+  { id: 'living-tv', kind: 'tv', mount: { on: 'wall', cell: [5, 4], side: 'back', height: 0.55 } },
   // A reading corner in the far right of the room, well clear of the walkways.
   { id: 'living-bookshelf', kind: 'bookshelf', mount: { on: 'floor', cell: [9, 8], facing: 'w', offset: [0.27, 0] } },
   { id: 'reading-chair', kind: 'chair', mount: { on: 'floor', cell: [9, 7], facing: 'w' } },
