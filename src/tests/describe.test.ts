@@ -60,6 +60,7 @@ const WORDS = {
   window: { en: 'the window', es: 'la ventana', de: 'das Fenster' },
   wall: { en: 'the wall', es: 'la pared', de: 'die Wand' },
   floor: { en: 'the floor', es: 'el suelo', de: 'der Boden' },
+  ground: { en: 'the ground', es: 'el suelo', de: 'der Boden' },
   ceiling: { en: 'the ceiling', es: 'el techo', de: 'die Decke' },
   roof: { en: 'the roof', es: 'el tejado', de: 'das Dach' },
   stairs: { en: 'the stairs', es: 'la escalera', de: 'die Treppe' },
@@ -80,6 +81,16 @@ const LABELS: LabelTable = {
   es: { nouns: nounsIn('es'), months: monthsIn('es'), outside: 'afuera', goOutside: 'Sal afuera', closeDoor: 'Cierra la puerta' },
   de: { nouns: nounsIn('de'), months: monthsIn('de'), outside: 'draußen', goOutside: 'Geh nach draußen', closeDoor: 'Schließ die Tür' },
 };
+
+const PATIO = defineRoom({
+  key: 'patio',
+  outdoor: true,
+  labels: {
+    en: { name: 'the patio', enter: 'Open the door to the patio', up: 'Go up to the patio', down: 'Go down to the patio' },
+    es: { name: 'el patio', enter: 'Abre la puerta del patio', up: 'Sube al patio', down: 'Baja al patio' },
+    de: { name: 'die Terrasse', enter: 'Öffne die Tür zur Terrasse', up: 'Geh hinauf auf die Terrasse', down: 'Geh hinunter auf die Terrasse' },
+  },
+});
 
 // Kitchen left, living room right, an interior door between them, and a front
 // door from the living room to outside.
@@ -128,6 +139,39 @@ suite('describe — the word chain', () => {
 
   it('drops the room context when you are outside', () => {
     expect(at({ on: 'opening', id: frontDoor }, 'outside')!.context).toEqual([]);
+  });
+
+  it('calls the same tile the floor indoors and the ground outdoors', () => {
+    // One mesh, two words. The shell dispatches part 'floor' for every tile
+    // because it is one component; which word that is depends on where you are
+    // standing, which only describe() knows. Teaching a learner that a patio has
+    // a "floor" is teaching them the wrong word.
+    const yard = compileHouse([
+      {
+        level: 0,
+        grid: [[K, PATIO]],
+        openings: [{ kind: 'door', cell: [0, 0], side: 'right', swing: 'in', between: ['kitchen', 'patio'] }],
+      },
+    ]);
+    if (!yard.ok) throw new Error(JSON.stringify(yard.error));
+    const g = buildNavGraph(yard.value.storeys[0].grid.openings);
+    // Both clicks are made from the SAME place, so what changes the word is the
+    // tile under the cursor and nothing else.
+    const tileOf = (key: string) => {
+      const room = yard.value.storeys[0].grid.rooms.find((r) => r.key === key);
+      if (room === undefined) throw new Error(`no room ${key}`);
+      return room.floor[0];
+    };
+    const say = (clicked: string) => {
+      const d = describe({ on: 'part', part: 'floor', at: tileOf(clicked) }, 'kitchen', yard.value, g, LABELS, 'en', 'es', SHUT);
+      if (d === null) throw new Error('described nothing');
+      return d;
+    };
+    expect(say('kitchen').subject.from).toBe('the floor');
+    expect(say('patio').subject.from).toBe('the ground');
+    // Spanish has one word for both, and that is a fact about Spanish rather
+    // than a reason to make the English wrong.
+    expect(say('patio').subject.to).toBe('el suelo');
   });
 
   it('returns null for a selection that no longer exists', () => {

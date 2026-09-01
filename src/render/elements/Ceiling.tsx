@@ -28,7 +28,10 @@ export function Ceiling({
 }) {
   return (
     <RoomTiles
-      grid={grid}
+      // Indoors only. A patio's ceiling is the sky — and drawing one would put
+      // a lid at 2.4 m over open ground, which is the shape of a room you can
+      // see out of and cannot see up from.
+      rooms={grid.rooms.filter((r) => r.outdoor !== true)}
       y={baseY + CEILING_Y}
       faceUp={false}
       defaultColor={DEFAULT_INTERIOR}

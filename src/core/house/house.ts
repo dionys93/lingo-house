@@ -305,6 +305,18 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
     }
   }
   for (const st of stairs) link(st.connects[0], st.connects[1]);
+  // An outdoor room IS outside — you walk onto a patio, you do not open a door
+  // to it. Without this the reachability check would call a storey unreachable
+  // for having no door into a place that has no walls, which is the wrong
+  // complaint about the right plan.
+  // Straight over the map's values: room keys are unique across the whole house
+  // (the check above), so which storey an outdoor room is on tells us nothing
+  // the link needs.
+  for (const grid of compiled.values()) {
+    for (const room of grid.rooms) {
+      if (room.outdoor === true) link(room.key, 'outside');
+    }
+  }
 
   const reached = new Set<WallSide>(['outside']);
   const queue: WallSide[] = ['outside'];

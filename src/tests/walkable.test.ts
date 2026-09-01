@@ -18,7 +18,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { compileGrid } from '../core/house/grid';
-import { compileHouse } from '../core/house/house';
+import { compileHouse, houseExtent } from '../core/house/house';
+import { gridFrame } from '../core/house/frame';
 import { houseFor } from '../content/house';
 import { MONTHS } from '../core/house/month';
 import { blockersFor, blockingFootprint, canStand, nearestStandable, obstructs, slide, stairwellBox, type Box2, type Segment2, type Vec2 } from '../core/house/collide';
@@ -87,7 +88,20 @@ function standable(
   return out;
 }
 
-const compiled = compileHouse(houseFor(MONTHS[0]));
+const PLAN = houseFor(MONTHS[0]);
+const compiled = compileHouse(PLAN);
+
+// THE PLOT, not the building. `footprint.bbox` is the outline the roof sits on,
+// which is what it should be and is no longer the area you can walk: the patio
+// and the garden are rooms outside it. A fill bounded by the building can't
+// reach them, and — the part that would have been silently wrong — can't walk
+// around the outside of the house either, which is one of the two ways to the
+// patio.
+const EXTENT = houseExtent(PLAN);
+const PLOT = (() => {
+  const f = gridFrame(EXTENT.rows, EXTENT.cols);
+  return { x0: f.xAt(0), x1: f.xAt(EXTENT.cols), z0: f.zAt(0), z1: f.zAt(EXTENT.rows) };
+})();
 
 describe('the authored house is walkable', () => {
   it('compiles at all', () => {
@@ -108,7 +122,7 @@ describe('the authored house is walkable', () => {
         .filter((st) => st.level === storey.level || st.level + 1 === storey.level)
         .flatMap((st) => stairwellOf(st.treads, CELL)),
     ];
-    const b = storey.grid.footprint.bbox;
+    const b = PLOT;
     const bounds = [b.x0, b.z0, b.x1, b.z1];
 
     // The interiors, for `canStand` — see collide.ts. Built exactly as the shell

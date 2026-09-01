@@ -25,9 +25,23 @@ export const TRIM = '#c4b8a4'; // top / bottom / interior end faces
  */
 export const SIDING_ROUGHNESS = 1;
 
-// side → colour, resolved once from the compiled rooms.
+/**
+ * side → colour, resolved once from the compiled rooms.
+ *
+ * An OUTDOOR room is siding, not its own colour. That is the whole rule and it
+ * is easy to get wrong the other way: a patio is a room, so the naive lookup
+ * paints the back of the house in patio grey and the gable end in garden green
+ * — the outside of the building wearing the colour of the ground in front of
+ * it. What a face shows is decided by which side of the wall you are standing
+ * on, and standing on a patio is standing outside.
+ *
+ * It is exactly the same rule 'outside' has always followed; a patio simply
+ * gave 'outside' a name for the first time.
+ */
 export function buildColorOf(rooms: readonly CompiledRoom[]): (side: WallSide) => string {
-  const byKey = new Map(rooms.map((r) => [r.key, r.color ?? DEFAULT_INTERIOR]));
+  const byKey = new Map(
+    rooms.map((r) => [r.key, r.outdoor === true ? HOUSE_SIDING : (r.color ?? DEFAULT_INTERIOR)]),
+  );
   return (side) => (side === 'outside' ? HOUSE_SIDING : (byKey.get(side) ?? DEFAULT_INTERIOR));
 }
 
@@ -43,7 +57,11 @@ export function faceColors(
 ): [string, string, string, string, string, string] {
   const neg = colorOf(sides[0]);
   const pos = colorOf(sides[1]);
-  const end = sides.includes('outside') ? colorOf('outside') : TRIM;
+  // "Is this wall exterior" asked of the COLOURS rather than of the keys. The
+  // key test (`sides.includes('outside')`) missed a wall whose far side is a
+  // patio, which is exterior in every way that matters here — and this version
+  // cannot drift from what the faces actually got.
+  const end = neg === HOUSE_SIDING || pos === HOUSE_SIDING ? HOUSE_SIDING : TRIM;
   return axis === 'z'
     ? [pos, neg, TRIM, TRIM, end, end]
     : [end, end, TRIM, TRIM, pos, neg];

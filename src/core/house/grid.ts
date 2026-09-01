@@ -97,6 +97,15 @@ export function compileGrid(
   const outward = (o: RoomKey | null): WallSide => o ?? 'outside';
   const keyAt = (r: number, c: number): WallSide => outward(index.at(r, c));
 
+  // Which room keys are open air. Built from the defs in THIS grid rather than
+  // asked of a lookup, because `boundaries` speaks in keys and the flag lives on
+  // the definition.
+  const outdoorKeys = new Set(roomCells.filter(({ def }) => def.outdoor === true).map(({ def }) => def.key));
+  // A cell with no room drawn on it is sky, and so is a patio. That the two are
+  // the same thing HERE is the whole of the outdoor rule: no wall stands between
+  // them, and neither wants a roof.
+  const openAir = (o: RoomKey | null): boolean => o === null || outdoorKeys.has(o);
+
   // Group cells by room key. Grouping is a fold — inherently stateful — so it
   // stays an explicit accumulation, but over the flat list, not a re-traversal.
   const rooms = new Map<RoomKey, { readonly def: RoomDef; readonly cells: Cell[] }>();
@@ -161,7 +170,13 @@ export function compileGrid(
   // that's left here is dropping the ones an opening claimed and naming the
   // absent side 'outside'.
   const edges = boundaries(index).filter(
-    (b) => !claimed.has(`${b.orient}:${b.fixed}:${b.varying}`),
+    (b) =>
+      !claimed.has(`${b.orient}:${b.fixed}:${b.varying}`) &&
+      // The outdoor rule, and the only line of it. `boundaries` keeps every
+      // place the two sides differ, which is the right question for a building
+      // and one case too many for a plot: patio-to-lawn and patio-to-edge both
+      // differ, and neither is a wall. Patio-to-kitchen still is.
+      !(openAir(b.neg) && openAir(b.pos)),
   );
   const asSeg = (b: (typeof edges)[number]): Seg => ({
     fixed: b.fixed,
@@ -252,11 +267,20 @@ export function compileGrid(
     };
     const floor: Vec3[] = cells.map(([r, c]) => vec3(xAt(c) + CELL / 2, baseY, zAt(r) + CELL / 2));
     const base = { key, labels: def.labels, cells, bounds, floor };
-    compiledRooms.push(def.color === undefined ? base : { ...base, color: def.color });
+    const withColor = def.color === undefined ? base : { ...base, color: def.color };
+    compiledRooms.push(def.outdoor === true ? { ...withColor, outdoor: true } : withColor);
   }
 
-  const footRows = roomCells.map(({ r }) => r);
-  const footCols = roomCells.map(({ c }) => c);
+  // The outline of the BUILDING, which is what a roof sits on and what the shell
+  // frames the house by — not of the plot. A patio behind the kitchen must not
+  // push the footprint back three rows and drag the roof and the camera with it.
+  //
+  // Falls back to every room when there is no building at all, so a plan that is
+  // nothing but a garden still has an outline rather than an Infinity.
+  const builtCells = roomCells.filter(({ def }) => def.outdoor !== true);
+  const footCells = builtCells.length > 0 ? builtCells : roomCells;
+  const footRows = footCells.map(({ r }) => r);
+  const footCols = footCells.map(({ c }) => c);
   const footprint: Footprint = {
     bbox: {
       x0: xAt(Math.min(...footCols)),

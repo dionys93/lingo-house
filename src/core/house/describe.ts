@@ -20,6 +20,7 @@ import type { CompiledHouse } from './house';
 import type { NavGraph, Location } from './nav';
 import type { Selection } from '../session/explorer';
 import { noun, type Bilingual, type LabelTable, type Locale } from './labels';
+import { CELL } from './scale';
 
 // An action the popup offers as a button. `event` is the nav event to dispatch —
 // describe() decides WHAT can be done, the shell decides when it happens.
@@ -173,8 +174,31 @@ export function describe(
     case 'part': {
       // Every wall is "the wall" — there's no wall to identify, only a place to
       // hang the popup, which is why a part selection carries a point, not an id.
+      //
+      // The one exception is the floor, which is two words: the same tile mesh
+      // is the floor of a kitchen and the ground of a patio. The shell
+      // dispatches 'floor' for both because it is one component, and the word is
+      // chosen here.
+      //
+      // Decided by what you CLICKED, not by where you stand — `selection.at` is
+      // the point on the tile, so the room under it is the room the word is
+      // about. Reading `where` instead is subtly wrong in both directions:
+      // clicking the patio from the lawn would say "the floor", and clicking the
+      // kitchen floor through the open back door while standing on the patio
+      // would say "the ground". Pointing a word at the thing under the cursor is
+      // the entire premise.
+      const clicked = rooms.find((r) =>
+        r.floor.some(
+          (t) =>
+            Math.abs(t[0] - selection.at[0]) <= CELL / 2 &&
+            Math.abs(t[2] - selection.at[2]) <= CELL / 2,
+        ),
+      );
+      // No room under it means the lawn, which is outdoors by definition.
+      const outdoors = clicked === undefined || clicked.outdoor === true;
+      const part = selection.part === 'floor' && outdoors ? 'ground' : selection.part;
       return {
-        subject: noun(labels, from, to, selection.part),
+        subject: noun(labels, from, to, part),
         context: here,
         anchor: selection.at,
       };

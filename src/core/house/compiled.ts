@@ -27,6 +27,8 @@ export interface CompiledRoom {
   readonly key: RoomKey;
   readonly labels: Record<Locale, RoomLabels>; // carried through; the core never picks a language
   readonly color?: string; // opaque to the core; the factory interprets it
+  /** Open air — no ceiling, no roof, and no wall where it meets other open air. */
+  readonly outdoor?: boolean;
   readonly cells: readonly Cell[];
   readonly bounds: AABB;
   readonly floor: readonly Vec3[]; // world centre of each cell, at the storey's baseY — one tile each
