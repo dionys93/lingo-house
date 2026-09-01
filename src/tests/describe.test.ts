@@ -43,6 +43,11 @@ const WORDS = {
   sofa: { en: 'the sofa', es: 'el sofá', de: 'das Sofa' },
   rug: { en: 'the rug', es: 'la alfombra', de: 'der Teppich' },
   bookshelf: { en: 'the bookshelf', es: 'la estantería', de: 'das Bücherregal' },
+  lamp: { en: 'the lamp', es: 'la lámpara', de: 'die Lampe' },
+  pottedPlant: { en: 'the potted plant', es: 'la planta en maceta', de: 'die Topfpflanze' },
+  cupboard: { en: 'the cupboard', es: 'el armario de cocina', de: 'der Küchenschrank' },
+  plate: { en: 'the plate', es: 'el plato', de: 'der Teller' },
+  cup: { en: 'the cup', es: 'la taza', de: 'die Tasse' },
   counter: { en: 'the counter', es: 'la encimera', de: 'die Arbeitsplatte' },
   oven: { en: 'the oven', es: 'el horno', de: 'der Backofen' },
   fridge: { en: 'the fridge', es: 'la nevera', de: 'der Kühlschrank' },
@@ -77,9 +82,9 @@ const monthsIn = (l: Locale): Record<Month, string> =>
   Object.fromEntries(MONTHS.map((m) => [m, `${m}-${l}`])) as Record<Month, string>;
 
 const LABELS: LabelTable = {
-  en: { nouns: nounsIn('en'), months: monthsIn('en'), outside: 'outside', goOutside: 'Go outside', closeDoor: 'Close the door' },
-  es: { nouns: nounsIn('es'), months: monthsIn('es'), outside: 'afuera', goOutside: 'Sal afuera', closeDoor: 'Cierra la puerta' },
-  de: { nouns: nounsIn('de'), months: monthsIn('de'), outside: 'draußen', goOutside: 'Geh nach draußen', closeDoor: 'Schließ die Tür' },
+  en: { nouns: nounsIn('en'), months: monthsIn('en'), outside: 'outside', goOutside: 'Go outside', closeDoor: 'Close the door', openIt: 'Open', closeIt: 'Close' },
+  es: { nouns: nounsIn('es'), months: monthsIn('es'), outside: 'afuera', goOutside: 'Sal afuera', closeDoor: 'Cierra la puerta', openIt: 'Abre', closeIt: 'Cierra' },
+  de: { nouns: nounsIn('de'), months: monthsIn('de'), outside: 'draußen', goOutside: 'Geh nach draußen', closeDoor: 'Schließ die Tür', openIt: 'Öffne', closeIt: 'Schließe' },
 };
 
 const PATIO = defineRoom({
@@ -122,7 +127,19 @@ const at = (
   sel: Selection,
   where: 'kitchen' | 'livingRoom' | 'outside',
   openDoors: ReadonlySet<string> = SHUT,
-) => describe(sel, where, house, graph, LABELS, 'en', 'es', openDoors);
+  openItems: ReadonlySet<string> = SHUT,
+) =>
+  describe({
+    selection: sel,
+    where,
+    house,
+    graph,
+    labels: LABELS,
+    from: 'en',
+    to: 'es',
+    openDoors,
+    openItems,
+  });
 
 suite('describe — the word chain', () => {
   it('names what you clicked, with the room you are in as context', () => {
@@ -163,7 +180,17 @@ suite('describe — the word chain', () => {
       return room.floor[0];
     };
     const say = (clicked: string) => {
-      const d = describe({ on: 'part', part: 'floor', at: tileOf(clicked) }, 'kitchen', yard.value, g, LABELS, 'en', 'es', SHUT);
+      const d = describe({
+        selection: { on: 'part', part: 'floor', at: tileOf(clicked) },
+        where: 'kitchen',
+        house: yard.value,
+        graph: g,
+        labels: LABELS,
+        from: 'en',
+        to: 'es',
+        openDoors: SHUT,
+        openItems: SHUT,
+      });
       if (d === null) throw new Error('described nothing');
       return d;
     };
@@ -179,13 +206,100 @@ suite('describe — the word chain', () => {
   });
 });
 
+suite('describe — opening things', () => {
+  // Its own house: the module fixture is one cell per room, and a cupboard
+  // plus a table will not both fit in a square metre — which the fit checks say
+  // so, correctly.
+  const ROOMY: Grid = [
+    [K, K, L],
+    [K, K, L],
+  ];
+  const built = compileHouse([
+    {
+      level: 0,
+      grid: ROOMY,
+      openings: [
+        { kind: 'door', cell: [0, 1], side: 'right', swing: 'in', between: ['kitchen', 'livingRoom'] },
+        // A front door, or the whole storey is somewhere nobody can reach.
+        { kind: 'door', cell: [1, 2], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] },
+      ],
+      items: [
+        { id: 't1', kind: 'table', mount: { on: 'floor', cell: [1, 1] } },
+        { id: 'cb', kind: 'cupboard', mount: { on: 'floor', cell: [0, 0] } },
+        { id: 'cup1', kind: 'cup', mount: { on: 'inside', host: 'cb' } },
+      ],
+    },
+  ]);
+  if (!built.ok) throw new Error(JSON.stringify(built.error));
+  const withCupboard = built.value;
+  const g = buildNavGraph(withCupboard.storeys[0].grid.openings);
+  const say = (id: string, openItems: ReadonlySet<string> = SHUT) => {
+    const d = describe({
+      selection: { on: 'item', id },
+      where: 'kitchen',
+      house: withCupboard,
+      graph: g,
+      labels: LABELS,
+      from: 'en',
+      to: 'es',
+      openDoors: SHUT,
+      openItems,
+    });
+    if (d === null) throw new Error(`described nothing for ${id}`);
+    return d;
+  };
+
+  it('offers to open what opens', () => {
+    expect(say('cb').action).toEqual({
+      label: { from: 'Open', to: 'Abre' },
+      on: 'item',
+      id: 'cb',
+    });
+  });
+
+  it('offers to close it once it is open — same click, opposite word', () => {
+    expect(say('cb', new Set(['cb'])).action?.label).toEqual({ from: 'Close', to: 'Cierra' });
+  });
+
+  it('offers nothing on something that does not open', () => {
+    // Openable is a property of the KIND, read from the same spec that says how
+    // big it is. Nothing is authored per item to say a table stays shut.
+    expect(say('t1').action).toBeUndefined();
+  });
+
+  it('names the container in the chain, under the room', () => {
+    // The chain was built to grow downward and this is the first thing to grow
+    // it: the cup, then what it is in, then where that is.
+    const d = say('cup1', new Set(['cb']));
+    expect(d.subject).toEqual({ from: 'the cup', to: 'la taza' });
+    expect(d.context).toEqual([
+      { from: 'the cupboard', to: 'el armario de cocina' },
+      { from: 'the kitchen', to: 'la cocina' },
+    ]);
+  });
+
+  it('leaves a free-standing item with just its room', () => {
+    expect(say('cb').context).toEqual([{ from: 'the kitchen', to: 'la cocina' }]);
+  });
+
+  it('tags the action so the shell never has to guess what the id names', () => {
+    // A stair id and an item id are both strings. Before this, the shell found
+    // out which by searching collections in order.
+    const kinds = [
+      say('cb').action?.on,
+      at({ on: 'opening', id: interiorDoor }, 'kitchen')?.action?.on,
+    ];
+    expect(kinds).toEqual(['item', 'door']);
+  });
+});
+
 suite('describe — the traversal phrase', () => {
   it('is keyed by DESTINATION, so it flips with the direction you approach from', () => {
     const fromKitchen = at({ on: 'opening', id: interiorDoor }, 'kitchen')!;
     const fromLiving = at({ on: 'opening', id: interiorDoor }, 'livingRoom')!;
     expect(fromKitchen.action!.label.to).toBe('Abre la puerta de la sala');
     expect(fromLiving.action!.label.to).toBe('Abre la puerta de la cocina');
-    expect(fromKitchen.action!.edgeId).toBe(interiorDoor);
+    expect(fromKitchen.action!.id).toBe(interiorDoor);
   });
 
   it('uses the outside phrase when the destination is not a room', () => {
@@ -201,16 +315,17 @@ suite('describe — the traversal phrase', () => {
   it('names a window but never offers to walk through it', () => {
     const h = asHouse([...DOORS, { kind: 'window', cell: [0, 0], side: 'back', sill: 0.4, head: 0.9 }]);
     const win = h.storeys[0].grid.openings.find((o) => o.kind === 'window')!;
-    const d = describe(
-      { on: 'opening', id: win.id },
-      'kitchen',
-      h,
-      buildNavGraph(h.storeys[0].grid.openings),
-      LABELS,
-      'en',
-      'es',
-      SHUT,
-    )!;
+    const d = describe({
+      selection: { on: 'opening', id: win.id },
+      where: 'kitchen',
+      house: h,
+      graph: buildNavGraph(h.storeys[0].grid.openings),
+      labels: LABELS,
+      from: 'en',
+      to: 'es',
+      openDoors: SHUT,
+      openItems: SHUT,
+    })!;
     expect(d.subject).toEqual({ from: 'the window', to: 'la ventana' });
     expect(d.action).toBeUndefined();
   });
@@ -232,16 +347,17 @@ suite('describe — popup placement', () => {
   it('anchors a window popup in the middle of the glass', () => {
     const h = asHouse([...DOORS, { kind: 'window', cell: [0, 0], side: 'back', sill: 0.4, head: 0.9 }]);
     const win = h.storeys[0].grid.openings.find((o) => o.kind === 'window')!;
-    const d = describe(
-      { on: 'opening', id: win.id },
-      'kitchen',
-      h,
-      buildNavGraph(h.storeys[0].grid.openings),
-      LABELS,
-      'en',
-      'es',
-      SHUT,
-    )!;
+    const d = describe({
+      selection: { on: 'opening', id: win.id },
+      where: 'kitchen',
+      house: h,
+      graph: buildNavGraph(h.storeys[0].grid.openings),
+      labels: LABELS,
+      from: 'en',
+      to: 'es',
+      openDoors: SHUT,
+      openItems: SHUT,
+    })!;
     expect(d.anchor[1]).toBeCloseTo(0.65); // (0.4 + 0.9) / 2
   });
 });
@@ -271,7 +387,17 @@ suite('describe — stairs', () => {
     twoStorey.stairs,
   );
   const atStair = (where: 'kitchen' | 'livingRoom' | 'outside') =>
-    describe({ on: 'stair', id: 'st' }, where, twoStorey, stairGraph, LABELS, 'en', 'es', SHUT);
+    describe({
+      selection: { on: 'stair', id: 'st' },
+      where,
+      house: twoStorey,
+      graph: stairGraph,
+      labels: LABELS,
+      from: 'en',
+      to: 'es',
+      openDoors: SHUT,
+      openItems: SHUT,
+    });
 
   it('names the stairs and hangs the popup partway UP the flight', () => {
     const d = atStair('kitchen')!;
@@ -293,7 +419,7 @@ suite('describe — stairs', () => {
   });
 
   it('hands nav the stair id, so the popup button drives the same traverse', () => {
-    expect(atStair('kitchen')!.action!.edgeId).toBe('st');
+    expect(atStair('kitchen')!.action!.id).toBe('st');
   });
 
   it('offers no climb from a room the stair does not touch', () => {
@@ -306,7 +432,8 @@ suite('describe — a door that is already open', () => {
     const d = at({ on: 'opening', id: interiorDoor }, 'kitchen', new Set([interiorDoor]))!;
     expect(d.action).toEqual({
       label: { from: 'Close the door', to: 'Cierra la puerta' },
-      edgeId: interiorDoor,
+      on: 'door',
+      id: interiorDoor,
     });
   });
 

@@ -15,7 +15,7 @@ import { locationOf, startWalking, walkReducer, type Stance } from '../../core/s
 import { locationAt } from '../../core/house/locate';
 import { blocksDoorway, blockersFor, blockingFootprint, doorwayOf, obstructs, stairwellBox, stairwellOf, type Box2, type Vec2 } from '../../core/house/collide';
 import { explorerReducer, START_EXPLORER, type Selection } from '../../core/session/explorer';
-import { describe as describeSelection } from '../../core/house/describe';
+import { describe as describeSelection, type Described } from '../../core/house/describe';
 import { houseFor } from '../../content/house';
 import { MONTHS, type Month } from '../../core/house/month';
 import { LABELS } from '../../content/labels';
@@ -197,16 +197,17 @@ export function HouseScene() {
   // no way for the two reducers to disagree.
   const described =
     house && explorer.selected !== null && walk.tag === 'walking'
-      ? describeSelection(
-          explorer.selected,
-          walk.location,
+      ? describeSelection({
+          selection: explorer.selected,
+          where: walk.location,
           house,
           graph,
-          LABELS,
-          explorer.from,
-          explorer.to,
-          walk.openDoors,
-        )
+          labels: LABELS,
+          from: explorer.from,
+          to: explorer.to,
+          openDoors: walk.openDoors,
+          openItems: walk.openItems,
+        })
       : null;
 
   const select = useCallback((selection: Selection) => explore({ tag: 'select', selection }), []);
@@ -217,8 +218,16 @@ export function HouseScene() {
   // it. Everything upstream of this line — pickable, select, describe, the popup
   // — is untouched; only what the popup's action DOES has changed.
   const onAct = useCallback(
-    (edgeId: string) => {
-      const stair = house?.stairs.find((st) => st.id === edgeId);
+    (action: NonNullable<Described['action']>) => {
+      // `action.on` says what kind of thing this is; no searching three
+      // collections to find out, and no way to be wrong about it.
+      if (action.on === 'item') {
+        dispatch({ tag: 'toggleItem', itemId: action.id });
+        explore({ tag: 'dismiss' });
+        return;
+      }
+      const edgeId = action.id;
+      const stair = action.on === 'stair' ? house?.stairs.find((st) => st.id === edgeId) : undefined;
       if (stair) {
         // WHICH WAY. `stair.level` is the storey it climbs OUT of, so standing on
         // it means up and standing above it means down. This used to be hardcoded
@@ -303,6 +312,7 @@ export function HouseScene() {
                   key={storey.level}
                   storey={storey}
                   openDoors={walk.openDoors}
+                  openItems={walk.openItems}
                   selectedItemId={explorer.selected?.on === 'item' ? explorer.selected.id : null}
                   select={select}
                 />

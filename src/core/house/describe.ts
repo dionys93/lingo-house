@@ -21,17 +21,46 @@ import type { NavGraph, Location } from './nav';
 import type { Selection } from '../session/explorer';
 import { noun, type Bilingual, type LabelTable, type Locale } from './labels';
 import { CELL } from './scale';
+import { ITEM_SPECS } from './items';
 
-// An action the popup offers as a button. `event` is the nav event to dispatch —
-// describe() decides WHAT can be done, the shell decides when it happens.
+// An action the popup offers as a button. describe() decides WHAT can be done,
+// the shell decides when it happens.
+//
+// `on` used to be absent and the shell worked out what the id named by looking
+// for it in `house.stairs` and falling through to doors. That was liveable with
+// two kinds of thing; with items it becomes "search three collections to learn
+// what sort of id this is", and the answer would be wrong rather than absent if
+// a stair and an item ever shared a name. The thing that KNOWS says so.
 export interface Described {
   readonly subject: Bilingual; // what you clicked
   readonly context: readonly Bilingual[]; // what it belongs to, outermost last
   readonly anchor: Vec3; // where to hang the popup, in world space
   readonly action?: {
     readonly label: Bilingual;
-    readonly edgeId: string; // hand this to nav's `traverse`
+    readonly on: 'door' | 'stair' | 'item';
+    readonly id: string;
   };
+}
+
+/**
+ * Everything describe() needs.
+ *
+ * An options object because the positional list reached eight and the comment
+ * where it sat said, in as many words, that a ninth meant this. `openItems` is
+ * the ninth.
+ */
+export interface DescribeInput {
+  readonly selection: Selection;
+  readonly where: Location;
+  readonly house: CompiledHouse;
+  readonly graph: NavGraph;
+  readonly labels: LabelTable;
+  readonly from: Locale;
+  readonly to: Locale;
+  /** Which doors are already open. */
+  readonly openDoors: ReadonlySet<string>;
+  /** Which items are already open. */
+  readonly openItems: ReadonlySet<string>;
 }
 
 const midpoint = (a: Vec3, b: Vec3): Vec3 => [
@@ -40,19 +69,17 @@ const midpoint = (a: Vec3, b: Vec3): Vec3 => [
   (a[2] + b[2]) / 2,
 ];
 
-export function describe(
-  selection: Selection,
-  where: Location,
-  house: CompiledHouse,
-  graph: NavGraph,
-  labels: LabelTable,
-  from: Locale,
-  to: Locale,
-  // Which doors are already open. Seven positional parameters was already the
-  // edge of reasonable and this is the eighth — if a ninth ever shows up, this
-  // wants to become an options object rather than growing again.
-  openDoors: ReadonlySet<string>,
-): Described | null {
+export function describe({
+  selection,
+  where,
+  house,
+  graph,
+  labels,
+  from,
+  to,
+  openDoors,
+  openItems,
+}: DescribeInput): Described | null {
   // Room keys are unique across the WHOLE house (see the M2 gate decision), so
   // a flat search over every storey is unambiguous — no level needed, which is
   // exactly what that decision bought.
@@ -84,14 +111,38 @@ export function describe(
     case 'item': {
       const item = items.find((i) => i.id === selection.id);
       if (item === undefined) return null;
-      return {
+      // The chain grows downward, which is what it was built for: a cup on a
+      // shelf is "the cup", under "the cupboard", under "the kitchen". Only one
+      // level of container — a cup is not inside a cupboard inside a cupboard,
+      // and if it ever were, `inside` chains and this would want a loop.
+      const container = item.inside === undefined ? undefined : items.find((i) => i.id === item.inside);
+      const context =
+        container === undefined
+          ? here
+          : [noun(labels, from, to, container.kind), ...here];
+      const base = {
         subject: noun(labels, from, to, item.kind),
-        context: here,
+        context,
         anchor: [
           (item.bounds.min[0] + item.bounds.max[0]) / 2,
           item.bounds.max[1] + 0.12,
           (item.bounds.min[2] + item.bounds.max[2]) / 2,
-        ],
+        ] as Vec3,
+      };
+      // Openable is a property of the KIND, from the same spec that decides how
+      // big it is — so a wardrobe opens wherever one stands, and nothing has to
+      // be authored per item to say so.
+      if (ITEM_SPECS[item.kind].opens === undefined) return base;
+      const shut = !openItems.has(item.id);
+      return {
+        ...base,
+        action: {
+          label: shut
+            ? { from: labels[from].openIt, to: labels[to].openIt }
+            : { from: labels[from].closeIt, to: labels[to].closeIt },
+          on: 'item',
+          id: item.id,
+        },
       };
     }
 
@@ -135,14 +186,15 @@ export function describe(
           ...base,
           action: {
             label: { from: labels[from].closeDoor, to: labels[to].closeDoor },
-            edgeId: opening.id,
+            on: 'door',
+            id: opening.id,
           },
         };
       }
 
       const edge = graph.traverse(where, opening.id);
       if (edge === undefined) return base; // door doesn't touch this side
-      return { ...base, action: { label: roomLabel(edge.to, 'enter'), edgeId: opening.id } };
+      return { ...base, action: { label: roomLabel(edge.to, 'enter'), on: 'door', id: opening.id } };
     }
 
     case 'stair': {
@@ -167,7 +219,7 @@ export function describe(
       const goingUp = where === stair.connects[0];
       return {
         ...base,
-        action: { label: roomLabel(edge.to, goingUp ? 'up' : 'down'), edgeId: stair.id },
+        action: { label: roomLabel(edge.to, goingUp ? 'up' : 'down'), on: 'stair', id: stair.id },
       };
     }
 

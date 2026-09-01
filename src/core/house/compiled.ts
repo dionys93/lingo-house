@@ -79,7 +79,17 @@ export interface CompiledItem {
   // Which kind of mount put it here. The shell needs this to answer "does this
   // wall have anything hanging on it?" — asking the geometry alone can't tell a
   // TV bolted to a wall from a table that happens to stand against one.
-  readonly mountedOn: 'floor' | 'item' | 'wall';
+  readonly mountedOn: 'floor' | 'item' | 'wall' | 'inside';
+  /**
+   * The item this one is INSIDE, when it is inside one.
+   *
+   * Carried on the compiled item because two consumers need it and neither can
+   * work it out from geometry: the renderer, which must not draw a cup that is
+   * shut in a cupboard, and describe(), which names the cupboard as the context
+   * the cup belongs to. "Its box contains mine" would be true of a laptop on a
+   * table too.
+   */
+  readonly inside?: string;
   readonly position: Vec3; // world, at the floor; baseY already applied
   readonly yaw: number; // radians about Y — shell applies to the whole item group
   readonly bounds: AABB; // world, yaw-aware — for click raycasting

@@ -144,6 +144,8 @@ export type ItemKind =
   | 'sofa'
   | 'rug'
   | 'bookshelf'
+  | 'lamp'
+  | 'pottedPlant'
   // Electronics
   | 'laptop'
   | 'tv'
@@ -154,10 +156,20 @@ export type ItemKind =
   // which is the point of the app.
   | 'diningTable'
   | 'counter'
+  // A base unit that OPENS, with plates and cups on its shelves. The counter is
+  // the same carcass with a worktop and no doors — two kinds because they are
+  // two words, and because only one of them is a thing you can open.
+  | 'cupboard'
   | 'dishwasher'
   | 'oven'
   | 'fridge'
   // Bathroom
+  // Things small enough to live on a shelf. They exist so that opening a
+  // cupboard shows you something, which is the entire reason opening is worth
+  // building: the contents are more vocabulary, met where a learner would meet
+  // them.
+  | 'plate'
+  | 'cup'
   | 'toilet'
   | 'bathtub'
   | 'shower'
@@ -191,6 +203,21 @@ export type Mount =
   | {
       readonly on: 'item';
       readonly host: string;
+      readonly offset?: readonly [x: number, z: number];
+      readonly facing?: Facing;
+    }
+  // INSIDE another item — on a shelf in a cupboard, in a drawer, in the fridge.
+  //
+  // A separate mount from `on: 'item'` rather than a flag on it, because the two
+  // differ in what they need and in what they MEAN. On top of a table is a place
+  // you can always see; inside a cupboard is a place you can see only when the
+  // cupboard is open, which is the whole point of it. `shelf` indexes the host
+  // spec's shelf heights (0 is the lowest); `offset` is in fractions of the
+  // host's footprint, in the host's own rotated frame, exactly as `on: 'item'`.
+  | {
+      readonly on: 'inside';
+      readonly host: string;
+      readonly shelf?: number;
       readonly offset?: readonly [x: number, z: number];
       readonly facing?: Facing;
     }

@@ -43,6 +43,26 @@ interface ItemSpec {
    * object IS. Same fact `collide` reads as "you step over it".
    */
   readonly underfoot?: boolean;
+  /**
+   * It opens, and there is somewhere inside it.
+   *
+   * Absent means it doesn't — a sofa has an inside in the woodworking sense and
+   * nowhere to put a cup. Present, it is what makes `mount: { on: 'inside' }`
+   * legal and what tells the renderer which part swings.
+   *
+   * `shelves` are heights above the item's own base, lowest first, and there is
+   * always at least one: an item that opens onto nothing would be a door with a
+   * wall behind it. `inset` is how far in from the outside the usable interior
+   * starts, as a fraction of the footprint — carcass plus door thickness — so a
+   * plate on a shelf sits inside the box rather than flush with its face.
+   */
+  readonly opens?: {
+    /** Which way the moving part moves. The renderer's business; closed here so
+     *  the set of ways a thing can open cannot quietly grow a fourth. */
+    readonly as: 'doors' | 'drawer' | 'lid';
+    readonly shelves: readonly number[];
+    readonly inset?: number;
+  };
 }
 export const ITEM_SPECS: Record<ItemKind, ItemSpec> = {
   // ── Living / general
@@ -51,15 +71,39 @@ export const ITEM_SPECS: Record<ItemKind, ItemSpec> = {
   sofa: { w: 1.0, d: 0.45, h: 0.425, supportsTop: null }, //   2000 ×  900 ×  850 — 2 cells wide
   rug: { w: 1.0, d: 0.75, h: 0.006, supportsTop: null, underfoot: true }, // 2000 × 1500 × 12
   bookshelf: { w: 0.4, d: 0.15, h: 0.9, supportsTop: null }, // 800 ×  300 × 1800
+  // A lamp's `supportsTop` is null for the obvious reason and its shade is the
+  // widest part, which is what `w` measures.
+  lamp: { w: 0.14, d: 0.14, h: 0.24, supportsTop: null }, //     280 ×  280 ×  480 — a table lamp
+  pottedPlant: { w: 0.16, d: 0.16, h: 0.34, supportsTop: null }, // 320 × 320 × 680 to the leaves
   // ── Electronics
   laptop: { w: 0.15, d: 0.105, h: 0.095, supportsTop: null }, // 300 × 210 × 190 open
   tv: { w: 0.44, d: 0.02, h: 0.248, supportsTop: null }, //     880 ×   40 ×  495 — 40", true 16:9
   // ── Kitchen
   diningTable: { w: 1.0, d: 1.0, h: 0.37, supportsTop: 0.37 }, // 2000 × 2000 × 740 — 2 cells square
   counter: { w: 0.6, d: 0.3, h: 0.45, supportsTop: 0.45 }, //  1200 ×  600 ×  900 — worktop
+  // A base unit: same carcass as the counter, and it OPENS. Two shelves, at a
+  // third and two thirds of the internal height.
+  cupboard: {
+    w: 0.4,
+    d: 0.3,
+    h: 0.45, //                                                  800 ×  600 ×  900
+    supportsTop: 0.45,
+    opens: { as: 'doors', shelves: [0.06, 0.25], inset: 0.12 },
+  },
   dishwasher: { w: 0.3, d: 0.3, h: 0.425, supportsTop: null }, // 600 × 600 × 850 — slots into the run
   oven: { w: 0.3, d: 0.3, h: 0.45, supportsTop: null }, //       600 ×  600 ×  900 — hob on top, so nothing rests here
-  fridge: { w: 0.3, d: 0.325, h: 0.9, supportsTop: null }, //    600 ×  650 × 1800
+  fridge: {
+    w: 0.3,
+    d: 0.325,
+    h: 0.9, //                                                    600 ×  650 × 1800
+    supportsTop: null,
+    opens: { as: 'doors', shelves: [0.2, 0.42, 0.62], inset: 0.14 },
+  },
+  // ── Shelf things. Small, and the reason a cupboard is worth opening.
+  // A STACK of plates, which is what a cupboard holds and what reads at arm's
+  // length — a single 24 mm disc on a shelf looks like a coaster.
+  plate: { w: 0.13, d: 0.13, h: 0.03, supportsTop: null }, //     260 ×  260 ×   60 — three plates
+  cup: { w: 0.04, d: 0.04, h: 0.05, supportsTop: null }, //        80 ×   80 ×  100
   // ── Bathroom
   toilet: { w: 0.185, d: 0.35, h: 0.39, supportsTop: null }, //  370 ×  700 ×  780 to the cistern lid
   bathtub: { w: 0.85, d: 0.375, h: 0.29, supportsTop: null }, // 1700 × 750 ×  580 — 2 cells long
@@ -67,8 +111,20 @@ export const ITEM_SPECS: Record<ItemKind, ItemSpec> = {
   sink: { w: 0.3, d: 0.225, h: 0.425, supportsTop: null }, //    600 ×  450 ×  850 — basin rim, not a shelf
   // ── Bedroom
   bed: { w: 0.7, d: 1.0, h: 0.5, supportsTop: 0.26 }, //        1400 × 2000 × 1000 headboard; 520 mattress top
-  wardrobe: { w: 0.5, d: 0.3, h: 1.0, supportsTop: null }, //   1000 ×  600 × 2000
-  nightstand: { w: 0.225, d: 0.2, h: 0.275, supportsTop: 0.275 }, // 450 × 400 × 550
+  wardrobe: {
+    w: 0.5,
+    d: 0.3,
+    h: 1.0, //                                                   1000 ×  600 × 2000
+    supportsTop: null,
+    opens: { as: 'doors', shelves: [0.08, 0.78], inset: 0.1 },
+  },
+  nightstand: {
+    w: 0.225,
+    d: 0.2,
+    h: 0.275, //                                                   450 ×  400 ×  550
+    supportsTop: 0.275,
+    opens: { as: 'drawer', shelves: [0.14], inset: 0.14 },
+  },
 };
 
 // facing → rotation about Y, for a model whose local "front" is +Z ('s').
@@ -234,6 +290,51 @@ export function compileItems(
         return emit(def, position, facing, host.room);
       }
 
+      case 'inside': {
+        const hostDef = byId.get(m.host);
+        if (hostDef === undefined) {
+          return fail(def.id, { tag: 'UnknownMountHost', id: def.id, host: m.host });
+        }
+        const host = resolve(hostDef);
+        if (host === null) {
+          memo.set(def.id, null); // host's error is the root cause; don't pile on
+          return null;
+        }
+        const opens = ITEM_SPECS[host.kind].opens;
+        if (opens === undefined) {
+          return fail(def.id, { tag: 'ItemHasNoInside', id: def.id, host: m.host });
+        }
+        const index = m.shelf ?? 0;
+        const shelf = opens.shelves[index];
+        // Not `?? 0`. A shelf that doesn't exist is a mistake in the plan, and
+        // silently using the bottom one puts the cup somewhere nobody asked for
+        // and tells no one.
+        if (index < 0 || index >= opens.shelves.length) {
+          return fail(def.id, {
+            tag: 'NoSuchShelf',
+            id: def.id,
+            host: m.host,
+            shelf: index,
+            shelves: opens.shelves.length,
+          });
+        }
+        // The offset is in fractions of the USABLE interior, not of the whole
+        // footprint — so `[0.5, 0]` is the right-hand edge of the shelf rather
+        // than a point inside the carcass. Same rotated frame as `on: 'item'`.
+        const spec = ITEM_SPECS[host.kind];
+        const inset = opens.inset ?? 0;
+        const [ox, oz] = m.offset ?? [0, 0];
+        const [lx, lz] = [ox * spec.w * (1 - 2 * inset), oz * spec.d * (1 - 2 * inset)];
+        const [cos, sin] = [Math.cos(host.yaw), Math.sin(host.yaw)];
+        const position = vec3(
+          host.position[0] + lx * cos + lz * sin,
+          host.position[1] + shelf,
+          host.position[2] - lx * sin + lz * cos,
+        );
+        const facing = m.facing ?? FACING_OF_YAW.get(host.yaw) ?? 's';
+        return { ...emit(def, position, facing, host.room), inside: host.id };
+      }
+
       case 'wall': {
         const room = roomAt(def, m.cell);
         if (room === null) return null;
@@ -355,7 +456,10 @@ function fitErrors(
   // not a clash however deeply they intersect.
   const hostOf = (id: string): string | null => {
     const m = byId.get(id)?.mount;
-    return m !== undefined && m.on === 'item' ? m.host : null;
+    // Both relative mounts. `on: 'inside'` needs it MORE than `on: 'item'`: a
+    // cup on a shelf is not merely sunk into its host's box, it is wholly
+    // within it, which is the point rather than a mistake.
+    return m !== undefined && (m.on === 'item' || m.on === 'inside') ? m.host : null;
   };
   const solid = items.filter((i) => ITEM_SPECS[i.kind].underfoot !== true);
   for (let i = 0; i < solid.length; i++) {
