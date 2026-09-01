@@ -84,6 +84,19 @@ function runCells(from: Cell, to: Cell): readonly Cell[] | null {
   return Array.from({ length: steps + 1 }, (_, i): Cell => [r0 + dr * i, c0 + dc * i]);
 }
 
+/**
+ * The extent every storey centres on: the union of all of them.
+ *
+ * Exported because it is not private to the compile. Anything that needs to map
+ * between a cell and a world point — edit mode, most of all — has to use the
+ * SAME extent the storeys were compiled in, and measuring the one storey it
+ * happens to be looking at silently gives a different answer for a setback.
+ */
+export const houseExtent = (storeys: readonly Storey[]): { readonly rows: number; readonly cols: number } => ({
+  rows: storeys.reduce((m, s) => Math.max(m, s.grid.length), 0),
+  cols: storeys.reduce((m, s) => Math.max(m, s.grid.reduce((n, row) => Math.max(n, row.length), 0)), 0),
+});
+
 export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, readonly HouseError[]> {
   // ── Phase 1: structure, then per-storey compiles ──────────────────────────
   const phase1: HouseError[] = [];
@@ -109,13 +122,7 @@ export function compileHouse(storeys: readonly Storey[]): Result<CompiledHouse, 
 
   // The union of every storey's grid. Computed before any of them compile,
   // because they all have to agree on it.
-  const extent = {
-    rows: ordered.reduce((m, s) => Math.max(m, s.grid.length), 0),
-    cols: ordered.reduce(
-      (m, s) => Math.max(m, s.grid.reduce((n, row) => Math.max(n, row.length), 0)),
-      0,
-    ),
-  };
+  const extent = houseExtent(storeys);
   const compiled = new Map<number, CompiledGrid>();
   for (const s of ordered) {
     const r = compileGrid(s.grid, {

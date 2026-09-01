@@ -40,6 +40,7 @@ import {
   type WallSide,
 } from './compiled';
 import { compileItems } from './items';
+import { gridFrame } from './frame';
 import { validateOpening, type ResolvedEdge } from './openings';
 
 // Everything except the grid itself arrives in one record. Four positional
@@ -116,8 +117,10 @@ export function compileGrid(
   if (errors.length > 0) return err(errors);
 
   // ── Geometry. Only reached once the grid is structurally sound. ──
-  const xAt = (col: number) => col * CELL - (originC * CELL) / 2;
-  const zAt = (row: number) => row * CELL - (originR * CELL) / 2;
+  // From frame.ts rather than spelled out here, because edit mode needs to run
+  // this mapping BACKWARDS — screen point to cell and offset — and an inverse
+  // derived from a second copy of the formula is free to drift from it.
+  const { xAt, zAt } = gridFrame(originR, originC);
 
   // ── Openings. Validate each (validateOpening, below); a bad one fails the whole
   // compile — no silent drop. A valid opening CLAIMS its edge, which is excluded
