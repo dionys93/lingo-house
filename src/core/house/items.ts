@@ -64,7 +64,7 @@ interface ItemSpec {
     readonly inset?: number;
   };
 }
-export const ITEM_SPECS: Record<ItemKind, ItemSpec> = {
+const SPECS = {
   // ── Living / general
   table: { w: 0.44, d: 0.3, h: 0.37, supportsTop: 0.37 }, //   880 ×  600 ×  740
   chair: { w: 0.225, d: 0.25, h: 0.45, supportsTop: null }, //  450 ×  500 ×  900
@@ -74,6 +74,9 @@ export const ITEM_SPECS: Record<ItemKind, ItemSpec> = {
   // A lamp's `supportsTop` is null for the obvious reason and its shade is the
   // widest part, which is what `w` measures.
   lamp: { w: 0.14, d: 0.14, h: 0.24, supportsTop: null }, //     280 ×  280 ×  480 — a table lamp
+  // Stands on the floor and reads at eye height: the shade is at 1.5 m, which
+  // is just above a 1.3 m eye, so you look UP into it the way you do in a room.
+  floorLamp: { w: 0.19, d: 0.19, h: 0.8, supportsTop: null }, //  380 ×  380 × 1600
   pottedPlant: { w: 0.16, d: 0.16, h: 0.34, supportsTop: null }, // 320 × 320 × 680 to the leaves
   // ── Electronics
   laptop: { w: 0.15, d: 0.105, h: 0.095, supportsTop: null }, // 300 × 210 × 190 open
@@ -125,7 +128,50 @@ export const ITEM_SPECS: Record<ItemKind, ItemSpec> = {
     supportsTop: 0.275,
     opens: { as: 'drawer', shelves: [0.14], inset: 0.14 },
   },
-};
+  // `as const satisfies` and not a plain annotation, for one reason that pays
+  // for the extra characters: `satisfies` still checks every entry against
+  // ItemSpec and still fails if a kind is missing, and `as const` keeps the
+  // literal types — which is what lets OpenableKind below be DERIVED from this
+  // table rather than written out a second time beside it.
+} as const satisfies Record<ItemKind, ItemSpec>;
+
+/**
+ * The table everything reads, at its DECLARED type.
+ *
+ * Two names for one object because they answer different questions. `SPECS`
+ * keeps its literal types, which is what makes OpenableKind derivable below;
+ * `ITEM_SPECS` widens them back to ItemSpec, which is what lets a caller
+ * holding an arbitrary `kind` read `.opens` at all — under the literal types
+ * that property simply does not exist on the entries that lack it.
+ */
+export const ITEM_SPECS: Record<ItemKind, ItemSpec> = SPECS;
+
+/**
+ * The kinds that open, derived from the table above.
+ *
+ * Not a hand-written union. This codebase has been bitten by "three
+ * declarations of the same set" before (see App.tsx's roster), and a list of
+ * openable kinds kept beside ITEM_SPECS is exactly that: mark a kind openable
+ * and forget the list, and the phrase table stays complete while missing the
+ * one word you need.
+ *
+ * Derived, adding `opens` to a spec immediately breaks every Record<OpenableKind, …>
+ * that has not learned the new kind — which is how the label table is made to
+ * carry a sentence for it in every language before the build goes green.
+ */
+export type OpenableKind = {
+  [K in ItemKind]: (typeof SPECS)[K] extends { readonly opens: unknown } ? K : never;
+}[ItemKind];
+
+/**
+ * The kind, narrowed to OpenableKind — or null if it doesn't open.
+ *
+ * The runtime test and the type test are the same test, which is the point: the
+ * union is derived from the very field this checks, so a caller that gets a
+ * non-null answer may index a Record<OpenableKind, …> without a fallback.
+ */
+export const openableKind = (kind: ItemKind): OpenableKind | null =>
+  ITEM_SPECS[kind].opens === undefined ? null : (kind as OpenableKind);
 
 // facing → rotation about Y, for a model whose local "front" is +Z ('s').
 export const ITEM_YAW: Record<Facing, number> = {

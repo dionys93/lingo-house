@@ -18,6 +18,7 @@
 
 import type { Cell, Side } from '../shared/errors';
 import type { ItemDef, ItemKind, Mount, Opening, Storey } from '../house/blocks';
+import { ITEM_SPECS } from '../house/items';
 import { edgeKey } from './edges';
 
 export type EditAction =
@@ -93,6 +94,46 @@ export function applyEdit(plan: readonly Storey[], action: EditAction): readonly
     }
   };
   return plan.map((s) => (s.level === action.level ? onStorey(s) : s));
+}
+
+/** Where on a host a thing can go. */
+export type HostSlot = 'top' | 'inside';
+
+/**
+ * What a host can take, best first — empty if it can take nothing.
+ *
+ * A nightstand offers BOTH, and 'top' comes first because dropping something
+ * onto a piece of furniture means putting it on the surface; you have to say
+ * "in the drawer" to mean the other thing. That ordering is the whole of the
+ * placement rule in edit mode, and it lives here rather than in the component
+ * so it can be checked without a browser.
+ */
+export const slotsOf = (kind: ItemKind): readonly HostSlot[] => {
+  const spec = ITEM_SPECS[kind];
+  return [
+    ...(spec.supportsTop !== null ? (['top'] as const) : []),
+    ...(spec.opens !== undefined ? (['inside'] as const) : []),
+  ];
+};
+
+/**
+ * The mount that puts something on (or in) `host`, or null if it cannot go
+ * there.
+ *
+ * Null rather than a nearest-legal guess: a lamp dropped on a rug should fail
+ * to attach and stay on the floor, not silently become a lamp mounted on
+ * something that cannot hold it — which is a plan that compiles into
+ * ItemNotMountable and blames the lamp.
+ */
+export function mountOnto(
+  host: ItemDef,
+  slot: HostSlot,
+  shelf = 0,
+): Mount | null {
+  if (!slotsOf(host.kind).includes(slot)) return null;
+  return slot === 'top'
+    ? { on: 'item', host: host.id }
+    : { on: 'inside', host: host.id, shelf };
 }
 
 /**

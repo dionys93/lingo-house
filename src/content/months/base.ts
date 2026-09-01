@@ -267,9 +267,11 @@ export const ITEMS: readonly ItemDef[] = [
   // A reading corner in the far right of the room, well clear of the walkways.
   { id: 'living-bookshelf', kind: 'bookshelf', mount: { on: 'floor', cell: [12, 8], facing: 'w', offset: [0.27, 0] } },
   { id: 'reading-chair', kind: 'chair', mount: { on: 'floor', cell: [12, 7], facing: 'w' } },
-  // A lamp beside the reading chair, and a plant in the far corner. The lamp is
-  // the one item that is also a light — see its factory.
-  { id: 'reading-lamp', kind: 'lamp', mount: { on: 'floor', cell: [11, 8], facing: 'w', offset: [0.24, 0] } },
+  // A floor lamp beside the reading chair — the one that stands at eye height
+  // and lights the corner — and a table lamp on the coffee table for the pair
+  // of words. Both are lights; see their factories.
+  { id: 'reading-lamp', kind: 'floorLamp', mount: { on: 'floor', cell: [11, 8], facing: 'w', offset: [0.2, 0] } },
+  { id: 'living-lamp', kind: 'lamp', mount: { on: 'item', host: 'living-table', offset: [0.28, 0] } },
   { id: 'living-plant', kind: 'pottedPlant', mount: { on: 'floor', cell: [12, 0], facing: 's', offset: [0.22, -0.22] } },
 ];
 
