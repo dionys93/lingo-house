@@ -18,6 +18,7 @@
 
 import type { Cell, Side } from '../shared/errors';
 import type { ItemDef, ItemKind, Mount, Opening, Storey } from '../house/blocks';
+import { edgeKey } from './edges';
 
 export type EditAction =
   | { readonly tag: 'addItem'; readonly level: number; readonly item: ItemDef }
@@ -27,11 +28,13 @@ export type EditAction =
   // Openings have no authored id — they are addressed by the wall edge they sit
   // on, which the compiler already guarantees is unique per storey (two on one
   // edge is OpeningsOverlap). So the edge IS the identity, and there is no id to
-  // keep in step with a move.
+  // keep in step with a move. `cell`/`side` here is a NAME for that edge, and
+  // an edge has two: matching them literally misses an opening the author wrote
+  // from the other side, which is what the base plan's bathroom door does.
   | { readonly tag: 'removeOpening'; readonly level: number; readonly cell: Cell; readonly side: Side };
 
 const sameEdge = (o: Opening, cell: Cell, side: Side): boolean =>
-  o.cell[0] === cell[0] && o.cell[1] === cell[1] && o.side === side;
+  edgeKey(o.cell, o.side) === edgeKey(cell, side);
 
 /** Apply one action. Unknown levels and ids are no-ops: the plan is the truth. */
 export function applyEdit(plan: readonly Storey[], action: EditAction): readonly Storey[] {

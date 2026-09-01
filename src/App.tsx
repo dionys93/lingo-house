@@ -15,6 +15,7 @@ import { HouseScene } from './render/scenes/HouseScene';
 import { Sandbox } from './render/scenes/Sandbox';
 import { LightingLab } from './render/scenes/LightingLab';
 import { ItemGallery } from './render/scenes/ItemGallery';
+import { EditScene } from './render/edit/EditScene';
 
 interface ModeSpec {
   readonly label: string;
@@ -40,16 +41,26 @@ interface ModeSpec {
  *
  * Order is presentation too: the real thing first, scratch scenes after.
  */
-const ORDER = ['house', 'sandbox', 'items', 'lab'] as const;
+const ORDER = ['house', 'edit', 'sandbox', 'items', 'lab'] as const;
 
 type Mode = (typeof ORDER)[number];
 
 const MODES: Record<Mode, ModeSpec> = {
   house: { label: 'House', Scene: HouseScene },
+  edit: { label: 'Edit', Scene: EditScene },
   sandbox: { label: 'Sandbox', Scene: Sandbox },
   items: { label: 'Items', Scene: ItemGallery },
   lab: { label: 'Lights', Scene: LightingLab },
 };
+
+// Edit mode writes to the source tree, so it only exists where there is one.
+// This hides the button; the guarantee is on the server, where the save
+// endpoint is a vite plugin with apply:'serve' and cannot be built at all.
+// Both, because a hidden button is a UI decision and an absent endpoint is a
+// fact — and the bundler drops the whole scene from a production build only
+// because this constant folds.
+const DEV_ONLY: ReadonlySet<Mode> = new Set<Mode>(['edit']);
+const SHOWN = ORDER.filter((m) => import.meta.env.DEV || !DEV_ONLY.has(m));
 
 const bar: CSSProperties = {
   position: 'absolute',
@@ -80,7 +91,7 @@ export default function App() {
   return (
     <>
       <div style={bar} role="group" aria-label="Scene">
-        {ORDER.map((m) => (
+        {SHOWN.map((m) => (
           <button
             key={m}
             type="button"

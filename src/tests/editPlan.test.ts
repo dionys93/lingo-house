@@ -70,3 +70,16 @@ describe('naming a new item', () => {
     expect(nextItemId(PLAN, 'bookshelf')).toBe('bookshelf-1');
   });
 });
+
+describe('an opening is its edge, not the name it was written under', () => {
+  it('deletes a door addressed from the other side of its wall', () => {
+    // The base plan writes the bathroom door as cell [2,7] side 'front'. The
+    // same wall, named from the kitchen, is cell [3,7] side 'back'. Both are
+    // true, the compiler treats them identically, and an editor that hands back
+    // whichever name it derived must still delete the right door.
+    const before = openingsOn(PLAN, 0).length;
+    const after = applyEdit(PLAN, { tag: 'removeOpening', level: 0, cell: [3, 7], side: 'back' });
+    expect(openingsOn(after, 0).length).toBe(before - 1);
+    expect(openingsOn(after, 0).some((o) => o.cell[0] === 2 && o.cell[1] === 7 && o.side === 'front')).toBe(false);
+  });
+});

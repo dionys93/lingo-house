@@ -56,7 +56,7 @@ function emitOpening(o: Opening): string {
   const between: (readonly [string, string | null])[] = [
     ['between', o.between ? `[${str(o.between[0])}, ${str(o.between[1])}]` : null],
   ];
-  return `  { ${fields([...common, ...rest, ...between])} },`;
+  return `{ ${fields([...common, ...rest, ...between])} },`;
 }
 
 function emitMount(m: ItemDef['mount']): string {
@@ -87,10 +87,17 @@ function emitMount(m: ItemDef['mount']): string {
 }
 
 const emitItem = (i: ItemDef): string =>
-  `  { id: ${str(i.id)}, kind: ${str(i.kind)}, mount: ${emitMount(i.mount)} },`;
+  `{ id: ${str(i.id)}, kind: ${str(i.kind)}, mount: ${emitMount(i.mount)} },`;
+
+// Indentation is spelled out rather than accumulated, because these files sit
+// beside a hand-written one and get read next to it.
+const KEY = ' '.repeat(4);
+const ENTRY = ' '.repeat(6);
 
 const list = (name: string, lines: readonly string[]): string =>
-  lines.length === 0 ? `      ${name}: [],` : [`      ${name}: [`, ...lines.map((l) => `  ${l}`), '      ],'].join('\n');
+  lines.length === 0
+    ? `${KEY}${name}: [],`
+    : [`${KEY}${name}: [`, ...lines.map((l) => `${ENTRY}${l}`), `${KEY}],`].join('\n');
 
 const CONST = (m: Month): string => `${m.toUpperCase()}_PLAN`;
 
@@ -107,10 +114,10 @@ export function emitMonthFile(month: Month, plan: readonly Storey[]): string {
     .sort((a, b) => a.level - b.level)
     .map((s) =>
       [
-        `    ${String(s.level)}: {`,
+        `  ${String(s.level)}: {`,
         list('openings', (s.openings ?? []).map(emitOpening)),
         list('items', (s.items ?? []).map(emitItem)),
-        '    },',
+        '  },',
       ].join('\n'),
     )
     .join('\n');
