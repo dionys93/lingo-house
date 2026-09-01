@@ -21,7 +21,7 @@ import { compileGrid } from '../core/house/grid';
 import { compileHouse } from '../core/house/house';
 import { houseFor } from '../content/house';
 import { MONTHS } from '../core/house/month';
-import { blockersFor, slide, type Segment2, type Vec2 } from '../core/house/collide';
+import { blockersFor, blockingFootprint, canStand, nearestStandable, obstructs, slide, stairwellBox, type Box2, type Segment2, type Vec2 } from '../core/house/collide';
 import { stairwellOf } from '../core/house/collide';
 import { CELL } from '../core/house/scale';
 import { type Grid, type ItemDef, type ItemKind } from '../core/house/blocks';
@@ -87,22 +87,28 @@ describe('the authored house is walkable', () => {
     const b = storey.grid.footprint.bbox;
     const bounds = [b.x0, b.z0, b.x1, b.z1];
 
+    // The interiors, for `canStand` — see collide.ts. Built exactly as the shell
+    // builds them, so this test and the app agree on what standable means.
+    const bodyHere = { ...BODY, floorY: storey.baseY };
+    const solids: readonly Box2[] = [
+      ...storey.grid.items
+        .filter((i) => obstructs(i.bounds, bodyHere))
+        .map((i) => blockingFootprint(i.bounds)),
+      ...house.stairs
+        .filter((st) => st.level === storey.level || st.level + 1 === storey.level)
+        .map((st) => stairwellBox(st.treads, CELL))
+        .filter((b): b is Box2 => b !== null),
+    ];
+
     // Start from open floor, which is NOT simply the first tile of the biggest
     // room: the living room's first cell is the one under the staircase, and a
     // fill started inside the stairwell box reaches sixteen samples and stops.
-    // A tile counts as open when you can actually step off it in all four
-    // directions.
-    const stepsOff = (p: Vec2) =>
-      ([[STEP, 0], [-STEP, 0], [0, STEP], [0, -STEP]] as const).every(([dx, dz]) => {
-        const to: Vec2 = [p[0] + dx, p[1] + dz];
-        const got = slide(p, to, blockers, RADIUS);
-        return Math.hypot(got[0] - to[0], got[1] - to[1]) <= STEP * 0.25;
-      });
-
+    // `canStand` is the core's own definition of a legal position — this used to
+    // carry a local copy of the same idea, which is one definition too many.
     const biggest = [...storey.grid.rooms].sort((p, q) => q.cells.length - p.cells.length)[0];
     const openTile = biggest.floor
       .map((t): Vec2 => [snap(t[0]), snap(t[2])])
-      .find(stepsOff);
+      .find((p) => canStand(p, blockers, solids, RADIUS));
     const start: Vec2 = openTile ?? [snap(biggest.floor[0][0]), snap(biggest.floor[0][2])];
     const seen = reachable(start, blockers, bounds);
 
@@ -178,5 +184,67 @@ describe('what counts as an obstacle is decided by height', () => {
 
   it('but not through a table standing in the same spot', () => {
     expect(crossing('table')).toBe(false);
+  });
+});
+
+// ── Recovery, against the real house ────────────────────────────────────────
+//
+// The synthetic cases live in collide.test.ts. This asks the same question of
+// the actual authored plan, because the numbers that matter — how wide a bed
+// is against how wide a walker is — are content, not fixtures.
+
+describe('a walker caught inside the furniture can be got out', () => {
+  const compiledHouse = compileHouse(houseFor(MONTHS[0]));
+
+  it('compiles', () => {
+    expect(compiledHouse.ok).toBe(true);
+  });
+
+  if (!compiledHouse.ok) return;
+  const house = compiledHouse.value;
+  const storey = house.storeys[0];
+  const bodyHere = { floorY: storey.baseY, stepOver: 0.09, headY: 0.7 };
+  const blockers = blockersFor(
+    storey.grid.walls,
+    storey.grid.openings,
+    storey.grid.items.map((i) => i.bounds),
+    new Set(storey.grid.openings.filter((o) => o.kind === 'door').map((o) => o.id)),
+    bodyHere,
+  );
+  const solids: readonly Box2[] = storey.grid.items
+    .filter((i) => obstructs(i.bounds, bodyHere))
+    .map((i) => blockingFootprint(i.bounds));
+
+  // The sofa: two cells wide, and the widest thing on the ground floor a body
+  // can be lost inside.
+  const sofa = storey.grid.items.find((i) => i.kind === 'sofa');
+
+  it('has a sofa to be caught in', () => {
+    expect(sofa).toBeDefined();
+  });
+
+  if (sofa === undefined) return;
+  const middle: Vec2 = [
+    (sofa.bounds.min[0] + sofa.bounds.max[0]) / 2,
+    (sofa.bounds.min[2] + sofa.bounds.max[2]) / 2,
+  ];
+
+  it('knows the middle of the sofa is not somewhere you can be', () => {
+    expect(canStand(middle, blockers, solids, RADIUS)).toBe(false);
+  });
+
+  it('and the segments alone would NOT have known', () => {
+    // The whole reason `solids` exists, restated in the authored geometry
+    // rather than in a fixture.
+    expect(canStand(middle, blockers, [], RADIUS)).toBe(true);
+  });
+
+  it('puts you somewhere legal, nearby', () => {
+    const out = nearestStandable(middle, blockers, solids, RADIUS);
+    expect(out).not.toBeNull();
+    if (out) {
+      expect(canStand(out, blockers, solids, RADIUS)).toBe(true);
+      expect(Math.hypot(out[0] - middle[0], out[1] - middle[1])).toBeLessThan(1.0);
+    }
   });
 });

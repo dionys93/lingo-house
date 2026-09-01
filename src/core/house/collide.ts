@@ -22,6 +22,19 @@ import type { AABB, CompiledOpening, CompiledWall, Vec3 } from './compiled';
 
 export type Vec2 = readonly [x: number, z: number];
 
+/**
+ * An axis-aligned footprint — the thing you can be INSIDE of.
+ *
+ * Blockers are segments, which is all `slide` needs: you cannot cross into a box
+ * without crossing an edge. Recovery needs more, because it asks a question
+ * movement never does — "am I already in there?" — and four loose edges cannot
+ * answer it. See `canStand`.
+ */
+export interface Box2 {
+  readonly min: Vec2;
+  readonly max: Vec2;
+}
+
 /** A wall run, flattened. Both endpoints, nothing else — height is irrelevant. */
 export interface Segment2 {
   readonly a: Vec2;
@@ -83,15 +96,20 @@ export const solidOpenings = (
  * Axis-aligned because a run always follows a row or a column, so an AABB over
  * the tread centres is exact rather than an approximation.
  */
-export const stairwellOf = (treads: readonly Vec3[], cell: number): readonly Segment2[] => {
-  if (treads.length === 0) return [];
+export const stairwellBox = (treads: readonly Vec3[], cell: number): Box2 | null => {
+  if (treads.length === 0) return null;
   const xs = treads.map((t) => t[0]);
   const zs = treads.map((t) => t[2]);
   const half = cell / 2;
-  return boxSegments(
-    [Math.min(...xs) - half, Math.min(...zs) - half],
-    [Math.max(...xs) + half, Math.max(...zs) + half],
-  );
+  return {
+    min: [Math.min(...xs) - half, Math.min(...zs) - half],
+    max: [Math.max(...xs) + half, Math.max(...zs) + half],
+  };
+};
+
+export const stairwellOf = (treads: readonly Vec3[], cell: number): readonly Segment2[] => {
+  const box = stairwellBox(treads, cell);
+  return box === null ? [] : boxSegments(box.min, box.max);
 };
 
 /**
@@ -134,13 +152,22 @@ export const obstructs = (b: AABB, body: Body): boolean =>
  */
 export const ITEM_CLEARANCE = 0.04;
 
-const shrunk = (b: AABB, m: number): readonly [Vec2, Vec2] => {
+/**
+ * The footprint an item actually BLOCKS with — its bounds, flattened and pulled
+ * in by ITEM_CLEARANCE.
+ *
+ * The one definition of that box. `blockersFor` draws its four edges and
+ * `canStand` tests its interior, and those two must agree exactly: if recovery
+ * used the full bounds it would call you "inside" the furniture while standing
+ * legally in the 80 mm the blockers leave you, and shove you off it.
+ */
+export const blockingFootprint = (b: AABB, m: number = ITEM_CLEARANCE): Box2 => {
   const mx = Math.min(m, (b.max[0] - b.min[0]) / 2 - 1e-3);
   const mz = Math.min(m, (b.max[2] - b.min[2]) / 2 - 1e-3);
-  return [
-    [b.min[0] + mx, b.min[2] + mz],
-    [b.max[0] - mx, b.max[2] - mz],
-  ];
+  return {
+    min: [b.min[0] + mx, b.min[2] + mz],
+    max: [b.max[0] - mx, b.max[2] - mz],
+  };
 };
 
 /** Everything on this storey you can walk into. */
@@ -158,7 +185,7 @@ export const blockersFor = (
   ...itemBounds
     .filter((b) => obstructs(b, body))
     .flatMap((b) => {
-      const [min, max] = shrunk(b, ITEM_CLEARANCE);
+      const { min, max } = blockingFootprint(b);
       return boxSegments(min, max);
     }),
 ];
@@ -288,6 +315,93 @@ export const slide = (
  * honest: you cannot close a door you are standing in, which is also true of
  * doors.
  */
+// ── Recovery: restoring the precondition ────────────────────────────────────
+//
+// `slide` documents a precondition — the position it starts from is legal — and
+// deliberately refuses to rescue a bad one. That is right for MOVEMENT: silently
+// teleporting a walker out of a wall would hide authoring bugs, which is exactly
+// what the comment above says.
+//
+// But the precondition can be broken by something other than a bad spawn: the
+// WORLD can change while you stand still. Switch the month and the house
+// recompiles; place a wall in edit mode and it appears around you. Neither is an
+// authoring error and neither can be blamed on `slide`, so rather than weaken
+// the precondition, these two make it checkable and restorable at the moment it
+// is broken.
+//
+// WHY `solids` AND NOT JUST `blockers`. Being too close to something is a
+// distance question and the segments answer it. Being INSIDE something is not:
+// the centre of a box wider than 2·radius is more than radius from all four of
+// its sides, so a distance test reports it clear. That is failure mode 2 from
+// the move design, and at this scale it is not hypothetical — a bed's inset
+// footprint is 0.62 m across the short way against a 0.36 m body, and the
+// stairwell is 0.50. Recovery is given the boxes so it can ask about interiors.
+
+const inside = (b: Box2, p: Vec2): boolean =>
+  p[0] > b.min[0] && p[0] < b.max[0] && p[1] > b.min[1] && p[1] < b.max[1];
+
+/**
+ * Is `p` a legal place to be — the precondition `slide` assumes?
+ *
+ * Legal means clear of every blocker by at least `radius` and inside none of the
+ * solids. Note that the first half is not merely "not touching": movement can
+ * never bring you closer than `radius` to a blocker (see `wouldHit`), so any
+ * position nearer than that is one movement did not produce.
+ *
+ * The epsilon is floating-point slack, not tolerance for being slightly inside
+ * something. Walking up to a wall leaves you resting at exactly `radius`, and
+ * this is consulted every time the blockers change — every door you open. An
+ * exact comparison would let the last bit of a float decide, and answer "you
+ * are stuck" for a walker who is simply standing against a wall.
+ */
+export const canStand = (
+  p: Vec2,
+  blockers: readonly Segment2[],
+  solids: readonly Box2[],
+  radius: number,
+): boolean =>
+  !solids.some((b) => inside(b, p)) &&
+  blockers.every((s) => distTo(s, p) >= radius - 1e-6);
+
+/**
+ * The nearest legal place to `p`, or null if there is none within `reach`.
+ *
+ * A lattice search rather than a push-out along a normal: with several blockers
+ * overlapping — which is the case that strands you — there is no single normal
+ * to push along, and pushing out of one can push you into another. Candidates
+ * are sorted by true distance, so "nearest" means nearest rather than
+ * first-found-in-some-ring.
+ *
+ * HONEST LIMITATION: this can put you on the far side of a wall that has just
+ * appeared, because the nearest legal point may simply be there. It preserves
+ * your position, not which room you were in. For a month switch or a dev-time
+ * edit that is the right trade; it would not be for gameplay.
+ */
+export const nearestStandable = (
+  p: Vec2,
+  blockers: readonly Segment2[],
+  solids: readonly Box2[],
+  radius: number,
+  { step = 0.1, reach = 2.5 }: { step?: number; reach?: number } = {},
+): Vec2 | null => {
+  if (canStand(p, blockers, solids, radius)) return p;
+  const rings = Math.max(1, Math.round(reach / step));
+  const candidates: { readonly at: Vec2; readonly d2: number }[] = [];
+  for (let i = -rings; i <= rings; i++) {
+    for (let j = -rings; j <= rings; j++) {
+      if (i === 0 && j === 0) continue;
+      const at: Vec2 = [p[0] + i * step, p[1] + j * step];
+      candidates.push({ at, d2: (i * step) ** 2 + (j * step) ** 2 });
+    }
+  }
+  candidates.sort((a, b) => a.d2 - b.d2);
+  for (const c of candidates) {
+    if (c.d2 > reach * reach) break;
+    if (canStand(c.at, blockers, solids, radius)) return c.at;
+  }
+  return null;
+};
+
 export const blocksDoorway = (
   pos: Vec2,
   doorway: Segment2,
