@@ -218,7 +218,7 @@ export function HouseScene() {
   // it. Everything upstream of this line — pickable, select, describe, the popup
   // — is untouched; only what the popup's action DOES has changed.
   const onAct = useCallback(
-    (action: NonNullable<Described['action']>) => {
+    (action: Described['actions'][number]) => {
       // `action.on` says what kind of thing this is; no searching three
       // collections to find out, and no way to be wrong about it.
       if (action.on === 'item') {

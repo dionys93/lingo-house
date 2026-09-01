@@ -10,6 +10,7 @@
 
 import { assertNever, type Cell, type HouseError, type Side } from '../shared/errors';
 import type { Facing, ItemDef, ItemKind } from './blocks';
+import type { NounKey } from './labels';
 import { CELL, WALL_HEIGHT, WALL_THICKNESS } from './scale';
 import { vec3, type AABB, type CompiledItem, type Vec3, type WallSide } from './compiled';
 import { resolveEdge } from './openings';
@@ -56,14 +57,57 @@ interface ItemSpec {
    * starts, as a fraction of the footprint — carcass plus door thickness — so a
    * plate on a shelf sits inside the box rather than flush with its face.
    */
-  readonly opens?: {
-    /** Which way the moving part moves. The renderer's business; closed here so
-     *  the set of ways a thing can open cannot quietly grow a fourth. */
-    readonly as: 'doors' | 'drawer' | 'lid';
-    readonly shelves: readonly number[];
-    readonly inset?: number;
-  };
+  readonly opens?: readonly OpenPartSpec[];
 }
+
+/**
+ * ONE openable part of an item.
+ *
+ * A list, because a thing can have more than one and the interesting ones do: a
+ * counter is a drawer above a cupboard, a fridge is a fridge below a freezer.
+ * Modelling `opens` as a single part made those two either wholly open or wholly
+ * shut, which is not how either object works and — worse for this app — hid a
+ * word. "The freezer" and "the drawer" are their own nouns, and the only way to
+ * teach them is for the thing to have parts you can name.
+ *
+ * `noun` is what the part IS, and it is what the open/close sentence is keyed
+ * by: a counter's lower half opens as "the cupboard" because that is what a
+ * speaker calls it, not "the counter".
+ *
+ * `id` is unique within its item and is the renderer's handle on which bit
+ * moves. Open state is keyed by `partKey(itemId, id)`, so the shell never has to
+ * know that parts exist.
+ */
+export interface OpenPartSpec<N = NounKey> {
+  readonly id: string;
+  readonly noun: N;
+  /** Which way it moves. Closed so the set of ways cannot quietly grow. */
+  readonly as: 'doors' | 'drawer';
+  readonly shelves: readonly number[];
+  readonly inset?: number;
+}
+
+/**
+ * A part as CALLERS see it, with its noun narrowed to the openable ones.
+ *
+ * The declared spec says `NounKey`, because the union of openable nouns is
+ * derived from these very entries and cannot be named before they exist. The
+ * accessor below narrows it back, which is sound by construction: OpenableNoun
+ * IS the set of nouns appearing here, so every value this can hold is in it.
+ * That narrowing is what makes `labels[l].opens[part.noun]` total.
+ */
+export type OpenPart = OpenPartSpec<OpenableNoun>;
+
+/** The key open state is held under: one item's one part. */
+export const partKey = (itemId: string, partId: string): string => `${itemId}:${partId}`;
+
+/**
+ * The item a part key belongs to.
+ *
+ * Split on the LAST separator, not the first: item ids are authored and nothing
+ * stops one containing a colon, while part ids are ours and never do.
+ */
+export const itemOfPartKey = (key: string): string => key.slice(0, key.lastIndexOf(':'));
 const SPECS = {
   // ── Living / general
   table: { w: 0.44, d: 0.3, h: 0.37, supportsTop: 0.37 }, //   880 ×  600 ×  740
@@ -83,7 +127,19 @@ const SPECS = {
   tv: { w: 0.44, d: 0.02, h: 0.248, supportsTop: null }, //     880 ×   40 ×  495 — 40", true 16:9
   // ── Kitchen
   diningTable: { w: 1.0, d: 1.0, h: 0.37, supportsTop: 0.37 }, // 2000 × 2000 × 740 — 2 cells square
-  counter: { w: 0.6, d: 0.3, h: 0.45, supportsTop: 0.45 }, //  1200 ×  600 ×  900 — worktop
+  // A drawer over a cupboard, and BOTH open. Two parts, two words: you open the
+  // drawer or you open the cupboard, and a counter that opened as one thing
+  // could teach neither.
+  counter: {
+    w: 0.6,
+    d: 0.3,
+    h: 0.45, //                                                 1200 ×  600 ×  900 — worktop
+    supportsTop: 0.45,
+    opens: [
+      { id: 'drawer', noun: 'drawer', as: 'drawer', shelves: [0.31], inset: 0.1 },
+      { id: 'doors', noun: 'cupboard', as: 'doors', shelves: [0.08], inset: 0.1 },
+    ],
+  },
   // A base unit: same carcass as the counter, and it OPENS. Two shelves, at a
   // third and two thirds of the internal height.
   cupboard: {
@@ -91,7 +147,7 @@ const SPECS = {
     d: 0.3,
     h: 0.45, //                                                  800 ×  600 ×  900
     supportsTop: 0.45,
-    opens: { as: 'doors', shelves: [0.06, 0.25], inset: 0.12 },
+    opens: [{ id: 'doors', noun: 'cupboard', as: 'doors', shelves: [0.06, 0.25], inset: 0.12 }],
   },
   dishwasher: { w: 0.3, d: 0.3, h: 0.425, supportsTop: null }, // 600 × 600 × 850 — slots into the run
   oven: { w: 0.3, d: 0.3, h: 0.45, supportsTop: null }, //       600 ×  600 ×  900 — hob on top, so nothing rests here
@@ -100,7 +156,11 @@ const SPECS = {
     d: 0.325,
     h: 0.9, //                                                    600 ×  650 × 1800
     supportsTop: null,
-    opens: { as: 'doors', shelves: [0.2, 0.42, 0.62], inset: 0.14 },
+    // The freezer is its own part with its own word, and its own door.
+    opens: [
+      { id: 'door', noun: 'fridge', as: 'doors', shelves: [0.18, 0.4], inset: 0.14 },
+      { id: 'freezer', noun: 'freezer', as: 'doors', shelves: [0.72], inset: 0.14 },
+    ],
   },
   // ── Shelf things. Small, and the reason a cupboard is worth opening.
   // A STACK of plates, which is what a cupboard holds and what reads at arm's
@@ -119,14 +179,14 @@ const SPECS = {
     d: 0.3,
     h: 1.0, //                                                   1000 ×  600 × 2000
     supportsTop: null,
-    opens: { as: 'doors', shelves: [0.08, 0.78], inset: 0.1 },
+    opens: [{ id: 'doors', noun: 'wardrobe', as: 'doors', shelves: [0.08, 0.78], inset: 0.1 }],
   },
   nightstand: {
     w: 0.225,
     d: 0.2,
     h: 0.275, //                                                   450 ×  400 ×  550
     supportsTop: 0.275,
-    opens: { as: 'drawer', shelves: [0.14], inset: 0.14 },
+    opens: [{ id: 'drawer', noun: 'drawer', as: 'drawer', shelves: [0.14], inset: 0.14 }],
   },
   // `as const satisfies` and not a plain annotation, for one reason that pays
   // for the extra characters: `satisfies` still checks every entry against
@@ -164,14 +224,34 @@ export type OpenableKind = {
 }[ItemKind];
 
 /**
- * The kind, narrowed to OpenableKind — or null if it doesn't open.
+ * Every noun that names something openable, derived from the parts above.
  *
- * The runtime test and the type test are the same test, which is the point: the
- * union is derived from the very field this checks, so a caller that gets a
- * non-null answer may index a Record<OpenableKind, …> without a fallback.
+ * This, not the item kind, is what the open/close sentences are keyed by — a
+ * counter has no sentence of its own, and its two parts borrow the words for a
+ * drawer and a cupboard. Derived for the same reason OpenableKind is: give a
+ * part a new noun and the label table fails to compile until every language has
+ * a sentence for it.
  */
-export const openableKind = (kind: ItemKind): OpenableKind | null =>
-  ITEM_SPECS[kind].opens === undefined ? null : (kind as OpenableKind);
+type NounsOf<K extends ItemKind> = (typeof SPECS)[K] extends { readonly opens: infer P }
+  ? P extends readonly { readonly noun: infer N }[]
+    ? N
+    : never
+  : never;
+export type OpenableNoun = { [K in ItemKind]: NounsOf<K> }[ItemKind];
+
+/**
+ * The parts of a kind that open — empty when nothing does.
+ *
+ * The runtime answer and the type are the same source: OpenableNoun is derived
+ * from these very entries, so a caller may index a Record<OpenableNoun, …> with
+ * `part.noun` and get a total lookup rather than one with a fallback.
+ */
+export const openPartsOf = (kind: ItemKind): readonly OpenPart[] =>
+  (ITEM_SPECS[kind].opens ?? []) as readonly OpenPart[];
+
+/** One named part of a kind, or null if it has no such part. */
+export const openPart = (kind: ItemKind, id: string): OpenPart | null =>
+  openPartsOf(kind).find((p) => p.id === id) ?? null;
 
 // facing → rotation about Y, for a model whose local "front" is +Z ('s').
 export const ITEM_YAW: Record<Facing, number> = {
@@ -346,9 +426,22 @@ export function compileItems(
           memo.set(def.id, null); // host's error is the root cause; don't pile on
           return null;
         }
-        const opens = ITEM_SPECS[host.kind].opens;
-        if (opens === undefined) {
+        const parts = openPartsOf(host.kind);
+        if (parts.length === 0) {
           return fail(def.id, { tag: 'ItemHasNoInside', id: def.id, host: m.host });
+        }
+        // Unnamed means the host's FIRST part, which is the one a plan written
+        // before parts existed meant — and the one clicking a host puts things
+        // in, since that is the part listed first for the same reason.
+        const opens = m.part === undefined ? parts[0] : openPart(host.kind, m.part);
+        if (opens === null) {
+          return fail(def.id, {
+            tag: 'NoSuchPart',
+            id: def.id,
+            host: m.host,
+            part: m.part ?? '',
+            parts: parts.map((p) => p.id),
+          });
         }
         const index = m.shelf ?? 0;
         const shelf = opens.shelves[index];
@@ -360,6 +453,7 @@ export function compileItems(
             tag: 'NoSuchShelf',
             id: def.id,
             host: m.host,
+            part: opens.id,
             shelf: index,
             shelves: opens.shelves.length,
           });
@@ -378,7 +472,7 @@ export function compileItems(
           host.position[2] - lx * sin + lz * cos,
         );
         const facing = m.facing ?? FACING_OF_YAW.get(host.yaw) ?? 's';
-        return { ...emit(def, position, facing, host.room), inside: host.id };
+        return { ...emit(def, position, facing, host.room), inside: partKey(host.id, opens.id) };
       }
 
       case 'wall': {

@@ -67,6 +67,8 @@ const WORDS = {
   wall: { en: 'the wall', es: 'la pared', de: 'die Wand' },
   floor: { en: 'the floor', es: 'el suelo', de: 'der Boden' },
   ground: { en: 'the ground', es: 'el suelo', de: 'der Boden' },
+  freezer: { en: 'the freezer', es: 'el congelador', de: 'das Gefrierfach' },
+  drawer: { en: 'the drawer', es: 'el cajón', de: 'die Schublade' },
   ceiling: { en: 'the ceiling', es: 'el techo', de: 'die Decke' },
   roof: { en: 'the roof', es: 'el tejado', de: 'das Dach' },
   stairs: { en: 'the stairs', es: 'la escalera', de: 'die Treppe' },
@@ -90,19 +92,22 @@ const OPENS: Record<Locale, LocaleLabels['opens']> = {
     cupboard: { open: 'Open the cupboard', close: 'Close the cupboard' },
     wardrobe: { open: 'Open the wardrobe', close: 'Close the wardrobe' },
     fridge: { open: 'Open the fridge', close: 'Close the fridge' },
-    nightstand: { open: 'Open the drawer', close: 'Close the drawer' },
+    drawer: { open: 'Open the drawer', close: 'Close the drawer' },
+    freezer: { open: 'Open the freezer', close: 'Close the freezer' },
   },
   es: {
     cupboard: { open: 'Abre el armario de cocina', close: 'Cierra el armario de cocina' },
     wardrobe: { open: 'Abre el armario', close: 'Cierra el armario' },
     fridge: { open: 'Abre la nevera', close: 'Cierra la nevera' },
-    nightstand: { open: 'Abre el cajón', close: 'Cierra el cajón' },
+    drawer: { open: 'Abre el cajón', close: 'Cierra el cajón' },
+    freezer: { open: 'Abre el congelador', close: 'Cierra el congelador' },
   },
   de: {
     cupboard: { open: 'Öffne den Küchenschrank', close: 'Schließ den Küchenschrank' },
     wardrobe: { open: 'Öffne den Kleiderschrank', close: 'Schließ den Kleiderschrank' },
     fridge: { open: 'Öffne den Kühlschrank', close: 'Schließ den Kühlschrank' },
-    nightstand: { open: 'Öffne die Schublade', close: 'Schließ die Schublade' },
+    drawer: { open: 'Öffne die Schublade', close: 'Schließ die Schublade' },
+    freezer: { open: 'Öffne das Gefrierfach', close: 'Schließ das Gefrierfach' },
   },
 };
 
@@ -275,15 +280,15 @@ suite('describe — opening things', () => {
   };
 
   it('offers to open what opens', () => {
-    expect(say('cb').action).toEqual({
+    expect(say('cb').actions[0]).toEqual({
       label: { from: 'Open the cupboard', to: 'Abre el armario de cocina' },
       on: 'item',
-      id: 'cb',
+      id: 'cb:doors',
     });
   });
 
   it('offers to close it once it is open — same click, opposite word', () => {
-    expect(say('cb', new Set(['cb'])).action?.label).toEqual({
+    expect(say('cb', new Set(['cb:doors'])).actions[0]?.label).toEqual({
       from: 'Close the cupboard',
       to: 'Cierra el armario de cocina',
     });
@@ -307,7 +312,7 @@ suite('describe — opening things', () => {
       openDoors: SHUT,
       openItems: SHUT,
     });
-    expect(inGerman?.action?.label.to).toBe('Öffne den Küchenschrank');
+    expect(inGerman?.actions[0]?.label.to).toBe('Öffne den Küchenschrank');
     // …and the bare noun, which the popup shows above the button, still says
     // "der". Both forms are true; only a table can hold both.
     expect(inGerman?.subject.to).toBe('der Küchenschrank');
@@ -316,13 +321,13 @@ suite('describe — opening things', () => {
   it('offers nothing on something that does not open', () => {
     // Openable is a property of the KIND, read from the same spec that says how
     // big it is. Nothing is authored per item to say a table stays shut.
-    expect(say('t1').action).toBeUndefined();
+    expect(say('t1').actions).toEqual([]);
   });
 
   it('names the container in the chain, under the room', () => {
     // The chain was built to grow downward and this is the first thing to grow
     // it: the cup, then what it is in, then where that is.
-    const d = say('cup1', new Set(['cb']));
+    const d = say('cup1', new Set(['cb:doors']));
     expect(d.subject).toEqual({ from: 'the cup', to: 'la taza' });
     expect(d.context).toEqual([
       { from: 'the cupboard', to: 'el armario de cocina' },
@@ -338,8 +343,8 @@ suite('describe — opening things', () => {
     // A stair id and an item id are both strings. Before this, the shell found
     // out which by searching collections in order.
     const kinds = [
-      say('cb').action?.on,
-      at({ on: 'opening', id: interiorDoor }, 'kitchen')?.action?.on,
+      say('cb').actions[0]?.on,
+      at({ on: 'opening', id: interiorDoor }, 'kitchen')?.actions[0]?.on,
     ];
     expect(kinds).toEqual(['item', 'door']);
   });
@@ -349,19 +354,19 @@ suite('describe — the traversal phrase', () => {
   it('is keyed by DESTINATION, so it flips with the direction you approach from', () => {
     const fromKitchen = at({ on: 'opening', id: interiorDoor }, 'kitchen')!;
     const fromLiving = at({ on: 'opening', id: interiorDoor }, 'livingRoom')!;
-    expect(fromKitchen.action!.label.to).toBe('Abre la puerta de la sala');
-    expect(fromLiving.action!.label.to).toBe('Abre la puerta de la cocina');
-    expect(fromKitchen.action!.id).toBe(interiorDoor);
+    expect(fromKitchen.actions[0].label.to).toBe('Abre la puerta de la sala');
+    expect(fromLiving.actions[0].label.to).toBe('Abre la puerta de la cocina');
+    expect(fromKitchen.actions[0].id).toBe(interiorDoor);
   });
 
   it('uses the outside phrase when the destination is not a room', () => {
     const out = at({ on: 'opening', id: frontDoor }, 'livingRoom')!;
-    expect(out.action!.label).toEqual({ from: 'Go outside', to: 'Sal afuera' });
+    expect(out.actions[0].label).toEqual({ from: 'Go outside', to: 'Sal afuera' });
   });
 
   it('offers no action for a door you are not standing beside', () => {
     // The interior door doesn't touch 'outside', so there's nothing to walk.
-    expect(at({ on: 'opening', id: interiorDoor }, 'outside')!.action).toBeUndefined();
+    expect(at({ on: 'opening', id: interiorDoor }, 'outside')!.actions).toEqual([]);
   });
 
   it('names a window but never offers to walk through it', () => {
@@ -379,7 +384,7 @@ suite('describe — the traversal phrase', () => {
       openItems: SHUT,
     })!;
     expect(d.subject).toEqual({ from: 'the window', to: 'la ventana' });
-    expect(d.action).toBeUndefined();
+    expect(d.actions).toEqual([]);
   });
 });
 
@@ -466,23 +471,23 @@ suite('describe — stairs', () => {
   });
 
   it('says CLIMB from the bottom and DESCEND from the top — same stair', () => {
-    expect(atStair('kitchen')!.action!.label.to).toBe('Sube a la sala');
-    expect(atStair('livingRoom')!.action!.label.to).toBe('Baja a la cocina');
+    expect(atStair('kitchen')!.actions[0].label.to).toBe('Sube a la sala');
+    expect(atStair('livingRoom')!.actions[0].label.to).toBe('Baja a la cocina');
   });
 
   it('hands nav the stair id, so the popup button drives the same traverse', () => {
-    expect(atStair('kitchen')!.action!.id).toBe('st');
+    expect(atStair('kitchen')!.actions[0].id).toBe('st');
   });
 
   it('offers no climb from a room the stair does not touch', () => {
-    expect(atStair('outside')!.action).toBeUndefined();
+    expect(atStair('outside')!.actions).toEqual([]);
   });
 });
 
 suite('describe — a door that is already open', () => {
   it('offers closing it, in both languages', () => {
     const d = at({ on: 'opening', id: interiorDoor }, 'kitchen', new Set([interiorDoor]))!;
-    expect(d.action).toEqual({
+    expect(d.actions[0]).toEqual({
       label: { from: 'Close the door', to: 'Cierra la puerta' },
       on: 'door',
       id: interiorDoor,
@@ -491,7 +496,7 @@ suite('describe — a door that is already open', () => {
 
   it('still names the destination while it is shut', () => {
     const d = at({ on: 'opening', id: interiorDoor }, 'kitchen')!;
-    expect(d.action?.label.from).toContain('living room');
+    expect(d.actions[0]?.label.from).toContain('living room');
   });
 
   it('names no room when closing — you close a door, not a destination', () => {
@@ -499,7 +504,7 @@ suite('describe — a door that is already open', () => {
     // graph doesn't join, and it is identical from either side of the door.
     const fromKitchen = at({ on: 'opening', id: interiorDoor }, 'kitchen', new Set([interiorDoor]))!;
     const fromLiving = at({ on: 'opening', id: interiorDoor }, 'livingRoom', new Set([interiorDoor]))!;
-    expect(fromKitchen.action).toEqual(fromLiving.action);
+    expect(fromKitchen.actions[0]).toEqual(fromLiving.actions[0]);
   });
 
   it('names an exterior door with its OWN noun, not door-plus-adjective', () => {
@@ -517,5 +522,76 @@ suite('describe — a door that is already open', () => {
     const open = at({ on: 'opening', id: frontDoor }, 'outside', new Set([frontDoor]))!;
     const shut = at({ on: 'opening', id: frontDoor }, 'outside')!;
     expect(open.subject).toEqual(shut.subject);
+  });
+});
+suite('describe — a thing with several openable parts', () => {
+  // Wide enough for a counter, which is 1.2 m — two cells and a bit. A
+  // one-cell kitchen puts half of it outside the room, which the fit checks say
+  // so about, correctly.
+  const KIT: Grid = [
+    [K, K, K, L],
+    [K, K, K, L],
+  ];
+  const built = compileHouse([
+    {
+      level: 0,
+      grid: KIT,
+      openings: [
+        { kind: 'door', cell: [0, 2], side: 'right', swing: 'in', between: ['kitchen', 'livingRoom'] },
+        { kind: 'door', cell: [1, 3], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] },
+      ],
+      items: [
+        { id: 'ct', kind: 'counter', mount: { on: 'floor', cell: [0, 1] } },
+        { id: 'fr', kind: 'fridge', mount: { on: 'floor', cell: [1, 0] } },
+      ],
+    },
+  ]);
+  if (!built.ok) throw new Error(JSON.stringify(built.error));
+  const house2 = built.value;
+  const g2 = buildNavGraph(house2.storeys[0].grid.openings);
+  const on = (id: string, open: ReadonlySet<string> = SHUT) => {
+    const d = describe({
+      selection: { on: 'item', id },
+      where: 'kitchen',
+      house: house2,
+      graph: g2,
+      labels: LABELS,
+      from: 'en',
+      to: 'es',
+      openDoors: SHUT,
+      openItems: open,
+    });
+    if (d === null) throw new Error('described nothing');
+    return d;
+  };
+
+  it('offers one whole sentence per part', () => {
+    // A single action could only ever have named one of them, which is the same
+    // as hiding the other — and the other is a word.
+    expect(on('ct').actions.map((a) => a.label.from)).toEqual([
+      'Open the drawer',
+      'Open the cupboard',
+    ]);
+    expect(on('fr').actions.map((a) => a.label.to)).toEqual([
+      'Abre la nevera',
+      'Abre el congelador',
+    ]);
+  });
+
+  it('hands back the key that part is open under', () => {
+    expect(on('ct').actions.map((a) => a.id)).toEqual(['ct:drawer', 'ct:doors']);
+  });
+
+  it('flips only the part that is open', () => {
+    const half = on('ct', new Set(['ct:drawer']));
+    expect(half.actions.map((a) => a.label.from)).toEqual([
+      'Close the drawer',
+      'Open the cupboard',
+    ]);
+  });
+
+  it('still calls the whole thing by its own name', () => {
+    // The parts borrow other words; the subject is the counter itself.
+    expect(on('ct').subject).toEqual({ from: 'the counter', to: 'la encimera' });
   });
 });

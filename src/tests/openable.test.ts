@@ -8,7 +8,7 @@
 
 import { describe as suite, it, expect } from 'vitest';
 import { compileGrid } from '../core/house/grid';
-import { ITEM_SPECS } from '../core/house/items';
+import { ITEM_SPECS, itemOfPartKey, openPart, openPartsOf, partKey } from '../core/house/items';
 import { CELL } from '../core/house/scale';
 import { walkReducer, startWalking } from '../core/session/walk';
 import type { Grid, ItemDef } from '../core/house/blocks';
@@ -36,7 +36,7 @@ const CUPBOARD: ItemDef = { id: 'c', kind: 'cupboard', mount: { on: 'floor', cel
 
 suite('a shelf is a real place', () => {
   it('puts a cup at the shelf height its host declares', () => {
-    const shelves = ITEM_SPECS.cupboard.opens?.shelves ?? [];
+    const shelves = openPart('cupboard', 'doors')?.shelves ?? [];
     expect(shelves.length).toBeGreaterThan(1);
     const g = mustCompile([
       CUPBOARD,
@@ -55,7 +55,7 @@ suite('a shelf is a real place', () => {
     const g = mustCompile([CUPBOARD, { id: 'cup', kind: 'cup', mount: { on: 'inside', host: 'c' } }]);
     const cup = g.items.find((i) => i.id === 'cup');
     expect(cup?.mountedOn).toBe('inside');
-    expect(cup?.inside).toBe('c');
+    expect(cup?.inside).toBe(partKey('c', 'doors'));
     // A thing ON a table is not a thing IN one, and only one of them disappears
     // when the door shuts.
     const t = mustCompile([
@@ -70,7 +70,7 @@ suite('a shelf is a real place', () => {
     // footprint it would be the outside face of the cupboard, and a cup pushed
     // to the right of a shelf would end up half inside the side panel.
     const spec = ITEM_SPECS.cupboard;
-    const inset = spec.opens?.inset ?? 0;
+    const inset = openPart('cupboard', 'doors')?.inset ?? 0;
     const g = mustCompile([
       CUPBOARD,
       { id: 'cup', kind: 'cup', mount: { on: 'inside', host: 'c', offset: [0.5, 0] } },
@@ -170,27 +170,92 @@ suite('what a cupboard is, dimensionally', () => {
   it('has shelves inside its own height', () => {
     // A shelf above the carcass would put a cup on the roof of it.
     for (const [kind, spec] of Object.entries(ITEM_SPECS)) {
-      if (spec.opens === undefined) continue;
-      expect(spec.opens.shelves.length, kind).toBeGreaterThan(0);
-      for (const y of spec.opens.shelves) {
-        expect(y, `${kind} shelf`).toBeGreaterThan(0);
-        expect(y, `${kind} shelf`).toBeLessThan(spec.h);
+      for (const part of spec.opens ?? []) {
+        expect(part.shelves.length, `${kind}/${part.id}`).toBeGreaterThan(0);
+        for (const y of part.shelves) {
+          expect(y, `${kind}/${part.id} shelf`).toBeGreaterThan(0);
+          expect(y, `${kind}/${part.id} shelf`).toBeLessThan(spec.h);
+        }
       }
     }
   });
 
   it('leaves a usable interior', () => {
     for (const [kind, spec] of Object.entries(ITEM_SPECS)) {
-      const inset = spec.opens?.inset;
-      if (inset === undefined) continue;
-      expect(inset, kind).toBeGreaterThanOrEqual(0);
-      expect(inset, kind).toBeLessThan(0.5);
-      // And what fits on the shelf is smaller than the shelf.
-      expect(spec.w * (1 - 2 * inset), kind).toBeGreaterThan(ITEM_SPECS.cup.w);
+      for (const part of spec.opens ?? []) {
+        const inset = part.inset;
+        if (inset === undefined) continue;
+        expect(inset, `${kind}/${part.id}`).toBeGreaterThanOrEqual(0);
+        expect(inset, `${kind}/${part.id}`).toBeLessThan(0.5);
+        // And what fits on the shelf is smaller than the shelf.
+        expect(spec.w * (1 - 2 * inset), kind).toBeGreaterThan(ITEM_SPECS.cup.w);
+      }
     }
   });
 
   it('is one cell wide or less, like the rest of the kitchen run', () => {
     expect(ITEM_SPECS.cupboard.w).toBeLessThanOrEqual(CELL * 1.2);
+  });
+});
+
+suite('a thing can open in more than one place', () => {
+  it('gives a counter a drawer and a cupboard, and a fridge a freezer', () => {
+    // The two that motivated parts. Each part carries the NOUN it is called by,
+    // which is what its sentence is keyed on — a counter has no word of its own
+    // for opening, and borrows the ones a speaker actually uses.
+    expect(openPartsOf('counter').map((p) => [p.id, p.noun])).toEqual([
+      ['drawer', 'drawer'],
+      ['doors', 'cupboard'],
+    ]);
+    expect(openPartsOf('fridge').map((p) => p.noun)).toEqual(['fridge', 'freezer']);
+  });
+
+  it('keeps each part open or shut on its own', () => {
+    let s = startWalking('kitchen');
+    s = walkReducer(s, { tag: 'toggleItem', itemId: partKey('c1', 'drawer') });
+    expect(s.openItems.has(partKey('c1', 'drawer'))).toBe(true);
+    // Pulling the drawer does not swing the doors below it.
+    expect(s.openItems.has(partKey('c1', 'doors'))).toBe(false);
+  });
+
+  it('puts a thing in the part it was told to', () => {
+    const shelves = openPart('fridge', 'freezer')?.shelves ?? [];
+    expect(shelves.length).toBeGreaterThan(0);
+    const g = mustCompile([
+      { id: 'f', kind: 'fridge', mount: { on: 'floor', cell: [1, 1] } },
+      { id: 'ice', kind: 'cup', mount: { on: 'inside', host: 'f', part: 'freezer' } },
+    ]);
+    const host = g.items.find((i) => i.id === 'f');
+    const ice = g.items.find((i) => i.id === 'ice');
+    expect(ice?.position[1]).toBeCloseTo((host?.position[1] ?? 0) + shelves[0], 9);
+    // And it is hidden by the FREEZER's door, not the fridge's — which is the
+    // whole reason `inside` records a part key rather than an item id.
+    expect(ice?.inside).toBe(partKey('f', 'freezer'));
+  });
+
+  it('defaults to the first part when none is named', () => {
+    // What a plan written before parts existed meant, and what clicking a host
+    // in edit mode does — the same part, for the same reason.
+    const g = mustCompile([
+      { id: 'c', kind: 'counter', mount: { on: 'floor', cell: [1, 1] } },
+      { id: 'p', kind: 'plate', mount: { on: 'inside', host: 'c' } },
+    ]);
+    expect(g.items.find((i) => i.id === 'p')?.inside).toBe(partKey('c', 'drawer'));
+  });
+
+  it('refuses a part the host does not have', () => {
+    expect(
+      errorsOf([
+        CUPBOARD,
+        { id: 'x', kind: 'cup', mount: { on: 'inside', host: 'c', part: 'freezer' } },
+      ]),
+    ).toContain('NoSuchPart');
+  });
+
+  it('reads the host back out of a part key', () => {
+    // Split on the LAST separator: item ids are authored and could contain one,
+    // part ids are ours and never do.
+    expect(itemOfPartKey(partKey('kitchen-counter-l', 'doors'))).toBe('kitchen-counter-l');
+    expect(itemOfPartKey(partKey('a:b', 'drawer'))).toBe('a:b');
   });
 });

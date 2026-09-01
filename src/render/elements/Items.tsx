@@ -39,7 +39,7 @@ import type { JSX } from 'react';
 import * as THREE from 'three';
 import { RoundedBox } from '@react-three/drei';
 import type { CompiledGrid, CompiledItem } from '../../core/house/compiled';
-import { ITEM_SPECS } from '../../core/house/items';
+import { ITEM_SPECS, openPart, partKey } from '../../core/house/items';
 import type { ItemKind } from '../../core/house/blocks';
 import { CATCHES, IGNORED, SOLID } from '../../core/style/shadows';
 import { FLOOR_Y } from './Floor';
@@ -561,7 +561,7 @@ const PLINTH_INSET = 0.03;
  * horizontal band near the top is the single cue that says "drawer" — a run of
  * identical full-height panels reads as a row of cupboards whatever you call it.
  */
-function Counter(): JSX.Element {
+function Counter({ isOpen }: ItemProps): JSX.Element {
   const { w, d, h } = ITEM_SPECS.counter;
   const topT = 0.02;
   const bodyH = h - topT - PLINTH_H;
@@ -569,6 +569,11 @@ function Counter(): JSX.Element {
   const drawerH = bodyH * 0.26;
   const doorH = bodyH - drawerH - gap;
   const drawerY = PLINTH_H + doorH + gap + drawerH / 2;
+  const doors = openPart('counter', 'doors');
+  const drawer = openPart('counter', 'drawer');
+  const doorsOpen = isOpen('doors');
+  const drawerOut = isOpen('drawer') ? d * 0.6 : 0;
+  const leaf = w * 0.47;
   return (
     <>
       <Slab
@@ -576,73 +581,88 @@ function Counter(): JSX.Element {
         size={[w - 0.02, PLINTH_H, d - PLINTH_INSET]}
         color="#3f4145"
       />
-      <Slab at={[0, PLINTH_H + bodyH / 2, 0]} size={[w, bodyH, d]} color={CABINET} roughness={0.6} />
-
-      {/* TWO DOORS below, proud of the carcass with a seam between them. */}
-      {[-1, 1].map((sgn) => (
+      {/* Carcass open at the front, like the cupboard's — the body used to be
+          one solid box, which is fine for something that never opens and a lie
+          for something that does. */}
+      <Slab at={[0, PLINTH_H + bodyH / 2, -d / 2 + 0.008]} size={[w, bodyH, 0.016]} color={CABINET_LINE} />
+      {[-1, 1].map((sx) => (
         <Slab
-          key={sgn}
-          at={[sgn * w * 0.243, PLINTH_H + doorH / 2, d / 2 + 0.003]}
-          size={[w * 0.47, doorH - gap, 0.006]}
+          key={sx}
+          at={[sx * (w / 2 - 0.008), PLINTH_H + bodyH / 2, 0]}
+          size={[0.016, bodyH, d]}
+          color={CABINET_LINE}
+        />
+      ))}
+      {/* The rail between drawer and cupboard, so the two openings read as two
+          compartments rather than one tall hole. */}
+      <Slab at={[0, PLINTH_H + doorH + gap / 2, 0]} size={[w, 0.014, d]} color={CABINET_LINE} />
+      {doors && (
+        <Shelves w={w} d={d} inset={doors.inset ?? 0} heights={doors.shelves.map((y) => y + PLINTH_H)} />
+      )}
+
+      {/* TWO DOORS below, hinged on their outer edges so they open away from
+          the middle. */}
+      {([-1, 1] as const).map((sx) => (
+        <SwingDoor
+          key={sx}
+          hinge={[sx * (w / 2), PLINTH_H + doorH / 2, d / 2 + 0.004]}
+          width={leaf}
+          height={doorH - gap}
+          thickness={0.008}
+          sign={sx === -1 ? 1 : -1}
+          open={doorsOpen}
+          color={CABINET_LINE}
+          handle={STEEL}
+        />
+      ))}
+
+      {/* ONE DRAWER on top, full width, and it slides. Front, box and handle
+          ride in one group that translates along +Z; the shelf inside stays
+          with the world. Pulled out most of its depth, not all — a drawer clear
+          of its carcass is a drawer on the floor. */}
+      <group position={[0, 0, drawerOut]}>
+        <Slab
+          at={[0, drawerY, d / 2 + 0.004]}
+          size={[w - 0.014, drawerH, 0.008]}
           color={CABINET_LINE}
           roughness={0.6}
         />
-      ))}
-      {/* Their handles: vertical, either side of the centre seam, the way a
-          pair of cupboard doors is actually fitted. */}
-      {[-1, 1].map((sgn) => (
+        {drawerOut > 0 && (
+          <>
+            <Slab at={[0, drawerY - drawerH * 0.44, d * 0.5 - drawerOut * 0.5]} size={[w - 0.04, 0.008, drawerOut]} color="#cfcabf" />
+            {[-1, 1].map((sx) => (
+              <Slab
+                key={sx}
+                at={[sx * (w / 2 - 0.024), drawerY - drawerH * 0.2, d * 0.5 - drawerOut * 0.5]}
+                size={[0.008, drawerH * 0.5, drawerOut]}
+                color="#cfcabf"
+              />
+            ))}
+          </>
+        )}
+        {/* A long horizontal bar across it — drawers pull, doors swing, and the
+            handle axis is how you tell at a glance. */}
         <Tube
-          key={sgn}
-          at={[sgn * 0.022, PLINTH_H + doorH * 0.62, d / 2 + 0.016]}
-          rTop={0.005}
-          rBottom={0.005}
-          height={doorH * 0.4}
+          at={[0, drawerY, d / 2 + 0.019]}
+          rTop={0.006}
+          rBottom={0.006}
+          height={w * 0.62}
           color={STEEL}
-          roughness={0.25}
-          metalness={0.85}
+          roughness={0.2}
+          metalness={0.9}
+          rotation={[0, 0, Math.PI / 2]}
         />
-      ))}
+      </group>
+      {drawer && (
+        <Shelves w={w} d={d} inset={drawer.inset ?? 0} heights={drawer.shelves.map((y) => y + PLINTH_H)} />
+      )}
 
-      {/* ONE DRAWER on top, full width. */}
-      <Slab
-        at={[0, drawerY, d / 2 + 0.004]}
-        size={[w - 0.014, drawerH, 0.008]}
-        color={CABINET_LINE}
-        roughness={0.6}
-      />
-      {/* A long horizontal bar across it — drawers pull, doors swing, and the
-          handle axis is how you tell at a glance. */}
-      <Tube
-        at={[0, drawerY, d / 2 + 0.019]}
-        rTop={0.006}
-        rBottom={0.006}
-        height={w * 0.62}
-        color={STEEL}
-        roughness={0.2}
-        metalness={0.9}
-        rotation={[0, 0, Math.PI / 2]}
-      />
-
-      {/* Worktop, overhanging the front — the overhang is the whole silhouette. */}
-      <Slab
-        at={[0, h - topT / 2, 0.008]}
-        size={[w + 0.008, topT, d + 0.016]}
-        color={WORKTOP}
-        roughness={0.35}
-      />
+      {/* The worktop, overhanging at the front the way a real one does. */}
+      <Slab at={[0, h - topT / 2, 0.004]} size={[w + 0.008, topT, d + 0.012]} color={WORKTOP} roughness={0.35} />
     </>
   );
 }
 
-/**
- * An integrated dishwasher: one full-height door under a worktop, a control
- * strip along its top edge, and a recessed handle.
- *
- * This is the old `counter` model, given the width it should always have had
- * (600 mm, one appliance bay) and the two details that name it. Everything in a
- * fitted kitchen is a box of the same height; what distinguishes them is the
- * face, so that is where the effort goes.
- */
 function Dishwasher(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.dishwasher;
   const topT = 0.02;
@@ -832,20 +852,20 @@ function Oven(): JSX.Element {
 const FRIDGE_BODY = '#b9bfc4';
 const FRIDGE_LINER = '#eef3f5';
 
-function Fridge({ open }: ItemProps): JSX.Element {
+function Fridge({ isOpen }: ItemProps): JSX.Element {
   const { w, d, h } = ITEM_SPECS.fridge;
   const freezerH = h * 0.34; // freezer on top
   const gap = 0.006;
+  const fridgeH = h - freezerH - gap;
+  const door = openPart('fridge', 'door');
+  const freezer = openPart('fridge', 'freezer');
   return (
     <>
       {/* A CARCASS, not a solid block. The body used to be one box the full
           size of the fridge, which meant swinging the door open revealed the
           front face of a solid — so an open fridge looked exactly like a shut
           one with a panel beside it, and no amount of moving the door was ever
-          going to fix that. The cavity is what makes "open" legible.
-
-          Freezer compartment above stays solid: its door does not open, so
-          there is nothing to see in it. */}
+          going to fix that. The cavity is what makes "open" legible. */}
       <Slab at={[0, h / 2, -d / 2 + 0.01]} size={[w, h, 0.02]} color={FRIDGE_BODY} roughness={0.45} metalness={0.5} />
       {[-1, 1].map((sx) => (
         <Slab
@@ -859,56 +879,42 @@ function Fridge({ open }: ItemProps): JSX.Element {
       ))}
       <Slab at={[0, h - 0.01, 0]} size={[w, 0.02, d]} color={FRIDGE_BODY} roughness={0.45} metalness={0.5} />
       <Slab at={[0, 0.01, 0]} size={[w, 0.02, d]} color={FRIDGE_BODY} roughness={0.45} metalness={0.5} />
-      {/* The freezer, solid, above the divider. */}
-      <Slab at={[0, h - freezerH / 2, 0]} size={[w - 0.04, freezerH - 0.02, d - 0.02]} color={FRIDGE_LINER} roughness={0.5} />
-      <Slab at={[0, h - freezerH, 0]} size={[w, 0.016, d]} color={FRIDGE_BODY} roughness={0.45} metalness={0.5} />
-      {/* Lining and shelves — what you actually see when the door swings. */}
-      <Slab
-        at={[0, (h - freezerH) / 2, -d / 2 + 0.028]}
-        size={[w - 0.04, h - freezerH - 0.02, 0.014]}
-        color={FRIDGE_LINER}
-        roughness={0.55}
-      />
-      {ITEM_SPECS.fridge.opens && (
-        <Shelves
-          w={w}
-          d={d}
-          inset={ITEM_SPECS.fridge.opens.inset ?? 0}
-          heights={ITEM_SPECS.fridge.opens.shelves}
-          color="#dbe6ea"
-        />
-      )}
-      <Slab
-        at={[0, h - freezerH / 2 - gap / 2, d / 2 + 0.004]}
-        size={[w - 0.01, freezerH - gap, 0.008]}
-        color="#ced4d9"
-        roughness={0.3}
-        metalness={0.6}
-      />
-      <Tube
-        at={[-w * 0.32, h - freezerH * 0.5, d / 2 + 0.018]}
-        rTop={0.006}
-        rBottom={0.006}
-        height={freezerH * 0.5}
-        color={STEEL}
-        roughness={0.2}
-        metalness={0.9}
-      />
-      {/* Hinged on the RIGHT (+x), and that is a placement fact rather than a
-          styling one. The fridge stands in the kitchen's back-LEFT corner with
-          its left side flush to the exterior wall, so a left hinge swings the
-          leaf's far edge back past the hinge line — the 100° overswing is
+      {/* The divider between the two compartments. Both are hollow now: the
+          freezer has its own door and its own word, so a solid block behind it
+          would be the same lie the whole fridge used to tell. */}
+      <Slab at={[0, fridgeH + gap / 2, 0]} size={[w, 0.016, d]} color={FRIDGE_BODY} roughness={0.45} metalness={0.5} />
+      {/* Lining and shelves — what you actually see when a door swings. */}
+      <Slab at={[0, fridgeH / 2, -d / 2 + 0.028]} size={[w - 0.04, fridgeH - 0.02, 0.014]} color={FRIDGE_LINER} roughness={0.55} />
+      <Slab at={[0, h - freezerH / 2, -d / 2 + 0.028]} size={[w - 0.04, freezerH - 0.02, 0.014]} color={FRIDGE_LINER} roughness={0.55} />
+      {door && <Shelves w={w} d={d} inset={door.inset ?? 0} heights={door.shelves} color="#dbe6ea" />}
+      {freezer && <Shelves w={w} d={d} inset={freezer.inset ?? 0} heights={freezer.shelves} color="#dbe6ea" />}
+      {/* Both doors hinge on the RIGHT (+x), and that is a placement fact rather
+          than a styling one. The fridge stands in the kitchen's back-LEFT corner
+          with its left side flush to the exterior wall, so a left hinge swings
+          the leaf's far edge back past the hinge line — the 100° overswing is
           exactly that overhang — and it comes out through the wall. Hinging on
           the far side from the wall puts the same overswing into open room.
           Hinge side is per kind today; a fridge in the other corner would want
-          the mirror, and that is the day this becomes an authored field. */}
+          the mirror, and that is the day this becomes an authored field.
+
+          Same side for both, or the two compartments read as two appliances. */}
       <SwingDoor
-        hinge={[w / 2, (h - freezerH - gap) / 2, d / 2 + 0.004]}
+        hinge={[w / 2, h - freezerH / 2, d / 2 + 0.004]}
         width={w - 0.01}
-        height={h - freezerH - gap}
+        height={freezerH - gap}
         thickness={0.008}
         sign={-1}
-        open={open}
+        open={isOpen('freezer')}
+        color="#ced4d9"
+        handle={STEEL}
+      />
+      <SwingDoor
+        hinge={[w / 2, fridgeH / 2, d / 2 + 0.004]}
+        width={w - 0.01}
+        height={fridgeH}
+        thickness={0.008}
+        sign={-1}
+        open={isOpen('door')}
         color="#ced4d9"
         handle={STEEL}
       />
@@ -1015,96 +1021,160 @@ function Water({ at, size }: { readonly at: V3; readonly size: V3 }): JSX.Elemen
 
 function Toilet(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.toilet;
-  const cisternD = d * 0.28;
+  const cisternD = d * 0.3;
   const cisternH = h * 0.55;
+  const cisternFront = -d / 2 + cisternD;
   const seatY = h * 0.42; // 330 mm — seat height
   const bowlR = w / 2;
+  const bowlZ = 0.024;
   return (
     <>
-      {/* Cistern at the back, standing on the floor, with a softened lid. */}
+      {/* Cistern at the back, standing on the floor, with a softened lid that
+          OVERLAPS it rather than balancing on top. */}
+      <Glazed at={[0, cisternH / 2, cisternFront - cisternD / 2]} size={[w, cisternH, cisternD]} radius={0.016} />
       <Glazed
-        at={[0, cisternH / 2, -d / 2 + cisternD / 2]}
-        size={[w, cisternH, cisternD]}
-        radius={0.016}
-      />
-      <Glazed
-        at={[0, cisternH + 0.004, -d / 2 + cisternD / 2]}
-        size={[w + 0.008, 0.014, cisternD + 0.008]}
+        at={[0, cisternH - 0.004, cisternFront - cisternD / 2]}
+        size={[w + 0.008, 0.016, cisternD + 0.008]}
         radius={0.006}
       />
-      {/* Flush plate */}
-      <Slab
-        at={[0, cisternH * 0.78, -d / 2 + cisternD + 0.002]}
-        size={[w * 0.3, 0.018, 0.004]}
+      {/* Flush plate, sunk into the cistern face. */}
+      <Glazed
+        at={[0, cisternH * 0.78, cisternFront - 0.004]}
+        size={[w * 0.3, 0.02, 0.01]}
+        radius={0.004}
         color={CHROME}
-        roughness={0.06}
-        metalness={1}
       />
       {/* Pedestal — narrower at the floor, which is what makes it a toilet and
-          not a bucket. */}
-      <GlazedTube at={[0, seatY * 0.42, 0.01]} rTop={bowlR * 0.72} rBottom={bowlR * 0.5} height={seatY * 0.84} />
-      {/* Bowl, then the water in it, then the seat ring and the lifted lid. The
-          seat is what the old version was missing, and its absence is most of
-          why it read as a bollard. */}
-      <GlazedTube at={[0, seatY - 0.028, 0.02]} rTop={bowlR} rBottom={bowlR * 0.76} height={0.058} />
-      <Water at={[0, seatY - 0.03, 0.02]} size={[bowlR * 1.4, 0.002, d * 0.42]} />
-      <mesh position={[0, seatY + 0.004, 0.02]} rotation={[Math.PI / 2, 0, 0]} scale={[1, d / w, 1]} {...SOLID}>
-        <torusGeometry args={[bowlR * 0.78, 0.011, 8, 20]} />
+          not a bucket. Overlaps the bowl above it by a few mm. */}
+      <GlazedTube at={[0, seatY * 0.44, bowlZ]} rTop={bowlR * 0.74} rBottom={bowlR * 0.5} height={seatY * 0.9} />
+      {/* Bowl, the water in it, then the seat and the lid. */}
+      <GlazedTube at={[0, seatY - 0.026, bowlZ]} rTop={bowlR} rBottom={bowlR * 0.74} height={0.062} />
+      <Water at={[0, seatY - 0.03, bowlZ]} size={[bowlR * 1.35, 0.002, d * 0.4]} />
+      {/* The seat: a ring resting ON the bowl rim, overlapping it. */}
+      <mesh position={[0, seatY + 0.002, bowlZ]} rotation={[Math.PI / 2, 0, 0]} scale={[1, d / w, 1]} {...SOLID}>
+        <torusGeometry args={[bowlR * 0.76, 0.012, 8, 22]} />
         <meshStandardMaterial color={CERAMIC} {...GLAZE} />
       </mesh>
-      {/* Lid, up and resting against the cistern. */}
+      {/* Lid, UP and leaning on the cistern — hinged at the back of the seat, so
+          its bottom edge meets the bowl and its top rests against the cistern
+          face rather than floating in the gap between them. */}
       <Glazed
-        at={[0, seatY + 0.052, -d / 2 + cisternD + 0.016]}
-        size={[w * 0.92, 0.09, 0.014]}
+        at={[0, seatY + 0.062, cisternFront + 0.012]}
+        size={[w * 0.9, 0.115, 0.016]}
         radius={0.006}
-        rotation={[0.24, 0, 0]}
+        rotation={[0.18, 0, 0]}
       />
+    </>
+  );
+}
+
+function RimFrame({
+  at,
+  outer,
+  inner,
+  thickness,
+}: {
+  /** Centre of the frame, at the rim's mid-height. */
+  readonly at: V3;
+  readonly outer: readonly [number, number];
+  readonly inner: readonly [number, number];
+  readonly thickness: number;
+}): JSX.Element {
+  const [ow, od] = outer;
+  const [iw, id] = inner;
+  const side = (ow - iw) / 2;
+  const endD = (od - id) / 2;
+  return (
+    <>
+      {[-1, 1].map((sx) => (
+        <Glazed
+          key={`x${String(sx)}`}
+          at={[at[0] + (sx * (ow - side)) / 2, at[1], at[2]]}
+          size={[side, thickness, od]}
+          radius={thickness * 0.45}
+        />
+      ))}
+      {[-1, 1].map((sz) => (
+        <Glazed
+          key={`z${String(sz)}`}
+          at={[at[0], at[1], at[2] + (sz * (od - endD)) / 2]}
+          size={[iw, thickness, endD]}
+          radius={thickness * 0.45}
+        />
+      ))}
     </>
   );
 }
 
 function Bathtub(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.bathtub;
-  const wall = 0.024;
+  const wall = 0.026;
   const floorT = 0.022;
   const innerW = w - wall * 2;
   const innerD = d - wall * 2;
+  const rimT = 0.018;
+  // The tap deck: the rim is 26 mm wide, which is nowhere to stand a mixer. One
+  // end gets a proper deck instead, which is also what a real bath does.
+  const deck = 0.075;
+  const deckX = -w / 2 + deck / 2;
   return (
     <>
-      {/* Four rims and a base around a real void. A solid box with a painted
-          top is the version that never reads as a bath. Rounded now, and the
-          rim proud of the sides — an unbroken box the same width top to bottom
-          is a trough. */}
+      {/* The outer skirt: four sides and a base around a real void. */}
       <Glazed at={[0, floorT / 2, 0]} size={[w, floorT, d]} radius={0.01} />
       {[-1, 1].map((s) => (
-        <Glazed
-          key={`x${String(s)}`}
-          at={[s * (w / 2 - wall / 2), h / 2, 0]}
-          size={[wall, h, d]}
-          radius={0.009}
-        />
+        <Glazed key={`x${String(s)}`} at={[s * (w / 2 - wall / 2), h / 2, 0]} size={[wall, h, d]} radius={0.009} />
       ))}
       {[-1, 1].map((s) => (
-        <Glazed
-          key={`z${String(s)}`}
-          at={[0, h / 2, s * (d / 2 - wall / 2)]}
-          size={[innerW, h, wall]}
-          radius={0.009}
-        />
+        <Glazed key={`z${String(s)}`} at={[0, h / 2, s * (d / 2 - wall / 2)]} size={[innerW, h, wall]} radius={0.009} />
       ))}
-      {/* The rolled rim, all the way round and slightly overhanging. */}
-      <Glazed at={[0, h + 0.004, 0]} size={[w + 0.012, 0.018, d + 0.012]} radius={0.008} />
-      <Water at={[0, floorT + 0.05, 0]} size={[innerW - 0.006, 0.002, innerD - 0.006]} />
-      {/* Mixer tap at one end, and the waste under it. */}
-      <Chrome at={[-w / 2 + 0.055, h + 0.03, 0]} rTop={0.008} rBottom={0.009} height={0.05} />
+      {/* THE TUB ITSELF, inside the skirt: a rectangular frustum, open at the
+          top, narrower at the bottom than the rim. Four vertical walls around a
+          square void is a trough — the taper is most of what separates a bath
+          from a box, and it is one four-sided cylinder scaled to the footprint.
+          Rotated an eighth turn so its flats face the axes. */}
+      {/* A GROUP for the scale and the mesh for the turn, in that nesting and
+          not the other way round. A child's transform runs first, so this
+          rotates the four-sided prism until its flats face the axes and THEN
+          stretches it to the footprint. Doing both on one mesh scales along the
+          prism's diagonals before turning it, which shears a rectangle into a
+          rhombus — a tub with its corners poking out through the skirt. */}
+      <group scale={[innerW / Math.SQRT2, 1, innerD / Math.SQRT2]}>
+        <mesh position={[0, floorT + (h - floorT) / 2, 0]} rotation={[0, Math.PI / 4, 0]} {...SOLID}>
+          <cylinderGeometry args={[1, 0.78, h - floorT, 4, 1, true]} />
+          <meshStandardMaterial color={CERAMIC} {...GLAZE} side={THREE.DoubleSide} />
+        </mesh>
+      </group>
+      {/* The rolled rim — a FRAME, not a slab. A slab here is a lid, which is
+          exactly what it looked like. */}
+      <RimFrame
+        at={[0, h - rimT / 2 + 0.004, 0]}
+        outer={[w + 0.012, d + 0.012]}
+        inner={[innerW - 0.004, innerD - 0.004]}
+        thickness={rimT}
+      />
+      {/* The deck at the tap end, filling the rim's hole for the first 75 mm so
+          the mixer has something to stand ON rather than hover over. */}
+      <Glazed
+        at={[deckX, h - rimT / 2 + 0.004, 0]}
+        size={[deck, rimT, innerD]}
+        radius={rimT * 0.4}
+      />
+      {/* Filled, not damp. A film of water at the bottom of a white tub is
+          invisible; at two thirds it is the thing that says "bath". */}
+      <Water at={[0, floorT + (h - floorT) * 0.62, 0]} size={[innerW - 0.02, 0.002, innerD - 0.02]} />
+      {/* Mixer, SEATED: the base cylinder starts below the deck's top face and
+          rises through it, so it is fitted rather than floating above it. The
+          spout grows out of the base at the same overlap. */}
+      <Chrome at={[deckX, h + 0.014, 0]} rTop={0.011} rBottom={0.013} height={0.05} />
       <Chrome
-        at={[-w / 2 + 0.088, h + 0.05, 0]}
+        at={[deckX + 0.03, h + 0.036, 0]}
         rTop={0.006}
         rBottom={0.006}
-        height={0.062}
+        height={0.06}
         rotation={[0, 0, Math.PI / 2]}
       />
-      <Chrome at={[-w / 2 + 0.07, floorT + 0.008, 0]} rTop={0.017} rBottom={0.017} height={0.006} />
+      {/* The waste, sunk into the bath floor rather than resting on it. */}
+      <Chrome at={[deckX + 0.03, floorT, 0]} rTop={0.017} rBottom={0.017} height={0.008} />
     </>
   );
 }
@@ -1119,7 +1189,9 @@ function Shower(): JSX.Element {
       {/* A tray, not a slab: an upstand round the edge is what stops a shower
           floor reading as a tile laid on the ground. */}
       <Glazed at={[0, trayH / 2, 0]} size={[w, trayH, d]} radius={0.012} />
-      <Chrome at={[0, trayH - 0.004, 0]} rTop={0.019} rBottom={0.019} height={0.005} />
+      {/* Waste, sunk INTO the tray. It used to sit inside the tray entirely,
+          where nothing could see it, at the other extreme of the same mistake. */}
+      <Chrome at={[0, trayH - 0.001, 0]} rTop={0.019} rBottom={0.019} height={0.006} />
       {/* Back and left walls are solid panels; front and right are glass, so
           you can see in. */}
       <Glazed at={[0, h / 2, -d / 2 + 0.007]} size={[w, glassH, 0.014]} radius={0.004} color="#e6eae9" />
@@ -1165,50 +1237,72 @@ function Shower(): JSX.Element {
         height={w}
         rotation={[0, 0, Math.PI / 2]}
       />
-      {/* Riser rail and head on the back wall. */}
-      <Chrome at={[0, h * 0.62, -d / 2 + 0.024]} rTop={0.007} rBottom={0.007} height={h * 0.42} />
-      <Chrome at={[0, h * 0.84, -d / 2 + 0.058]} rTop={0.034} rBottom={0.03} height={0.012} />
+      {/* Riser rail, its brackets, and a head on an ARM.
+          Every one of these overlaps what holds it. The rail used to stand 3 mm
+          off the wall panel and the head 34 mm off the rail with nothing between
+          them — which is the whole of "the metal parts are hovering". */}
+      <Chrome at={[0, h * 0.62, -d / 2 + 0.019]} rTop={0.007} rBottom={0.007} height={h * 0.42} />
+      {[0.43, 0.81].map((f) => (
+        <Chrome
+          key={f}
+          at={[0, h * f, -d / 2 + 0.016]}
+          rTop={0.006}
+          rBottom={0.006}
+          height={0.014}
+          rotation={[Math.PI / 2, 0, 0]}
+        />
+      ))}
+      {/* The arm carries the head out from the rail, so the head is attached to
+          something rather than parked in mid-air. */}
+      <Chrome
+        at={[0, h * 0.84, -d / 2 + 0.045]}
+        rTop={0.005}
+        rBottom={0.005}
+        height={0.058}
+        rotation={[Math.PI / 2, 0, 0]}
+      />
+      <Chrome at={[0, h * 0.84 - 0.006, -d / 2 + 0.07]} rTop={0.034} rBottom={0.03} height={0.014} />
     </>
   );
 }
 
 function Sink(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.sink;
-  const basinH = 0.058;
-  const wall = 0.015;
+  const basinH = 0.06;
+  const rimT = 0.014;
+  const bowlR = Math.min(w, d) * 0.38;
+  const rimY = h - rimT / 2;
   return (
     <>
       {/* Pedestal, waisted: narrow at the middle, flared at the foot. */}
-      <GlazedTube at={[0, (h - basinH) / 2, -0.01]} rTop={w * 0.16} rBottom={w * 0.24} height={h - basinH} />
-      {/* Basin as a rim around a void, same reason as the bath — and softened,
-          because a basin with square corners is a sink you would not put in a
-          house. */}
-      <Glazed at={[0, h - basinH + wall / 2, 0]} size={[w, wall, d]} radius={0.008} />
-      {[-1, 1].map((s) => (
-        <Glazed
-          key={`x${String(s)}`}
-          at={[s * (w / 2 - wall / 2), h - basinH / 2, 0]}
-          size={[wall, basinH, d]}
-          radius={0.007}
-        />
-      ))}
-      {[-1, 1].map((s) => (
-        <Glazed
-          key={`z${String(s)}`}
-          at={[0, h - basinH / 2, s * (d / 2 - wall / 2)]}
-          size={[w - wall * 2, basinH, wall]}
-          radius={0.007}
-        />
-      ))}
-      <Water at={[0, h - basinH + wall + 0.004, 0]} size={[w - wall * 2.4, 0.002, d - wall * 2.4]} />
-      <Chrome at={[0, h - basinH + wall + 0.006, 0]} rTop={0.013} rBottom={0.013} height={0.005} />
-      {/* Tap */}
-      <Chrome at={[0, h + 0.024, -d / 2 + 0.032]} rTop={0.007} rBottom={0.008} height={0.046} />
+      <GlazedTube at={[0, (h - basinH) / 2, -0.01]} rTop={w * 0.17} rBottom={w * 0.25} height={h - basinH} />
+      {/* The bowl is a BOWL — a truncated cone opening upward — not a box with
+          four walls round a hole. The old one had square internal corners,
+          which is a basin nobody would fit. */}
+      <mesh position={[0, h - basinH / 2, 0]} {...SOLID}>
+        <cylinderGeometry args={[bowlR, bowlR * 0.55, basinH, 24, 1, true]} />
+        <meshStandardMaterial color={CERAMIC} {...GLAZE} side={THREE.DoubleSide} />
+      </mesh>
+      <GlazedTube at={[0, h - basinH + 0.006, 0]} rTop={bowlR * 0.56} rBottom={bowlR * 0.52} height={0.012} />
+      {/* A rounded rim round the bowl, and the counter it sits in. */}
+      <RimFrame
+        at={[0, rimY, 0]}
+        outer={[w, d]}
+        inner={[bowlR * 2, bowlR * 2]}
+        thickness={rimT}
+      />
+      <Water at={[0, h - basinH + 0.012, 0]} size={[bowlR * 1.05, 0.002, bowlR * 1.05]} />
+      {/* Waste, sunk into the bowl's floor. */}
+      <Chrome at={[0, h - basinH + 0.01, 0]} rTop={0.012} rBottom={0.012} height={0.007} />
+      {/* Tap, SEATED in the rim behind the bowl: its base starts below the rim
+          top and rises through it. It used to begin 24 mm above the rim, which
+          is what "hovering" looks like. */}
+      <Chrome at={[0, h + 0.016, -d / 2 + 0.026]} rTop={0.008} rBottom={0.01} height={0.05} />
       <Chrome
-        at={[0, h + 0.044, -d / 2 + 0.054]}
+        at={[0, h + 0.038, -d / 2 + 0.05]}
         rTop={0.005}
         rBottom={0.005}
-        height={0.045}
+        height={0.05}
         rotation={[Math.PI / 2, 0, 0]}
       />
     </>
@@ -1286,9 +1380,10 @@ function Bed(): JSX.Element {
   );
 }
 
-function Wardrobe({ open }: ItemProps): JSX.Element {
+function Wardrobe({ isOpen }: ItemProps): JSX.Element {
   const { w, d, h } = ITEM_SPECS.wardrobe;
-  const opens = ITEM_SPECS.wardrobe.opens;
+  const opens = openPart('wardrobe', 'doors');
+  const open = isOpen('doors');
   const plinth = 0.045;
   const bodyH = h - plinth - 0.018;
   const leaf = w * 0.47;
@@ -1357,8 +1452,9 @@ function Wardrobe({ open }: ItemProps): JSX.Element {
   );
 }
 
-function Nightstand({ open }: ItemProps): JSX.Element {
+function Nightstand({ isOpen }: ItemProps): JSX.Element {
   const { w, d, h } = ITEM_SPECS.nightstand;
+  const open = isOpen('drawer');
   const topT = 0.016;
   const legH = 0.05;
   const bodyH = h - topT - legH;
@@ -1507,9 +1603,10 @@ function Shelves({
 
 // A base unit. Same carcass language as Counter — plinth, body, doors — but
 // without the worktop's overhang, and its doors move.
-function Cupboard({ open }: ItemProps): JSX.Element {
+function Cupboard({ isOpen }: ItemProps): JSX.Element {
   const { w, d, h } = ITEM_SPECS.cupboard;
-  const opens = ITEM_SPECS.cupboard.opens;
+  const opens = openPart('cupboard', 'doors');
+  const open = isOpen('doors');
   // Stops BELOW the worktop rather than running to the full height. Sharing the
   // top 16 mm with the worktop slab put two surfaces in the same plane, which
   // reads as a moiré band along the front edge and not as joinery.
@@ -1731,8 +1828,12 @@ function Cup(): JSX.Element {
 // Every factory takes the same props, and all but the openable ones ignore them
 // — a zero-argument function is assignable here, so a chair does not have to
 // declare a parameter it will never read.
+//
+// A QUESTION, not a boolean: an item can have several openable parts and each
+// is open or shut on its own. `isOpen('freezer')` is how a factory asks about
+// the one it is drawing.
 export interface ItemProps {
-  readonly open: boolean;
+  readonly isOpen: (part: string) => boolean;
 }
 
 const factories: Record<ItemKind, (props: ItemProps) => JSX.Element> = {
@@ -1816,12 +1917,12 @@ function ClickProxy({
 
 function Item({
   item,
-  open,
+  openItems,
   selected,
   onSelect,
 }: {
   item: CompiledItem;
-  open: boolean;
+  openItems: ReadonlySet<string>;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -1835,7 +1936,9 @@ function Item({
         position={[item.position[0], item.position[1] + FLOOR_Y, item.position[2]]}
         rotation={[0, item.yaw, 0]}
       >
-        <Build open={open} />
+        {/* The factory asks about the part it is drawing; the composite key is
+            built here so no factory has to know the item's id. */}
+        <Build isOpen={(part) => openItems.has(partKey(item.id, part))} />
       </group>
       <ClickProxy item={item} selected={selected} onSelect={onSelect} />
     </>
@@ -1862,12 +1965,16 @@ export function Items({
         // click proxy goes with it — not clickable either. Rendering it and
         // letting the carcass hide it would leave an invisible, pickable cup
         // floating inside a closed cupboard.
+        //
+        // `inside` is the composite key of the PART it is in, so a cup in a
+        // counter's drawer appears when the drawer is pulled and not when the
+        // doors below it swing.
         .filter((item) => item.inside === undefined || openItems.has(item.inside))
         .map((item) => (
           <Item
             key={item.id}
             item={item}
-            open={openItems.has(item.id)}
+            openItems={openItems}
             selected={item.id === selectedId}
             onSelect={() => {
               onSelect(item.id);

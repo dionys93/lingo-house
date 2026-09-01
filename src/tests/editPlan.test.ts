@@ -118,7 +118,7 @@ describe('putting one item on another', () => {
 
   it('offers the top of anything with a surface', () => {
     expect(slotsOf('table')).toEqual(['top']);
-    expect(slotsOf('counter')).toEqual(['top']);
+    expect(slotsOf('bed')).toEqual(['top']);
   });
 
   it('offers the inside of anything that opens', () => {
@@ -130,6 +130,9 @@ describe('putting one item on another', () => {
     // The ordering IS the placement rule: dropping something on a piece of
     // furniture means the surface. You have to say "in the drawer".
     expect(slotsOf('nightstand')).toEqual(['top', 'inside']);
+    // A counter is the same shape of thing: a worktop over a drawer over a
+    // cupboard, and you can put a kettle on it or a plate in it.
+    expect(slotsOf('counter')).toEqual(['top', 'inside']);
   });
 
   it('offers nothing on a rug', () => {
