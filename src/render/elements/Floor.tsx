@@ -33,7 +33,7 @@ export function Floor({
 }) {
   return (
     <RoomTiles
-      grid={grid}
+      rooms={grid.rooms}
       y={baseY + FLOOR_Y}
       faceUp
       defaultColor={DEFAULT_FLOOR}

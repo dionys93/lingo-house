@@ -30,9 +30,9 @@ describe('editing a plan', () => {
     // Openings carry no authored id. The edge is the identity, and the compiler
     // already guarantees one opening per edge.
     const before = openingsOn(PLAN, 0).length;
-    const after = applyEdit(PLAN, { tag: 'removeOpening', level: 0, cell: [5, 2], side: 'back' });
+    const after = applyEdit(PLAN, { tag: 'removeOpening', level: 0, cell: [8, 2], side: 'back' });
     expect(openingsOn(after, 0).length).toBe(before - 1);
-    expect(openingsOn(after, 0).some((o) => o.cell[0] === 5 && o.cell[1] === 2 && o.side === 'back')).toBe(false);
+    expect(openingsOn(after, 0).some((o) => o.cell[0] === 8 && o.cell[1] === 2 && o.side === 'back')).toBe(false);
   });
 
   it('re-mounts an item without disturbing anything else about it', () => {
@@ -40,11 +40,11 @@ describe('editing a plan', () => {
       tag: 'setMount',
       level: 0,
       id: 'living-sofa',
-      mount: { on: 'floor', cell: [6, 3], facing: 'n' },
+      mount: { on: 'floor', cell: [9, 3], facing: 'n' },
     });
     const sofa = itemsOn(after, 0).find((i) => i.id === 'living-sofa');
     expect(sofa?.kind).toBe('sofa');
-    expect(sofa?.mount).toEqual({ on: 'floor', cell: [6, 3], facing: 'n' });
+    expect(sofa?.mount).toEqual({ on: 'floor', cell: [9, 3], facing: 'n' });
     expect(itemsOn(after, 0).length).toBe(itemsOn(PLAN, 0).length);
   });
 });
@@ -78,8 +78,8 @@ describe('an opening is its edge, not the name it was written under', () => {
     // true, the compiler treats them identically, and an editor that hands back
     // whichever name it derived must still delete the right door.
     const before = openingsOn(PLAN, 0).length;
-    const after = applyEdit(PLAN, { tag: 'removeOpening', level: 0, cell: [3, 7], side: 'back' });
+    const after = applyEdit(PLAN, { tag: 'removeOpening', level: 0, cell: [6, 7], side: 'back' });
     expect(openingsOn(after, 0).length).toBe(before - 1);
-    expect(openingsOn(after, 0).some((o) => o.cell[0] === 2 && o.cell[1] === 7 && o.side === 'front')).toBe(false);
+    expect(openingsOn(after, 0).some((o) => o.cell[0] === 5 && o.cell[1] === 7 && o.side === 'front')).toBe(false);
   });
 });

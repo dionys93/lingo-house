@@ -71,9 +71,21 @@ export function PlanView({
   const svg = useRef<SVGSVGElement>(null);
   const dragging = useRef<string | null>(null);
 
-  const b = storey.grid.footprint.bbox;
+  // Framed on every room, NOT on `footprint.bbox`. The footprint is the outline
+  // the roof sits on — the building — and since the plan became the plot it no
+  // longer contains the patio or the garden. Framing by it crops off exactly the
+  // rows you added.
+  const bounds = storey.grid.rooms.reduce(
+    (a, r) => ({
+      x0: Math.min(a.x0, r.bounds.min[0]),
+      z0: Math.min(a.z0, r.bounds.min[2]),
+      x1: Math.max(a.x1, r.bounds.max[0]),
+      z1: Math.max(a.z1, r.bounds.max[2]),
+    }),
+    { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity },
+  );
   const pad = CELL;
-  const view = `${String(b.x0 - pad)} ${String(b.z0 - pad)} ${String(b.x1 - b.x0 + pad * 2)} ${String(b.z1 - b.z0 + pad * 2)}`;
+  const view = `${String(bounds.x0 - pad)} ${String(bounds.z0 - pad)} ${String(bounds.x1 - bounds.x0 + pad * 2)} ${String(bounds.z1 - bounds.z0 + pad * 2)}`;
 
   // Client pixels → SVG user units → world (x, z). getScreenCTM is the only
   // thing that knows how the viewBox got fitted into the element, so this is

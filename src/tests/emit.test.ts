@@ -54,13 +54,13 @@ describe('what edit mode saves is what edit mode was showing', () => {
       tag: 'addItem',
       level: 0,
       // Against the living room's front wall, clear of the door and the windows.
-      item: { id, kind: 'bookshelf', mount: { on: 'floor', cell: [8, 6], facing: 'n', offset: [0.15, -0.2] } },
+      item: { id, kind: 'bookshelf', mount: { on: 'floor', cell: [11, 6], facing: 'n', offset: [0.15, -0.2] } },
     });
     plan = applyEdit(plan, { tag: 'removeItem', level: 1, id: 'small-nightstand' });
     plan = applyEdit(plan, {
       tag: 'addOpening',
       level: 0,
-      opening: { kind: 'window', cell: [5, 0], side: 'left', sill: 0.45, head: 0.95, between: ['livingRoom', 'outside'] },
+      opening: { kind: 'window', cell: [8, 0], side: 'left', sill: 0.45, head: 0.95, between: ['livingRoom', 'outside'] },
     });
 
     const before = compiledOf(plan);

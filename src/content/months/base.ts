@@ -36,7 +36,7 @@
 // other way round.
 
 // Need empty space in the plan? Add `_` to this import and drop it in the grid.
-import { defineRoom, type Grid, type ItemDef, type Opening, type Stair, type Storey } from '../../core/house/blocks';
+import { _, defineRoom, type Grid, type ItemDef, type Opening, type Stair, type Storey } from '../../core/house/blocks';
 
 // ── The rooms: a key, its words in every language, and the colour seen from
 // inside. `name` is what the room is called; `enter` is the phrase shown on ANY
@@ -74,6 +74,27 @@ const B = defineRoom({
   },
 });
 
+const P = defineRoom({
+  key: 'patio',
+  color: '#b3aa9c',
+  outdoor: true,
+  labels: {
+    en: { name: 'the patio', enter: 'Open the door to the patio', up: 'Go up to the patio', down: 'Go down to the patio' },
+    es: { name: 'el patio', enter: 'Abre la puerta del patio', up: 'Sube al patio', down: 'Baja al patio' },
+    de: { name: 'die Terrasse', enter: 'Öffne die Tür zur Terrasse', up: 'Geh hinauf auf die Terrasse', down: 'Geh hinunter auf die Terrasse' },
+  },
+});
+const G = defineRoom({
+  key: 'garden',
+  color: '#7d9c62',
+  outdoor: true,
+  labels: {
+    en: { name: 'the garden', enter: 'Open the door to the garden', up: 'Go up to the garden', down: 'Go down to the garden' },
+    es: { name: 'el jardín', enter: 'Abre la puerta del jardín', up: 'Sube al jardín', down: 'Baja al jardín' },
+    de: { name: 'der Garten', enter: 'Öffne die Tür zum Garten', up: 'Geh hinauf in den Garten', down: 'Geh hinunter in den Garten' },
+  },
+});
+
 // ── The floor plan. Edit this. ──
 // 9 wide x 10 deep. A kitchen across the back with its dining wing at the right
 // end, a WC tucked into the back-right corner, and one big living room across
@@ -91,49 +112,73 @@ const B = defineRoom({
 //
 //        col:  0  1  2  3  4  5  6  7  8
 export const GROUND_FLOOR: Grid = [
-  /* row 0 */ [K, K, K, K, K, K, K, B, B],
-  /* row 1 */ [K, K, K, K, K, K, K, B, B],
-  /* row 2 */ [K, K, K, K, K, K, K, B, B],
+  // ── THE BACKYARD. Rows 0-2 are outdoors: they are floor you can stand on and
+  // places with names, and no wall stands between them or at the edge of the
+  // plot, because `outdoor: true` says they are open air (see blocks.ts).
+  //
+  // This is why the grid is now THE PLOT and not the building. It used to stop
+  // at the back wall, and everything beyond it was the absence of a cell — which
+  // is exactly what MAKES an exterior wall, so a paved yard could not be drawn
+  // without walling it in.
+  //
+  // The patio meets the kitchen's back wall at row 3, so the back door opens
+  // straight onto it. It is TWO rows deep, not one: a single row is 1 m, which
+  // is a path you walk along rather than a place you sit, and a table with
+  // chairs pulled out needs the second metre. The garden wraps its left end and
+  // runs to the back of the plot.
+  /* row 0 */ [G, G, G, G, G, G, G, G, G],
+  /* row 1 */ [G, G, P, P, P, P, P, P, P],
+  /* row 2 */ [G, G, P, P, P, P, P, P, P],
+  /* row 3 */ [K, K, K, K, K, K, K, B, B],
+  /* row 4 */ [K, K, K, K, K, K, K, B, B],
+  /* row 5 */ [K, K, K, K, K, K, K, B, B],
   // The kitchen runs full width beneath the WC, which is what makes the WC an
   // interior room with one door rather than a block bitten out of the corner.
-  /* row 3 */ [K, K, K, K, K, K, K, K, K],
+  /* row 6 */ [K, K, K, K, K, K, K, K, K],
   // The kitchen takes row 4 as well — everything except column 0, which stays
   // living room because the staircase rises through it. That extra row is what
   // gives the dining table a wall to stand against without the table then
   // sealing off the cooking end of the room.
-  /* row 4 */ [L, K, K, K, K, K, K, K, K],
-  /* row 5 */ [L, L, L, L, L, L, L, L, L],
-  /* row 6 */ [L, L, L, L, L, L, L, L, L],
-  /* row 7 */ [L, L, L, L, L, L, L, L, L],
+  /* row 7 */ [L, K, K, K, K, K, K, K, K],
+  /* row 8 */ [L, L, L, L, L, L, L, L, L],
+  /* row 9 */ [L, L, L, L, L, L, L, L, L],
+  /* row 10 */ [L, L, L, L, L, L, L, L, L],
   // Rows 8-9 are the SETBACK: the ground floor reaches two cells further
   // forward than the upper storey, so the front of the house is single-height
   // and gets its own lower roof.
-  /* row 8 */ [L, L, L, L, L, L, L, L, L],
-  /* row 9 */ [L, L, L, L, L, L, L, L, L],
+  /* row 11 */ [L, L, L, L, L, L, L, L, L],
+  /* row 12 */ [L, L, L, L, L, L, L, L, L],
 ];
 
 // ── Doors. `swing` is which way the panel opens. ──
 export const DOORS: readonly Opening[] = [
-  { kind: 'door', cell: [9, 4], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] },
+  { kind: 'door', cell: [12, 4], side: 'front', swing: 'out', between: ['livingRoom', 'outside'] },
   // The two kitchen doorways. Far enough apart that furniture in the middle of
   // the living room can never block both.
-  { kind: 'door', cell: [5, 2], side: 'back', swing: 'in', between: ['livingRoom', 'kitchen'] },
-  { kind: 'door', cell: [5, 6], side: 'back', swing: 'in', between: ['livingRoom', 'kitchen'] },
-  { kind: 'door', cell: [2, 7], side: 'front', swing: 'in', between: ['bathroom', 'kitchen'] },
+  { kind: 'door', cell: [8, 2], side: 'back', swing: 'in', between: ['livingRoom', 'kitchen'] },
+  { kind: 'door', cell: [8, 6], side: 'back', swing: 'in', between: ['livingRoom', 'kitchen'] },
+  { kind: 'door', cell: [5, 7], side: 'front', swing: 'in', between: ['bathroom', 'kitchen'] },
+  // THE BACK DOOR, onto the patio. It could not exist before the backyard did:
+  // the kitchen's back wall faced the absence of a cell, so a door there opened
+  // onto the lawn from a first-floor-height doorstep with nothing outside it.
+  // It takes the place of the right-hand back window — every other cell of that
+  // wall is an appliance, and the kitchen still has two windows.
+  { kind: 'door', cell: [3, 5], side: 'back', swing: 'in', between: ['kitchen', 'patio'] },
 ];
 
 // ── Windows. `sill`/`head` are the bottom/top heights (0 = floor, wall is 1.2
 // tall). The window's LOOK follows its room automatically. Nothing on the living
 // room's left wall between rows 4 and 7 — that's the staircase. ──
 export const WINDOWS: readonly Opening[] = [
-  { kind: 'window', cell: [0, 1], side: 'back', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
-  { kind: 'window', cell: [0, 5], side: 'back', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
-  { kind: 'window', cell: [1, 0], side: 'left', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
-  { kind: 'window', cell: [1, 8], side: 'right', sill: 0.6, head: 1.0, between: ['bathroom', 'outside'] },
-  { kind: 'window', cell: [9, 2], side: 'front', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
-  { kind: 'window', cell: [9, 6], side: 'front', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
-  { kind: 'window', cell: [6, 8], side: 'right', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
-  { kind: 'window', cell: [8, 0], side: 'left', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
+  // Over the sink end of the run, looking down the garden. `between` names the
+  // GARDEN now, not 'outside' — the far side of this wall is a place.
+  { kind: 'window', cell: [3, 1], side: 'back', sill: 0.45, head: 0.95, between: ['kitchen', 'garden'] },
+  { kind: 'window', cell: [4, 0], side: 'left', sill: 0.45, head: 0.95, between: ['kitchen', 'outside'] },
+  { kind: 'window', cell: [4, 8], side: 'right', sill: 0.6, head: 1.0, between: ['bathroom', 'outside'] },
+  { kind: 'window', cell: [12, 2], side: 'front', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
+  { kind: 'window', cell: [12, 6], side: 'front', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
+  { kind: 'window', cell: [9, 8], side: 'right', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
+  { kind: 'window', cell: [11, 0], side: 'left', sill: 0.25, head: 1.05, between: ['livingRoom', 'outside'] },
 ];
 
 // ── Items: furniture. WHERE each one sits is a `mount`:
@@ -147,11 +192,11 @@ export const WINDOWS: readonly Opening[] = [
 export const ITEMS: readonly ItemDef[] = [
   // ── The kitchen run, along the back wall between the two windows. The
   // dishwasher slots in at the far end, next to the dining wing.
-  { id: 'kitchen-fridge', kind: 'fridge', mount: { on: 'floor', cell: [0, 0], facing: 's', offset: [-0.12, -0.095] } },
-  { id: 'kitchen-counter-l', kind: 'counter', mount: { on: 'floor', cell: [0, 2], facing: 's', offset: [0, -0.12] } },
-  { id: 'kitchen-oven', kind: 'oven', mount: { on: 'floor', cell: [0, 3], facing: 's', offset: [0, -0.12] } },
-  { id: 'kitchen-counter-r', kind: 'counter', mount: { on: 'floor', cell: [0, 4], facing: 's', offset: [0, -0.12] } },
-  { id: 'kitchen-dishwasher', kind: 'dishwasher', mount: { on: 'floor', cell: [0, 6], facing: 's', offset: [0.1, -0.12] } },
+  { id: 'kitchen-fridge', kind: 'fridge', mount: { on: 'floor', cell: [3, 0], facing: 's', offset: [-0.12, -0.095] } },
+  { id: 'kitchen-counter-l', kind: 'counter', mount: { on: 'floor', cell: [3, 2], facing: 's', offset: [0, -0.12] } },
+  { id: 'kitchen-oven', kind: 'oven', mount: { on: 'floor', cell: [3, 3], facing: 's', offset: [0, -0.12] } },
+  { id: 'kitchen-counter-r', kind: 'counter', mount: { on: 'floor', cell: [3, 4], facing: 's', offset: [0, -0.12] } },
+  { id: 'kitchen-dishwasher', kind: 'dishwasher', mount: { on: 'floor', cell: [3, 6], facing: 's', offset: [0.1, -0.12] } },
 
   // ── The dining table, against the partition the two living-room doorways sit
   // in, and centred BETWEEN them so neither is obstructed.
@@ -165,29 +210,39 @@ export const ITEMS: readonly ItemDef[] = [
   //
   // The chairs go on the three open sides, and deliberately NOT in columns 2 and
   // 6 — those are the routes in from the two doors.
-  { id: 'dining-table', kind: 'diningTable', mount: { on: 'floor', cell: [4, 3], facing: 's', offset: [0.5, -0.58] } },
-  { id: 'dining-chair-a', kind: 'chair', mount: { on: 'floor', cell: [2, 3], facing: 's', offset: [0, 0.13] } },
-  { id: 'dining-chair-b', kind: 'chair', mount: { on: 'floor', cell: [2, 4], facing: 's', offset: [0, 0.13] } },
-  { id: 'dining-chair-e', kind: 'chair', mount: { on: 'floor', cell: [3, 5], facing: 'w', offset: [-0.21, 0.42] } },
+  { id: 'dining-table', kind: 'diningTable', mount: { on: 'floor', cell: [7, 3], facing: 's', offset: [0.5, -0.58] } },
+  { id: 'dining-chair-a', kind: 'chair', mount: { on: 'floor', cell: [5, 3], facing: 's', offset: [0, 0.13] } },
+  { id: 'dining-chair-b', kind: 'chair', mount: { on: 'floor', cell: [5, 4], facing: 's', offset: [0, 0.13] } },
+  { id: 'dining-chair-e', kind: 'chair', mount: { on: 'floor', cell: [6, 5], facing: 'w', offset: [-0.21, 0.42] } },
+
+  // ── The patio. Nothing new was needed to furnish it: a table is a table
+  // outdoors, and the learner meets the same two words in a second place, which
+  // is how vocabulary sticks. Set to one side of the back door so the doorway
+  // stays clear — the fit checks would have caught it in the doorway, but not
+  // that walking out of your own kitchen into a chair is unpleasant.
+  { id: 'patio-table', kind: 'table', mount: { on: 'floor', cell: [1, 3], facing: 's', offset: [0, 0.2] } },
+  { id: 'patio-chair-a', kind: 'chair', mount: { on: 'floor', cell: [1, 2], facing: 'e', offset: [-0.1, 0.2] } },
+  { id: 'patio-chair-b', kind: 'chair', mount: { on: 'floor', cell: [1, 4], facing: 'w', offset: [0.1, 0.2] } },
+  { id: 'patio-chair-c', kind: 'chair', mount: { on: 'floor', cell: [0, 3], facing: 's', offset: [0, 0.24] } },
 
   // ── The WC.
-  { id: 'wc-toilet', kind: 'toilet', mount: { on: 'floor', cell: [0, 7], facing: 's', offset: [0, -0.07] } },
-  { id: 'wc-sink', kind: 'sink', mount: { on: 'floor', cell: [2, 8], facing: 'w', offset: [0.195, 0] } },
+  { id: 'wc-toilet', kind: 'toilet', mount: { on: 'floor', cell: [3, 7], facing: 's', offset: [0, -0.07] } },
+  { id: 'wc-sink', kind: 'sink', mount: { on: 'floor', cell: [5, 8], facing: 'w', offset: [0.195, 0] } },
 
   // ── Living room, arranged around the TV on the kitchen partition. The rug is
   // 12 mm tall and OVERLAPS the table and sofa on purpose — legs and feet stand
   // on it, and nothing that short is an obstacle to walk around.
-  { id: 'living-rug', kind: 'rug', mount: { on: 'floor', cell: [7, 4], facing: 's' } },
-  { id: 'living-table', kind: 'table', mount: { on: 'floor', cell: [7, 4], facing: 's' } },
+  { id: 'living-rug', kind: 'rug', mount: { on: 'floor', cell: [10, 4], facing: 's' } },
+  { id: 'living-table', kind: 'table', mount: { on: 'floor', cell: [10, 4], facing: 's' } },
   { id: 'work-laptop', kind: 'laptop', mount: { on: 'item', host: 'living-table', offset: [-0.2, -0.1] } },
-  { id: 'living-sofa', kind: 'sofa', mount: { on: 'floor', cell: [8, 4], facing: 'n' } },
+  { id: 'living-sofa', kind: 'sofa', mount: { on: 'floor', cell: [11, 4], facing: 'n' } },
   // On the kitchen partition, which moved down a row with the kitchen. Back to
   // back with the dining table through the same wall, which is what a partition
   // between a kitchen and a living room usually carries.
-  { id: 'living-tv', kind: 'tv', mount: { on: 'wall', cell: [5, 4], side: 'back', height: 0.55 } },
+  { id: 'living-tv', kind: 'tv', mount: { on: 'wall', cell: [8, 4], side: 'back', height: 0.55 } },
   // A reading corner in the far right of the room, well clear of the walkways.
-  { id: 'living-bookshelf', kind: 'bookshelf', mount: { on: 'floor', cell: [9, 8], facing: 'w', offset: [0.27, 0] } },
-  { id: 'reading-chair', kind: 'chair', mount: { on: 'floor', cell: [9, 7], facing: 'w' } },
+  { id: 'living-bookshelf', kind: 'bookshelf', mount: { on: 'floor', cell: [12, 8], facing: 'w', offset: [0.27, 0] } },
+  { id: 'reading-chair', kind: 'chair', mount: { on: 'floor', cell: [12, 7], facing: 'w' } },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -245,66 +300,73 @@ const U = defineRoom({
 //
 //        col:  0  1  2  3  4  5  6  7  8
 export const UPPER_FLOOR: Grid = [
-  /* row 0 */ [S, S, S, S, W, W, W, W, W],
-  /* row 1 */ [S, S, S, S, W, W, W, W, W],
-  /* row 2 */ [S, S, S, S, W, W, W, W, W],
-  /* row 3 */ [U, U, U, U, U, M, M, M, M],
-  /* row 4 */ [U, M, M, M, M, M, M, M, M],
-  /* row 5 */ [U, M, M, M, M, M, M, M, M],
-  /* row 6 */ [U, M, M, M, M, M, M, M, M],
+  // Rows 0-2 are the backyard, which has no upstairs. Empty rather than absent:
+  // storeys align at cell [0][0], so the upper floor has to start counting from
+  // the same corner of the plot as the ground floor or it slides three cells
+  // back and sits over the garden.
+  /* row 0 */ [_, _, _, _, _, _, _, _, _],
+  /* row 1 */ [_, _, _, _, _, _, _, _, _],
+  /* row 2 */ [_, _, _, _, _, _, _, _, _],
+  /* row 3 */ [S, S, S, S, W, W, W, W, W],
+  /* row 4 */ [S, S, S, S, W, W, W, W, W],
+  /* row 5 */ [S, S, S, S, W, W, W, W, W],
+  /* row 6 */ [U, U, U, U, U, M, M, M, M],
   /* row 7 */ [U, M, M, M, M, M, M, M, M],
+  /* row 8 */ [U, M, M, M, M, M, M, M, M],
+  /* row 9 */ [U, M, M, M, M, M, M, M, M],
+  /* row 10 */ [U, M, M, M, M, M, M, M, M],
 ];
 
 export const UPPER_DOORS: readonly Opening[] = [
-  { kind: 'door', cell: [3, 2], side: 'back', swing: 'in', between: ['landing', 'bedroomSmall'] },
-  { kind: 'door', cell: [3, 4], side: 'back', swing: 'in', between: ['landing', 'bathroomUp'] },
+  { kind: 'door', cell: [6, 2], side: 'back', swing: 'in', between: ['landing', 'bedroomSmall'] },
+  { kind: 'door', cell: [6, 4], side: 'back', swing: 'in', between: ['landing', 'bathroomUp'] },
   // `swing` is a ROTATION SIGN, not a destination: the compiler orders an
   // opening's sides geometrically as [negative, positive], so which room a given
   // sign points at depends on where that room sits relative to the wall. Two
   // doors on parallel walls can need OPPOSITE values to do the same visible
   // thing. Check by eye, not by reasoning.
-  { kind: 'door', cell: [4, 2], side: 'back', swing: 'out', between: ['bedroom', 'landing'] },
+  { kind: 'door', cell: [7, 2], side: 'back', swing: 'out', between: ['bedroom', 'landing'] },
 ];
 
 export const UPPER_WINDOWS: readonly Opening[] = [
-  { kind: 'window', cell: [0, 1], side: 'back', sill: 0.45, head: 0.95, between: ['bedroomSmall', 'outside'] },
-  { kind: 'window', cell: [2, 0], side: 'left', sill: 0.45, head: 0.95, between: ['bedroomSmall', 'outside'] },
-  { kind: 'window', cell: [0, 6], side: 'back', sill: 0.6, head: 1.0, between: ['bathroomUp', 'outside'] },
-  { kind: 'window', cell: [1, 8], side: 'right', sill: 0.6, head: 1.0, between: ['bathroomUp', 'outside'] },
-  { kind: 'window', cell: [4, 8], side: 'right', sill: 0.35, head: 1.0, between: ['bedroom', 'outside'] },
-  { kind: 'window', cell: [7, 2], side: 'front', sill: 0.35, head: 1.0, between: ['bedroom', 'outside'] },
-  { kind: 'window', cell: [7, 6], side: 'front', sill: 0.35, head: 1.0, between: ['bedroom', 'outside'] },
+  { kind: 'window', cell: [3, 1], side: 'back', sill: 0.45, head: 0.95, between: ['bedroomSmall', 'outside'] },
+  { kind: 'window', cell: [5, 0], side: 'left', sill: 0.45, head: 0.95, between: ['bedroomSmall', 'outside'] },
+  { kind: 'window', cell: [3, 6], side: 'back', sill: 0.6, head: 1.0, between: ['bathroomUp', 'outside'] },
+  { kind: 'window', cell: [4, 8], side: 'right', sill: 0.6, head: 1.0, between: ['bathroomUp', 'outside'] },
+  { kind: 'window', cell: [7, 8], side: 'right', sill: 0.35, head: 1.0, between: ['bedroom', 'outside'] },
+  { kind: 'window', cell: [10, 2], side: 'front', sill: 0.35, head: 1.0, between: ['bedroom', 'outside'] },
+  { kind: 'window', cell: [10, 6], side: 'front', sill: 0.35, head: 1.0, between: ['bedroom', 'outside'] },
 ];
 
 export const UPPER_ITEMS: readonly ItemDef[] = [
   // ── The family bathroom. The bath runs along the right-hand wall under the
   // window (1.7 m is over two cells long); shower in the back-left corner;
   // basin and WC along the front wall. Nothing goes on the wall the door is in.
-  { id: 'up-bath', kind: 'bathtub', mount: { on: 'floor', cell: [1, 8], facing: 'w', offset: [0.045, 0] } },
-  { id: 'up-shower', kind: 'shower', mount: { on: 'floor', cell: [0, 4], facing: 's', offset: [0.03, 0.03] } },
-  { id: 'up-sink', kind: 'sink', mount: { on: 'floor', cell: [2, 5], facing: 'n', offset: [0, 0.195] } },
-  { id: 'up-toilet', kind: 'toilet', mount: { on: 'floor', cell: [2, 6], facing: 'n', offset: [0, 0.07] } },
+  { id: 'up-bath', kind: 'bathtub', mount: { on: 'floor', cell: [4, 8], facing: 'w', offset: [0.045, 0] } },
+  { id: 'up-shower', kind: 'shower', mount: { on: 'floor', cell: [3, 4], facing: 's', offset: [0.03, 0.03] } },
+  { id: 'up-sink', kind: 'sink', mount: { on: 'floor', cell: [5, 5], facing: 'n', offset: [0, 0.195] } },
+  { id: 'up-toilet', kind: 'toilet', mount: { on: 'floor', cell: [5, 6], facing: 'n', offset: [0, 0.07] } },
 
   // ── Main bedroom: bed head against the landing partition, a nightstand either
   // side, wardrobe on the right-hand wall clear of the window.
-  { id: 'bedroom-bed', kind: 'bed', mount: { on: 'floor', cell: [4, 4], facing: 's', offset: [0, 0.58] } },
-  { id: 'bedroom-nightstand-l', kind: 'nightstand', mount: { on: 'floor', cell: [4, 3], facing: 's', offset: [0.055, -0.22] } },
-  { id: 'bedroom-nightstand-r', kind: 'nightstand', mount: { on: 'floor', cell: [4, 5], facing: 's', offset: [-0.055, -0.22] } },
-  { id: 'bedroom-wardrobe', kind: 'wardrobe', mount: { on: 'floor', cell: [6, 8], facing: 'w', offset: [0.12, 0] } },
+  { id: 'bedroom-bed', kind: 'bed', mount: { on: 'floor', cell: [7, 4], facing: 's', offset: [0, 0.58] } },
+  { id: 'bedroom-nightstand-l', kind: 'nightstand', mount: { on: 'floor', cell: [7, 3], facing: 's', offset: [0.055, -0.22] } },
+  { id: 'bedroom-nightstand-r', kind: 'nightstand', mount: { on: 'floor', cell: [7, 5], facing: 's', offset: [-0.055, -0.22] } },
+  { id: 'bedroom-wardrobe', kind: 'wardrobe', mount: { on: 'floor', cell: [9, 8], facing: 'w', offset: [0.12, 0] } },
   // On the front wall between the two windows, facing the foot of the bed.
-  { id: 'bedroom-tv', kind: 'tv', mount: { on: 'wall', cell: [7, 4], side: 'front', height: 0.55 } },
+  { id: 'bedroom-tv', kind: 'tv', mount: { on: 'wall', cell: [10, 4], side: 'front', height: 0.55 } },
 
   // ── Small bedroom. The room is three cells deep and a bed is 2 m long, so
   // this one runs ACROSS the room ('e') with its head to the left-hand wall.
-  { id: 'small-bed', kind: 'bed', mount: { on: 'floor', cell: [1, 0], facing: 'e', offset: [0.58, -0.5] } },
-  { id: 'small-nightstand', kind: 'nightstand', mount: { on: 'floor', cell: [0, 2], facing: 's', offset: [0, -0.22] } },
-  { id: 'small-wardrobe', kind: 'wardrobe', mount: { on: 'floor', cell: [2, 3], facing: 'n', offset: [0, 0.12] } },
+  { id: 'small-bed', kind: 'bed', mount: { on: 'floor', cell: [4, 0], facing: 'e', offset: [0.58, -0.5] } },
+  { id: 'small-nightstand', kind: 'nightstand', mount: { on: 'floor', cell: [3, 2], facing: 's', offset: [0, -0.22] } },
+  { id: 'small-wardrobe', kind: 'wardrobe', mount: { on: 'floor', cell: [5, 3], facing: 'n', offset: [0, 0.12] } },
 ];
 
 // ── The staircase. Rises up the living room's left column, bottom tread by the
 // front of the house. The arrival cell upstairs ([3,0], on the landing) and the
 // stairwell hole are both DERIVED from this run — nothing else to keep in sync.
-export const STAIRS: readonly Stair[] = [{ id: 'main-stair', from: [7, 0], to: [4, 0] }];
+export const STAIRS: readonly Stair[] = [{ id: 'main-stair', from: [10, 0], to: [7, 0] }];
 
 // ── The house: storeys snap into an array. `level` is authoritative; array
 // order is cosmetic. Push another Storey to add a floor. ──

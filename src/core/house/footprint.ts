@@ -7,7 +7,7 @@
 // a lower floor covers that an upper one does not, which rectangles need
 // roofing, and where a roof bears.
 
-import type { Grid } from './blocks';
+import { roofed, type Grid } from './blocks';
 import { indexOf, uncoveredBy } from './cells';
 import { gableRoof, type RoofMesh, type RoofBox } from '../geometry/roof';
 import { CELL, ROOF_EAVE_OVERHANG, ROOF_PITCH, ROOF_RAKE_OVERHANG, WALL_THICKNESS } from './scale';
@@ -40,10 +40,12 @@ export function uncoveredRects(
   below: Grid,
   above: Grid | null,
 ): readonly { readonly r0: number; readonly c0: number; readonly r1: number; readonly c1: number }[] {
-  const lower = indexOf(below);
+  // `roofed` on both sides: a patio is not a rectangle wanting a gable over it,
+  // and a terrace on the storey above does not count as covering the room below.
+  const lower = indexOf(roofed(below));
   const rows = lower.rows;
   const cols = lower.cols;
-  const open = uncoveredBy(lower, indexOf(above));
+  const open = uncoveredBy(lower, indexOf(above === null ? null : roofed(above)));
 
   type Rect = { r0: number; c0: number; r1: number; c1: number };
   const out: Rect[] = [];
@@ -104,7 +106,7 @@ export function abutsOf(
   rect: { readonly r0: number; readonly c0: number; readonly r1: number; readonly c1: number },
   above: Grid | null,
 ): { x0: boolean; x1: boolean; z0: boolean; z1: boolean } {
-  const upper = indexOf(above);
+  const upper = indexOf(above === null ? null : roofed(above));
   const covered = (r: number, c: number) => upper.filled(r, c);
   const anyRow = (c: number) => {
     for (let r = rect.r0; r <= rect.r1; r += 1) if (covered(r, c)) return true;

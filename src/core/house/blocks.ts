@@ -43,6 +43,32 @@ export interface RoomDef {
   readonly key: string;
   readonly labels: Record<Locale, RoomLabels>;
   readonly color?: string; // interior colour; absent = house default. Opaque to the core.
+  /**
+   * OPEN AIR. A patio, a lawn, a terrace: floor you can stand on, with a name
+   * you can learn, and no building over it.
+   *
+   * This one flag is what turns the grid from THE BUILDING into THE PLOT. Before
+   * it, every cell was either a room or nothing, and "nothing" is what made a
+   * wall appear at the edge of the house — so a paved yard behind the kitchen
+   * could only be drawn as a room, and drawing it as a room walled and roofed
+   * it. There was no way to say "this is somewhere, and it is outside".
+   *
+   * It changes exactly three derivations, each in one place:
+   *
+   *   WALLS      — a wall exists where two sides differ AND they are not both
+   *                open air. Patio against kitchen is the house's back wall;
+   *                patio against lawn, or against the edge of the plot, is
+   *                nothing at all.
+   *   ROOF       — roofing reads the BUILDING (see `roofed` below), so a patio
+   *                is not a rectangle wanting a gable over it.
+   *   CEILING    — there isn't one. That is a render decision and it reads the
+   *                same flag.
+   *
+   * Everything else treats it as the room it is: it has labels in every
+   * language, it is a Location you can stand in, items sit on it, and the
+   * fit checks apply. Which is the point — "el patio" is a word to learn.
+   */
+  readonly outdoor?: boolean;
 }
 
 export const EMPTY = Symbol('empty');
@@ -63,6 +89,20 @@ export type Grid = readonly (readonly Block[])[];
 export const defineRoom = (def: RoomDef): RoomDef => def;
 
 export const isRoom = (b: Block): b is RoomDef => b !== EMPTY;
+
+/** Open air: a named outdoor place, or nothing at all. Both are sky. */
+export const isOpenAir = (b: Block): boolean => b === EMPTY || b.outdoor === true;
+
+/**
+ * The plan with its open-air cells taken out — THE BUILDING, from the plot.
+ *
+ * Roofing and setbacks are questions about the building, and every one of them
+ * is already written in terms of "is this cell filled". Handing them a grid
+ * where a patio reads as empty is what makes them right about a patio without
+ * any of them learning what a patio is.
+ */
+export const roofed = (grid: Grid): Grid =>
+  grid.map((row) => row.map((b): Block => (isRoom(b) && b.outdoor === true ? EMPTY : b)));
 
 // ── Openings: doors and windows, placed ON a wall by naming a cell and which of
 // its sides the wall is on (same cell+side model as the compiler validates). A

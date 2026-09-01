@@ -24,3 +24,7 @@ const everywhere = (name: string): Record<Locale, RoomLabels> =>
 
 export const room = (key: string, name: string, color?: string): RoomDef =>
   defineRoom({ key, labels: everywhere(name), ...(color === undefined ? {} : { color }) });
+
+/** The same, but open air — a patio, a lawn. See RoomDef.outdoor. */
+export const outdoors = (key: string, name: string): RoomDef =>
+  defineRoom({ key, labels: everywhere(name), outdoor: true });

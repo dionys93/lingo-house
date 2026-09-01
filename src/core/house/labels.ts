@@ -45,6 +45,13 @@ export type PartKey =
   | 'window'
   | 'wall'
   | 'floor'
+  // What you are standing on OUTDOORS. A separate word rather than a second
+  // sense of 'floor', because the two are separate words in the languages this
+  // teaches — der Boden covers both, but "the floor of the patio" is wrong in
+  // English and the whole point is to teach the word a speaker would use. It is
+  // never authored: describe() picks it when the place you are standing in is
+  // an outdoor room.
+  | 'ground'
   | 'ceiling'
   | 'roof'
   | 'stairs';

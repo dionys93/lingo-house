@@ -1,28 +1,33 @@
 // src/render/elements/RoomTiles.tsx
 //
-// A flat CELL×CELL tile per cell of every room, at height `y`, coloured per room.
-// Shared by Floor (faces up, at the base) and Ceiling (faces down, at wall-top) so
-// the per-cell layout — which follows the room's actual cells, not its bounding
-// box — lives in exactly one place. Reads CompiledRoom.floor (world cell centres);
-// never recomputes the grid→world mapping. Double-sided so a ceiling reliably
-// blocks the view up into the roof no matter which way it's turned.
+// A flat CELL×CELL tile per cell of every room GIVEN, at height `y`, coloured per
+// room. Shared by Floor (faces up, at the base) and Ceiling (faces down, at
+// wall-top) so the per-cell layout — which follows the room's actual cells, not
+// its bounding box — lives in exactly one place. Reads CompiledRoom.floor (world
+// cell centres); never recomputes the grid→world mapping. Double-sided so a
+// ceiling reliably blocks the view up into the roof no matter which way it's
+// turned.
+//
+// Takes ROOMS, not the grid, so that "a patio has no ceiling" is written at the
+// call site that means it rather than as a flag threaded through here. The floor
+// draws every room; the ceiling draws the ones that are indoors.
 
 import * as THREE from 'three';
-import type { CompiledGrid, Vec3 } from '../../core/house/compiled';
+import type { CompiledRoom, Vec3 } from '../../core/house/compiled';
 import { CELL } from '../../core/house/scale';
 import type { Cell } from '../../core/shared/errors';
 import { pickable } from '../three/pickable';
 import { BLOCKS, CATCHES } from '../../core/style/shadows';
 
 export function RoomTiles({
-  grid,
+  rooms,
   y,
   faceUp,
   defaultColor,
   onPick,
   skip = [],
 }: {
-  grid: CompiledGrid;
+  rooms: readonly CompiledRoom[];
   y: number;
   faceUp: boolean;
   defaultColor: string;
@@ -40,7 +45,7 @@ export function RoomTiles({
   const shadow = faceUp ? CATCHES : BLOCKS;
   return (
     <>
-      {grid.rooms.flatMap((room) =>
+      {rooms.flatMap((room) =>
         room.cells.flatMap((cell, i) => {
           if (skip.some((s) => s[0] === cell[0] && s[1] === cell[1])) return [];
           const centre = room.floor[i];
