@@ -29,6 +29,7 @@ import { LABELS } from '../../content/labels';
 import { LOCALES, LOCALE_NAMES, type Locale } from '../../core/house/labels';
 import { Items } from '../elements/Items';
 import { FLOOR_Y } from '../elements/Floor';
+import { openPartsOf, partKey } from '../../core/house/items';
 import { SurfaceProvider } from '../surfaces/SurfaceProvider';
 import { HouseLights } from '../stage/HouseLights';
 import { ScenePost } from '../stage/ScenePost';
@@ -192,7 +193,13 @@ export function ItemGallery() {
                 looks like and half of a cupboard is what is inside it. */}
             <Items
               grid={grid}
-              openItems={new Set(grid.items.map((i) => i.id))}
+              // Every PART of every item, because open state is keyed per part
+              // now — a set of bare item ids opens nothing at all.
+              openItems={
+                new Set(
+                  grid.items.flatMap((i) => openPartsOf(i.kind).map((part) => partKey(i.id, part.id))),
+                )
+              }
               selectedId={null}
               onSelect={() => undefined}
             />

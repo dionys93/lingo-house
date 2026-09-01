@@ -21,7 +21,7 @@ import type { NavGraph, Location } from './nav';
 import type { Selection } from '../session/explorer';
 import { noun, type Bilingual, type LabelTable, type Locale } from './labels';
 import { CELL } from './scale';
-import { openableKind } from './items';
+import { itemOfPartKey, openPartsOf, partKey } from './items';
 
 // An action the popup offers as a button. describe() decides WHAT can be done,
 // the shell decides when it happens.
@@ -35,11 +35,22 @@ export interface Described {
   readonly subject: Bilingual; // what you clicked
   readonly context: readonly Bilingual[]; // what it belongs to, outermost last
   readonly anchor: Vec3; // where to hang the popup, in world space
-  readonly action?: {
+  /**
+   * What can be done here, in the order it should be offered.
+   *
+   * A LIST, because a thing can have more than one openable part and each is
+   * its own sentence: a fridge offers "Open the fridge" and "Open the freezer",
+   * a counter offers the drawer and the cupboard. A single action could only
+   * ever have named one of them, which is the same as hiding the other.
+   *
+   * Doors and stairs contribute at most one, so nothing about them changes
+   * except that the popup now reads a list of length one.
+   */
+  readonly actions: readonly {
     readonly label: Bilingual;
     readonly on: 'door' | 'stair' | 'item';
     readonly id: string;
-  };
+  }[];
 }
 
 /**
@@ -115,7 +126,12 @@ export function describe({
       // shelf is "the cup", under "the cupboard", under "the kitchen". Only one
       // level of container — a cup is not inside a cupboard inside a cupboard,
       // and if it ever were, `inside` chains and this would want a loop.
-      const container = item.inside === undefined ? undefined : items.find((i) => i.id === item.inside);
+      // `inside` names the PART it is in, so the container is the item that
+      // part belongs to.
+      const container =
+        item.inside === undefined
+          ? undefined
+          : items.find((i) => i.id === itemOfPartKey(item.inside ?? ''));
       const context =
         container === undefined
           ? here
@@ -123,6 +139,7 @@ export function describe({
       const base = {
         subject: noun(labels, from, to, item.kind),
         context,
+        actions: [],
         anchor: [
           (item.bounds.min[0] + item.bounds.max[0]) / 2,
           item.bounds.max[1] + 0.12,
@@ -136,14 +153,17 @@ export function describe({
       // phrase lookup below total rather than a lookup with a fallback. The
       // runtime test and the type test are the same test: the union is derived
       // from the very field it checks.
-      const kind = openableKind(item.kind);
-      if (kind === null) return base;
-      const shut = !openItems.has(item.id);
-      const phrase = (l: Locale) => (shut ? labels[l].opens[kind].open : labels[l].opens[kind].close);
-      return {
-        ...base,
-        action: { label: { from: phrase(from), to: phrase(to) }, on: 'item', id: item.id },
-      };
+      // One action per openable PART, and the id it hands back is the composite
+      // key open state is held under — so the shell toggles what it is given and
+      // never has to learn that parts exist.
+      const actions = openPartsOf(item.kind).map((part) => {
+        const key = partKey(item.id, part.id);
+        const shut = !openItems.has(key);
+        const phrase = (l: Locale) =>
+          shut ? labels[l].opens[part.noun].open : labels[l].opens[part.noun].close;
+        return { label: { from: phrase(from), to: phrase(to) }, on: 'item' as const, id: key };
+      });
+      return { ...base, actions };
     }
 
     case 'opening': {
@@ -170,6 +190,7 @@ export function describe({
         ),
         context: here,
         anchor,
+        actions: [],
       };
       if (opening.kind !== 'door') return base;
 
@@ -184,17 +205,22 @@ export function describe({
       if (openDoors.has(opening.id)) {
         return {
           ...base,
-          action: {
-            label: { from: labels[from].closeDoor, to: labels[to].closeDoor },
-            on: 'door',
-            id: opening.id,
-          },
+          actions: [
+            {
+              label: { from: labels[from].closeDoor, to: labels[to].closeDoor },
+              on: 'door' as const,
+              id: opening.id,
+            },
+          ],
         };
       }
 
       const edge = graph.traverse(where, opening.id);
       if (edge === undefined) return base; // door doesn't touch this side
-      return { ...base, action: { label: roomLabel(edge.to, 'enter'), on: 'door', id: opening.id } };
+      return {
+        ...base,
+        actions: [{ label: roomLabel(edge.to, 'enter'), on: 'door' as const, id: opening.id }],
+      };
     }
 
     case 'stair': {
@@ -211,6 +237,7 @@ export function describe({
         subject: noun(labels, from, to, 'stairs'),
         context: here,
         anchor: [mid[0], mid[1] + 0.18, mid[2]] as Vec3,
+        actions: [],
       };
       const edge = graph.traverse(where, stair.id);
       if (edge === undefined) return base; // you're not at either end of it
@@ -219,7 +246,9 @@ export function describe({
       const goingUp = where === stair.connects[0];
       return {
         ...base,
-        action: { label: roomLabel(edge.to, goingUp ? 'up' : 'down'), on: 'stair', id: stair.id },
+        actions: [
+          { label: roomLabel(edge.to, goingUp ? 'up' : 'down'), on: 'stair' as const, id: stair.id },
+        ],
       };
     }
 
@@ -253,6 +282,7 @@ export function describe({
         subject: noun(labels, from, to, part),
         context: here,
         anchor: selection.at,
+        actions: [],
       };
     }
   }

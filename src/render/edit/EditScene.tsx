@@ -31,7 +31,7 @@ import { gridFrame, floorMountAt } from '../../core/house/frame';
 import { applyEdit, itemsOn, mountOnto, nextItemId, openingsOn, slotsOf } from '../../core/edit/plan';
 import { edgeKey, wallEdges, type WallEdge } from '../../core/edit/edges';
 import { emitMonthFile } from '../../core/edit/emit';
-import { ITEM_SPECS } from '../../core/house/items';
+import { ITEM_SPECS, openPartsOf } from '../../core/house/items';
 import type { Facing, ItemKind, Mount, Storey } from '../../core/house/blocks';
 import { MonthBar } from '../ui/MonthBar';
 import { PlanView, type Hit } from './PlanView';
@@ -436,7 +436,10 @@ export function EditScene() {
                 // deleting it.
                 const host = itemsOn(plan, level).find((i) => i.id === mount.host);
                 const slots = host === undefined ? [] : slotsOf(host.kind);
-                const shelves = host === undefined ? [] : (ITEM_SPECS[host.kind].opens?.shelves ?? []);
+                // The part a slot refers to: 'inside' means the host's first
+                // openable part, the same one clicking a host puts things in.
+                const part = host === undefined ? null : (openPartsOf(host.kind)[0] ?? null);
+                const shelves = part?.shelves ?? [];
                 return (
                   <div style={{ marginTop: 6 }}>
                     {slots.map((sl) => (

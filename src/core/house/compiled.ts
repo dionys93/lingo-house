@@ -81,7 +81,8 @@ export interface CompiledItem {
   // TV bolted to a wall from a table that happens to stand against one.
   readonly mountedOn: 'floor' | 'item' | 'wall' | 'inside';
   /**
-   * The item this one is INSIDE, when it is inside one.
+   * The PART this one is inside, when it is inside one — `partKey(hostId,
+   * partId)`, the same key that part's open state is held under.
    *
    * Carried on the compiled item because two consumers need it and neither can
    * work it out from geometry: the renderer, which must not draw a cup that is

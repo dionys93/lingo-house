@@ -221,6 +221,9 @@ export type Mount =
   | {
       readonly on: 'inside';
       readonly host: string;
+      /** Which openable part's interior — a counter has a drawer AND a
+       *  cupboard. Defaults to the host's first part. */
+      readonly part?: string;
       readonly shelf?: number;
       readonly offset?: readonly [x: number, z: number];
       readonly facing?: Facing;

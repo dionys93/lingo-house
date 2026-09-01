@@ -54,7 +54,7 @@ export function SelectionPopup({
   from: Locale;
   to: Locale;
   /** The whole action, so the shell doesn't have to work out what the id names. */
-  onAct: (action: NonNullable<Described['action']>) => void;
+  onAct: (action: Described['actions'][number]) => void;
   onDismiss: () => void;
 }) {
   // Escape closes. A subscription to something outside React is exactly what an
@@ -68,7 +68,7 @@ export function SelectionPopup({
     return () => window.removeEventListener('keydown', onKey);
   }, [onDismiss]);
 
-  const { subject, context, action } = described;
+  const { subject, context, actions } = described;
 
   return (
     <Html position={[...described.anchor]} center zIndexRange={[40, 0]}>
@@ -95,14 +95,19 @@ export function SelectionPopup({
           <Pair key={i} value={c} from={from} to={to} primary={false} />
         ))}
 
-        {action && (
+        {/* One button per action. A fridge offers its fridge and its freezer,
+            a counter its drawer and its cupboard — each a whole sentence, and
+            each its own thing to do. Stacked in the order describe() gave
+            them, which is the order the parts are declared. */}
+        {actions.map((action) => (
           <button
+            key={action.id}
             type="button"
             onClick={() => { onAct(action); }}
             style={{
               display: 'block',
               width: '100%',
-              marginTop: 12,
+              marginTop: 8,
               padding: '9px 10px',
               border: 'none',
               borderRadius: 9,
@@ -118,7 +123,7 @@ export function SelectionPopup({
               {action.label.from}
             </span>
           </button>
-        )}
+        ))}
 
         <button
           type="button"

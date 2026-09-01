@@ -16,7 +16,7 @@
 // at runtime, the error variant comes back.
 
 import type { ItemKind } from './blocks';
-import type { OpenableKind } from './items';
+import type { OpenableNoun } from './items';
 import type { Month } from './month';
 
 export type Locale = 'en' | 'es' | 'de';
@@ -53,6 +53,11 @@ export type PartKey =
   // never authored: describe() picks it when the place you are standing in is
   // an outdoor room.
   | 'ground'
+  // Parts of things, and words in their own right. A freezer is not a small
+  // fridge and a drawer is not a small cupboard — a learner who opens one and
+  // is told "the fridge" has been taught the wrong word.
+  | 'freezer'
+  | 'drawer'
   | 'ceiling'
   | 'roof'
   | 'stairs';
@@ -89,12 +94,14 @@ export interface LocaleLabels {
    * `up`/`down`/`enter` out in full rather than deriving them. Composition is
    * what does not survive a new language; a table of sentences does.
    *
-   * Keyed by OPENABLE kind, not by every kind, so the table costs a line per
-   * thing that opens rather than per thing that exists — and being a complete
-   * Record over a union DERIVED from ITEM_SPECS, marking a new kind openable
-   * fails the build here until it has a sentence in every language.
+   * Keyed by the NOUN of an openable part, not by the item kind. A counter has
+   * no sentence of its own: its two parts borrow the words for a drawer and a
+   * cupboard, because that is what a speaker calls them. So the table costs a
+   * line per thing that opens rather than per thing that exists — and being a
+   * complete Record over a union DERIVED from ITEM_SPECS, giving a part a new
+   * noun fails the build here until every language has a sentence for it.
    */
-  readonly opens: Record<OpenableKind, { readonly open: string; readonly close: string }>;
+  readonly opens: Record<OpenableNoun, { readonly open: string; readonly close: string }>;
 }
 
 export type LabelTable = Record<Locale, LocaleLabels>;
