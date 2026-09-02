@@ -1041,10 +1041,14 @@ function Toilet(): JSX.Element {
   // makes it read as one.
   const panD = d - cisternD;
   const panZ = cisternFront + panD / 2;
-  const bowlH = seatY * 0.42;
+  // A shallow bowl. The first version hung 0.42 of the seat height below the
+  // rim, and a pan that deep is a bucket with a lid — the mass reads as bowl
+  // all the way to the floor. Cutting it back lets the pedestal carry more of
+  // the height, which is the proportion a WC actually has.
+  const bowlH = seatY * 0.26;
   // Where the pedestal stops and the bowl's overhang begins.
   const pedTop = seatY - bowlH;
-  const bowlWall = bowlH + 0.045;
+  const bowlWall = bowlH + 0.026;
   const bowlZ = panZ + 0.004;
   return (
     <>
@@ -1093,21 +1097,21 @@ function Toilet(): JSX.Element {
           through. */}
       <EllipseBowl
         at={[0, seatY - bowlWall / 2, bowlZ]}
-        size={[w, panD * 0.94]}
+        size={[w * 0.95, panD * 0.88]}
         height={bowlWall}
-        taper={0.55}
+        taper={0.62}
       />
       <EllipseDisc
-        at={[0, seatY - bowlWall + 0.01, bowlZ]}
-        size={[w * 0.6, panD * 0.55]}
-        thickness={0.016}
+        at={[0, seatY - bowlWall + 0.009, bowlZ]}
+        size={[w * 0.62, panD * 0.56]}
+        thickness={0.014}
       />
-      <Water at={[0, seatY - bowlH, bowlZ]} size={[w * 0.66, 0.002, panD * 0.62]} />
+      <Water at={[0, seatY - bowlH * 0.8, bowlZ]} size={[w * 0.66, 0.002, panD * 0.6]} />
       {/* The ceramic rim rolls over the top of that wall — a torus on the same
           footprint, so the join cannot open a gap — and the seat rests inside
           it. */}
-      <EllipseRing at={[0, seatY - 0.006, bowlZ]} size={[w, panD * 0.94]} tube={0.018} />
-      <EllipseRing at={[0, seatY + 0.016, bowlZ]} size={[w * 0.92, panD * 0.86]} tube={0.02} />
+      <EllipseRing at={[0, seatY - 0.005, bowlZ]} size={[w * 0.95, panD * 0.88]} tube={0.016} />
+      <EllipseRing at={[0, seatY + 0.014, bowlZ]} size={[w * 0.87, panD * 0.8]} tube={0.018} />
       {/* Lid, UP and leaning on the taller cistern. */}
       <Glazed
         at={[0, seatY + 0.085, cisternFront + 0.02]}
@@ -1410,8 +1414,11 @@ function Shower(): JSX.Element {
 
 function Sink(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.sink;
-  const basinH = 0.062;
-  const rimTube = 0.013;
+  // 76 mm of bowl below the rim, not 124. The deeper version read as a bucket
+  // on a stalk: the bowl was a third of the whole fitting and swallowed the
+  // pedestal's proportions.
+  const basinH = 0.038;
+  const rimTube = 0.012;
   const bowlY = h - basinH;
   return (
     <>
@@ -1423,15 +1430,15 @@ function Sink(): JSX.Element {
           The old basin put a rectangular rim with a square hole around a
           circular bowl, so the four corners of that hole were open — you looked
           through the rim and out the bottom. Matching curves cannot do that. */}
-      <EllipseBowl at={[0, bowlY + basinH / 2, 0]} size={[w * 0.88, d * 0.86]} height={basinH} taper={0.5} />
-      <EllipseDisc at={[0, bowlY + 0.008, 0]} size={[w * 0.45, d * 0.44]} thickness={0.016} />
-      <EllipseRing at={[0, h - rimTube / 2, 0]} size={[w * 0.88, d * 0.86]} tube={rimTube} />
+      <EllipseBowl at={[0, bowlY + basinH / 2, 0]} size={[w * 0.82, d * 0.8]} height={basinH} taper={0.58} />
+      <EllipseDisc at={[0, bowlY + 0.007, 0]} size={[w * 0.48, d * 0.46]} thickness={0.014} />
+      <EllipseRing at={[0, h - rimTube / 2, 0]} size={[w * 0.82, d * 0.8]} tube={rimTube} />
       {/* The deck behind the bowl, which the tap stands on. Without it the tap
           rose out of nothing. */}
       <Glazed at={[0, h - 0.008, -d / 2 + 0.03]} size={[w * 0.6, 0.018, 0.06]} radius={0.007} />
-      <Water at={[0, bowlY + 0.02, 0]} size={[w * 0.5, 0.002, d * 0.48]} />
+      <Water at={[0, bowlY + 0.016, 0]} size={[w * 0.5, 0.002, d * 0.48]} />
       {/* Waste, sunk into the bowl's floor. */}
-      <Chrome at={[0, bowlY + 0.012, 0]} rTop={0.012} rBottom={0.012} height={0.008} />
+      <Chrome at={[0, bowlY + 0.011, 0]} rTop={0.012} rBottom={0.012} height={0.008} />
       {/* Tap, seated THROUGH the deck rather than hovering over the rim. */}
       <Chrome at={[0, h + 0.014, -d / 2 + 0.03]} rTop={0.008} rBottom={0.01} height={0.05} />
       <Chrome
@@ -1515,18 +1522,10 @@ function KitchenSink({ isOpen }: ItemProps): JSX.Element {
         inner={[bowlW, bowlD]}
         thickness={topT}
       />
-      {/* Hmm: RimFrame centres its hole, so the bowl goes in the middle and the
-          drainer sits beside it. Grooves in the drainer, which is the detail
-          that says "sink" rather than "hole in a worktop". */}
-      {[-1, 0, 1].map((i) => (
-        <Slab
-          key={i}
-          at={[w * 0.28, deckY + topT - 0.002, i * 0.03]}
-          size={[w * 0.3, 0.004, 0.006]}
-          color="#3a3c40"
-          roughness={0.5}
-        />
-      ))}
+      {/* RimFrame centres its hole, so the bowl goes in the middle and the
+          drainer is just the bare worktop beside it. It used to carry three
+          dark grooves; at this scale they read as three things lying on the
+          counter rather than as a moulding in it. */}
 
       {/* The bowl: stainless, square-ish with soft corners, hanging under the
           worktop's opening. */}
