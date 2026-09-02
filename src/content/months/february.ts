@@ -39,7 +39,6 @@ export const FEBRUARY_PLAN: readonly Storey[] = furnish(BASE_PLAN, {
       { id: 'kitchen-cup-a', kind: 'cup', mount: { on: 'inside', host: 'kitchen-cupboard', shelf: 1, offset: [-0.3, 0] } },
       { id: 'kitchen-cup-b', kind: 'cup', mount: { on: 'inside', host: 'kitchen-cupboard', shelf: 1 } },
       { id: 'kitchen-cup-c', kind: 'cup', mount: { on: 'inside', host: 'kitchen-cupboard', shelf: 1, offset: [0.3, 0] } },
-      { id: 'kitchen-plant', kind: 'pottedPlant', mount: { on: 'item', host: 'kitchen-counter-l', offset: [0.28, 0] } },
       { id: 'dining-table', kind: 'diningTable', mount: { on: 'floor', cell: [7, 3], facing: 's', offset: [0.5, -0.58] } },
       { id: 'dining-chair-a', kind: 'chair', mount: { on: 'floor', cell: [5, 3], facing: 's', offset: [0, 0.13] } },
       { id: 'dining-chair-b', kind: 'chair', mount: { on: 'floor', cell: [5, 4], facing: 's', offset: [0, 0.13] } },
