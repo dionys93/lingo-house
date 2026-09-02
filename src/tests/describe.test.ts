@@ -56,6 +56,7 @@ const WORDS = {
   bathtub: { en: 'the bathtub', es: 'la bañera', de: 'die Badewanne' },
   shower: { en: 'the shower', es: 'la ducha', de: 'die Dusche' },
   sink: { en: 'the sink', es: 'el lavabo', de: 'das Waschbecken' },
+  kitchenSink: { en: 'the kitchen sink', es: 'el fregadero', de: 'die Spüle' },
   bed: { en: 'the bed', es: 'la cama', de: 'das Bett' },
   wardrobe: { en: 'the wardrobe', es: 'el armario', de: 'der Kleiderschrank' },
   nightstand: { en: 'the nightstand', es: 'la mesita de noche', de: 'der Nachttisch' },
