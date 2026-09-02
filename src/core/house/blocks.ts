@@ -174,6 +174,11 @@ export type ItemKind =
   // them.
   | 'plate'
   | 'cup'
+  // A kitchen sink and a bathroom basin are DIFFERENT WORDS — el fregadero and
+  // el lavabo, die Spüle and das Waschbecken. English reuses "sink" with a
+  // qualifier, which is exactly the sort of thing one shared kind would have
+  // flattened away.
+  | 'kitchenSink'
   | 'toilet'
   | 'bathtub'
   | 'shower'

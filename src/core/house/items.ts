@@ -167,6 +167,15 @@ const SPECS = {
   // length — a single 24 mm disc on a shelf looks like a coaster.
   plate: { w: 0.13, d: 0.13, h: 0.03, supportsTop: null }, //     260 ×  260 ×   60 — three plates
   cup: { w: 0.04, d: 0.04, h: 0.05, supportsTop: null }, //        80 ×   80 ×  100
+  // A sink UNIT: the same base carcass as the counter with a bowl set into the
+  // worktop, and a cupboard under it for the bin.
+  kitchenSink: {
+    w: 0.6,
+    d: 0.3,
+    h: 0.45, //                                                 1200 ×  600 ×  900
+    supportsTop: null, // the worktop has a hole in it; nothing balances there
+    opens: [{ id: 'doors', noun: 'cupboard', as: 'doors', shelves: [0.08], inset: 0.1 }],
+  },
   // ── Bathroom
   toilet: { w: 0.185, d: 0.35, h: 0.39, supportsTop: null }, //  370 ×  700 ×  780 to the cistern lid
   bathtub: { w: 0.85, d: 0.375, h: 0.29, supportsTop: null }, // 1700 × 750 ×  580 — 2 cells long

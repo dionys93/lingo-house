@@ -195,7 +195,10 @@ export const ITEMS: readonly ItemDef[] = [
   { id: 'kitchen-fridge', kind: 'fridge', mount: { on: 'floor', cell: [3, 0], facing: 's', offset: [-0.12, -0.095] } },
   { id: 'kitchen-counter-l', kind: 'counter', mount: { on: 'floor', cell: [3, 2], facing: 's', offset: [0, -0.12] } },
   { id: 'kitchen-oven', kind: 'oven', mount: { on: 'floor', cell: [3, 3], facing: 's', offset: [0, -0.12] } },
-  { id: 'kitchen-counter-r', kind: 'counter', mount: { on: 'floor', cell: [3, 4], facing: 's', offset: [0, -0.12] } },
+  // The sink goes in the run rather than beside it, which is where one lives —
+  // and it means the kitchen finally has the word for its own sink, which is
+  // not the word for the basin upstairs.
+  { id: 'kitchen-sink', kind: 'kitchenSink', mount: { on: 'floor', cell: [3, 4], facing: 's', offset: [0, -0.12] } },
   { id: 'kitchen-dishwasher', kind: 'dishwasher', mount: { on: 'floor', cell: [3, 6], facing: 's', offset: [0.1, -0.12] } },
   // The cupboard, and the whole reason opening was worth building: it holds
   // plates and cups, and a learner meets those two words by opening the door of

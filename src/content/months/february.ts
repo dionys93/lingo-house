@@ -32,7 +32,7 @@ export const FEBRUARY_PLAN: readonly Storey[] = furnish(BASE_PLAN, {
       { id: 'kitchen-fridge', kind: 'fridge', mount: { on: 'floor', cell: [3, 0], facing: 's', offset: [-0.12, -0.095] } },
       { id: 'kitchen-counter-l', kind: 'counter', mount: { on: 'floor', cell: [3, 2], facing: 's', offset: [0, -0.12] } },
       { id: 'kitchen-oven', kind: 'oven', mount: { on: 'floor', cell: [3, 3], facing: 's', offset: [0, -0.12] } },
-      { id: 'kitchen-counter-r', kind: 'counter', mount: { on: 'floor', cell: [3, 4], facing: 's', offset: [0, -0.12] } },
+      { id: 'kitchen-sink', kind: 'kitchenSink', mount: { on: 'floor', cell: [3, 4], facing: 's', offset: [0, -0.12] } },
       { id: 'kitchen-dishwasher', kind: 'dishwasher', mount: { on: 'floor', cell: [3, 6], facing: 's', offset: [0.1, -0.12] } },
       { id: 'kitchen-cupboard', kind: 'cupboard', mount: { on: 'floor', cell: [5, 0], facing: 'e', offset: [-0.12, 0] } },
       { id: 'kitchen-plates', kind: 'plate', mount: { on: 'inside', host: 'kitchen-cupboard', offset: [-0.22, 0] } },
