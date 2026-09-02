@@ -35,6 +35,7 @@
 // material ignores opacity, so a shower screen at 0.22 would cast a solid black
 // slab — the same trap `shadows.ts` documents for window glass.
 
+import { useMemo } from 'react';
 import type { JSX } from 'react';
 import * as THREE from 'three';
 import { RoundedBox } from '@react-three/drei';
@@ -974,23 +975,6 @@ function Glazed({
   );
 }
 
-function GlazedTube({
-  at,
-  rTop,
-  rBottom,
-  height,
-  segments = 20,
-  color = CERAMIC,
-  rotation,
-}: Omit<TubeProps, 'color' | 'roughness' | 'metalness'> & { readonly color?: string }): JSX.Element {
-  return (
-    <mesh position={at} rotation={rotation ?? [0, 0, 0]} {...SOLID}>
-      <cylinderGeometry args={[rTop, rBottom, height, segments]} />
-      <meshStandardMaterial color={color} {...GLAZE} />
-    </mesh>
-  );
-}
-
 function Chrome({
   at,
   rTop,
@@ -1021,196 +1005,6 @@ function Water({ at, size }: { readonly at: V3; readonly size: V3 }): JSX.Elemen
         opacity={0.5}
       />
     </mesh>
-  );
-}
-
-function Toilet(): JSX.Element {
-  const { w, d, h } = ITEM_SPECS.toilet;
-  const cisternD = d * 0.3;
-  const cisternFront = -d / 2 + cisternD;
-  const seatY = h * 0.42; // 330 mm — seat height
-  // The cistern is CLOSE-COUPLED: it stands on the pan's back shoulder and runs
-  // up to the unit's full height, which is what h measures — 780 mm to the
-  // cistern lid. It used to stop at 0.55h, 429 mm, barely a hand above the
-  // seat, and a WC whose back is no taller than its seat reads as a bin.
-  const cisternFoot = seatY * 0.86;
-  const cisternH = h - cisternFoot;
-  // The pan sits FORWARD of the cistern and is the full width of the unit. It
-  // used to be two stacked cylinders of 0.74 and 0.5 of the half-width, which
-  // is a column: a WC is a bulky, elongated body and the mass is most of what
-  // makes it read as one.
-  const panD = d - cisternD;
-  const panZ = cisternFront + panD / 2;
-  // A shallow bowl. The first version hung 0.42 of the seat height below the
-  // rim, and a pan that deep is a bucket with a lid — the mass reads as bowl
-  // all the way to the floor. Cutting it back lets the pedestal carry more of
-  // the height, which is the proportion a WC actually has.
-  const bowlH = seatY * 0.26;
-  // Where the pedestal stops and the bowl's overhang begins.
-  const pedTop = seatY - bowlH;
-  const bowlWall = bowlH + 0.026;
-  const bowlZ = panZ + 0.004;
-  return (
-    <>
-      {/* Cistern at the back, carried on the pan's shoulder, with a softened lid
-          that OVERLAPS it rather than balancing on top. */}
-      <Glazed
-        at={[0, cisternFoot + cisternH / 2, cisternFront - cisternD / 2]}
-        size={[w, cisternH, cisternD]}
-        radius={0.016}
-      />
-      <Glazed
-        at={[0, h - 0.008, cisternFront - cisternD / 2]}
-        size={[w + 0.008, 0.016, cisternD + 0.008]}
-        radius={0.006}
-      />
-      {/* Flush plate, sunk into the cistern face. */}
-      <Glazed
-        at={[0, cisternFoot + cisternH * 0.72, cisternFront - 0.004]}
-        size={[w * 0.3, 0.024, 0.01]}
-        radius={0.004}
-        color={CHROME}
-      />
-
-      {/* THE PAN. A WC is a narrow pedestal carrying a bowl that OVERHANGS it —
-          widest at the rim, tucked in at the ankle. The first attempt at giving
-          it body swelled the pedestal out to full width and then set a narrower
-          bowl on top, which is an urn: bulk alone is not the shape. */}
-      <EllipseDisc at={[0, 0.014, panZ + 0.016]} size={[w * 0.56, panD * 0.42]} thickness={0.028} />
-      <EllipseBowl
-        at={[0, (pedTop + 0.02) / 2, panZ + 0.014]}
-        size={[w * 0.7, panD * 0.56]}
-        height={pedTop + 0.02}
-        taper={0.78}
-      />
-      {/* And the back of the pan meeting the cistern, which is what a
-          close-coupled WC actually looks like from the side. */}
-      <Glazed
-        at={[0, (cisternFoot + 0.01) / 2, cisternFront - cisternD * 0.28]}
-        size={[w * 0.8, cisternFoot + 0.01, cisternD * 0.86]}
-        radius={0.014}
-      />
-
-      {/* The bowl: one flared wall from the rim down to where it meets the
-          pedestal, doubling as the well you look into. Its floor is a disc at
-          the bottom of that wall, so there is no ledge and nothing to see
-          through. */}
-      <EllipseBowl
-        at={[0, seatY - bowlWall / 2, bowlZ]}
-        size={[w * 0.95, panD * 0.88]}
-        height={bowlWall}
-        taper={0.62}
-      />
-      <EllipseDisc
-        at={[0, seatY - bowlWall + 0.009, bowlZ]}
-        size={[w * 0.62, panD * 0.56]}
-        thickness={0.014}
-      />
-      <Water at={[0, seatY - bowlH * 0.8, bowlZ]} size={[w * 0.66, 0.002, panD * 0.6]} />
-      {/* The ceramic rim rolls over the top of that wall — a torus on the same
-          footprint, so the join cannot open a gap — and the seat rests inside
-          it. */}
-      <EllipseRing at={[0, seatY - 0.005, bowlZ]} size={[w * 0.95, panD * 0.88]} tube={0.016} />
-      <EllipseRing at={[0, seatY + 0.014, bowlZ]} size={[w * 0.87, panD * 0.8]} tube={0.018} />
-      {/* Lid, UP and leaning on the taller cistern. */}
-      <Glazed
-        at={[0, seatY + 0.085, cisternFront + 0.02]}
-        size={[w * 0.9, 0.155, 0.016]}
-        radius={0.006}
-        rotation={[0.2, 0, 0]}
-      />
-    </>
-  );
-}
-
-/**
- * Elliptical sanitaryware, from circular primitives scaled to a footprint.
- *
- * Basins and WC pans are ovals — wider than deep, or deeper than wide — and a
- * circle scaled on one axis is exactly that. Everything here nests the SCALE on
- * a group with the primitive's own rotation on the mesh inside, because a
- * child's transform runs first: rotate the ring flat, then stretch it. Both on
- * one mesh stretches along the ring's own axes before turning it, which is the
- * shear that put the bathtub's corners through its skirt.
- *
- * `EllipseRing` is the rolled rim, `EllipseBowl` the tapered wall under it, and
- * they take the SAME footprint — which is the whole point. The old basin put a
- * rectangular rim with a square hole around a circular bowl, and the four
- * corners of that square had nothing in them: you looked straight through the
- * rim into the room below. Matching curves cannot leave a gap.
- */
-function EllipseRing({
-  at,
-  size,
-  tube,
-  segments = 28,
-}: {
-  readonly at: V3;
-  /** Outer width and depth of the ring, measured to the middle of the tube. */
-  readonly size: readonly [number, number];
-  readonly tube: number;
-  readonly segments?: number;
-}): JSX.Element {
-  const [w, d] = size;
-  return (
-    <group position={at} scale={[w / 2, 1, d / 2]}>
-      <mesh rotation={[Math.PI / 2, 0, 0]} {...SOLID}>
-        <torusGeometry args={[1, tube / Math.min(w, d), 8, segments]} />
-        <meshStandardMaterial color={CERAMIC} {...GLAZE} />
-      </mesh>
-    </group>
-  );
-}
-
-function EllipseBowl({
-  at,
-  size,
-  height,
-  taper = 0.55,
-  color = CERAMIC,
-  segments = 28,
-}: {
-  readonly at: V3;
-  readonly size: readonly [number, number];
-  readonly height: number;
-  /** Bottom radius as a fraction of the top. */
-  readonly taper?: number;
-  readonly color?: string;
-  readonly segments?: number;
-}): JSX.Element {
-  const [w, d] = size;
-  return (
-    <group position={at} scale={[w / 2, 1, d / 2]}>
-      <mesh {...SOLID}>
-        <cylinderGeometry args={[1, taper, height, segments, 1, true]} />
-        <meshStandardMaterial color={color} {...GLAZE} side={THREE.DoubleSide} />
-      </mesh>
-    </group>
-  );
-}
-
-/** A flat elliptical disc — a bowl floor, a foot, a drainer. */
-function EllipseDisc({
-  at,
-  size,
-  thickness,
-  color = CERAMIC,
-  segments = 28,
-}: {
-  readonly at: V3;
-  readonly size: readonly [number, number];
-  readonly thickness: number;
-  readonly color?: string;
-  readonly segments?: number;
-}): JSX.Element {
-  const [w, d] = size;
-  return (
-    <group position={at} scale={[w / 2, 1, d / 2]}>
-      <mesh {...SOLID}>
-        <cylinderGeometry args={[1, 1, thickness, segments]} />
-        <meshStandardMaterial color={color} {...GLAZE} />
-      </mesh>
-    </group>
   );
 }
 
@@ -1248,6 +1042,219 @@ function RimFrame({
           radius={thickness * 0.45}
         />
       ))}
+    </>
+  );
+}
+
+
+/**
+ * Standing water in a ROUND vessel.
+ *
+ * `Water` is a box, which is right for a bath and a kitchen bowl and wrong for
+ * anything revolved: a rectangle inscribed in an ellipse puts its four corners
+ * outside the wall, and they showed as a dark chevron poking out of the basin's
+ * underside. Exactly the square-hole-in-a-round-rim mistake again, from the
+ * other side of the wall. Elliptical water in an elliptical bowl cannot do it.
+ */
+function WaterDisc({
+  at,
+  size,
+  segments = 32,
+}: {
+  readonly at: V3;
+  readonly size: readonly [number, number];
+  readonly segments?: number;
+}): JSX.Element {
+  const [w, d] = size;
+  return (
+    <group position={at} scale={[w / 2, 1, d / 2]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} {...IGNORED}>
+        <circleGeometry args={[1, segments]} />
+        <meshStandardMaterial
+          color="#bcd8e2"
+          roughness={0.02}
+          metalness={0.3}
+          envMapIntensity={2}
+          transparent
+          opacity={0.5}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * A REVOLVED PROFILE — one outline, spun around the vertical axis.
+ *
+ * This is the primitive sanitaryware actually wants, and it took three goes to
+ * reach it. The WC and the basin were built twice from stacked cylinders and
+ * tapered tubes, and both times the result was a bucket: you cannot get a
+ * waisted pedestal, an overhanging bowl and a rolled rim out of a pile of
+ * frusta, because every join is a hard edge where the real thing has a curve,
+ * and every piece you add to fix one silhouette breaks another. Drawing the
+ * silhouette ONCE and revolving it makes the outline the input rather than the
+ * accident — a lathe cannot produce a step the profile does not have.
+ *
+ * The profile runs UP THE OUTSIDE and BACK DOWN THE INSIDE, so a single mesh is
+ * body, rim and bowl at once. Ending it on the axis (r = 0) caps it, which is
+ * why there is nothing to see through: the hole and the wall are the same
+ * surface, and no two pieces have to be talked into agreeing about where the
+ * edge is.
+ *
+ * `r` is a FRACTION of the half-footprint, not a length, so scaling the group
+ * turns the circle into the ellipse the fitting actually is. The scale stays on
+ * the group and never on the mesh, for the reason the bathtub taught us.
+ */
+type Profile = readonly (readonly [number, number])[];
+
+function Revolved({
+  at,
+  size,
+  profile,
+  color = CERAMIC,
+  segments = 44,
+}: {
+  readonly at: V3;
+  /** Full width and depth the profile's r = 1 maps onto. */
+  readonly size: readonly [number, number];
+  /** [radius as a fraction of the half-footprint, height in metres] */
+  readonly profile: Profile;
+  readonly color?: string;
+  readonly segments?: number;
+}): JSX.Element {
+  // Clamped off the axis because a lathe point at exactly zero degenerates.
+  const points = useMemo(
+    () => profile.map(([r, y]) => new THREE.Vector2(Math.max(r, 0.0004), y)),
+    [profile],
+  );
+  const [w, d] = size;
+  return (
+    <group position={at} scale={[w / 2, 1, d / 2]}>
+      <mesh {...SOLID}>
+        <latheGeometry args={[points, segments]} />
+        <meshStandardMaterial color={color} {...GLAZE} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * The WC pan, in one line: a foot, a waist at 90 mm, the bowl swelling out past
+ * it to full width at the 400 mm rim, then over the roll and down the inside to
+ * a well 112 mm deep. The overhang is the whole silhouette — a pan whose widest
+ * point is halfway up is an urn, which is what the last two attempts were.
+ */
+const WC_PAN: Profile = [
+  [0.0, 0.0],
+  [0.52, 0.0],
+  [0.53, 0.014],
+  [0.47, 0.045],
+  [0.42, 0.09],
+  [0.45, 0.128],
+  [0.55, 0.158],
+  [0.72, 0.18],
+  [0.9, 0.194],
+  [1.0, 0.2],
+  [0.99, 0.2045],
+  [0.92, 0.2035],
+  [0.86, 0.197],
+  [0.76, 0.184],
+  [0.58, 0.168],
+  [0.36, 0.153],
+  [0.15, 0.146],
+  [0.0, 0.144],
+];
+
+/** The seat: a closed cross-section, so the ring has an underside. */
+const WC_SEAT: Profile = [
+  [0.55, 0.0],
+  [0.58, 0.01],
+  [0.72, 0.017],
+  [0.9, 0.018],
+  [1.0, 0.013],
+  [1.02, 0.005],
+  [1.0, 0.0],
+  [0.85, -0.004],
+  [0.68, -0.004],
+  [0.55, 0.0],
+];
+
+/**
+ * The basin: a flared foot, a pedestal waisted at 0.31 of the width, and the
+ * bowl sweeping out over it to the 850 mm rim. The well is 82 mm deep — a
+ * basin is a shallow dish on a stem, and the version that hung 124 mm below
+ * the rim was a bucket balanced on one.
+ */
+const BASIN: Profile = [
+  [0.0, 0.0],
+  [0.6, 0.0],
+  [0.61, 0.016],
+  [0.46, 0.055],
+  [0.36, 0.115],
+  [0.31, 0.21],
+  [0.33, 0.29],
+  [0.4, 0.34],
+  [0.52, 0.372],
+  [0.7, 0.394],
+  [0.88, 0.41],
+  [1.0, 0.4215],
+  [1.0, 0.425],
+  [0.94, 0.4245],
+  [0.89, 0.419],
+  [0.8, 0.405],
+  [0.62, 0.388],
+  [0.38, 0.377],
+  [0.15, 0.372],
+  [0.0, 0.371],
+];
+
+function Toilet(): JSX.Element {
+  const { w, d, h } = ITEM_SPECS.toilet;
+  const seatY = 0.2; // 400 mm to the rim, which is where a WC rim is
+  const cisternD = d * 0.28;
+  const cisternFront = -d / 2 + cisternD;
+  const panD = d - cisternD;
+  const panZ = cisternFront + panD / 2;
+  // Close-coupled: the cistern stands on the pan's back shoulder and runs to
+  // the full height h has always claimed — 780 mm to the lid.
+  const cisternFoot = seatY * 0.88;
+  const cisternH = h - cisternFoot;
+  return (
+    <>
+      <Revolved at={[0, 0, panZ]} size={[w, panD]} profile={WC_PAN} />
+      {/* The shoulder the cistern sits on, joining pan to cistern. */}
+      <Glazed
+        at={[0, (cisternFoot + 0.012) / 2, cisternFront - cisternD * 0.26]}
+        size={[w * 0.78, cisternFoot + 0.012, cisternD * 0.9]}
+        radius={0.016}
+      />
+      <Glazed
+        at={[0, cisternFoot + cisternH / 2, cisternFront - cisternD / 2]}
+        size={[w, cisternH, cisternD]}
+        radius={0.018}
+      />
+      {/* Lid, OVERLAPPING the cistern rather than balancing on it. */}
+      <Glazed
+        at={[0, h - 0.008, cisternFront - cisternD / 2]}
+        size={[w + 0.008, 0.016, cisternD + 0.008]}
+        radius={0.006}
+      />
+      <Glazed
+        at={[0, cisternFoot + cisternH * 0.7, cisternFront - 0.004]}
+        size={[w * 0.32, 0.026, 0.01]}
+        radius={0.005}
+        color={CHROME}
+      />
+      <WaterDisc at={[0, seatY - 0.038, panZ]} size={[w * 0.47, panD * 0.47]} />
+      <Revolved at={[0, seatY + 0.005, panZ]} size={[w * 1.01, panD]} profile={WC_SEAT} />
+      {/* Seat lid, up and leaning on the cistern. */}
+      <Glazed
+        at={[0, seatY + 0.092, cisternFront + 0.024]}
+        size={[w * 0.94, 0.165, 0.016]}
+        radius={0.007}
+        rotation={[0.18, 0, 0]}
+      />
     </>
   );
 }
@@ -1412,37 +1419,20 @@ function Shower(): JSX.Element {
   );
 }
 
+
 function Sink(): JSX.Element {
   const { w, d, h } = ITEM_SPECS.sink;
-  // 76 mm of bowl below the rim, not 124. The deeper version read as a bucket
-  // on a stalk: the bowl was a third of the whole fitting and swallowed the
-  // pedestal's proportions.
-  const basinH = 0.038;
-  const rimTube = 0.012;
-  const bowlY = h - basinH;
   return (
     <>
-      {/* Pedestal, waisted: narrow at the middle, flared at the foot, and wide
-          enough at the top to actually meet the bowl above it. */}
-      <GlazedTube at={[0, bowlY / 2, -0.008]} rTop={w * 0.2} rBottom={w * 0.26} height={bowlY} />
-      <EllipseDisc at={[0, 0.012, -0.008]} size={[w * 0.56, d * 0.6]} thickness={0.024} />
-      {/* An OVAL bowl under an OVAL rim, both on the same footprint.
-          The old basin put a rectangular rim with a square hole around a
-          circular bowl, so the four corners of that hole were open — you looked
-          through the rim and out the bottom. Matching curves cannot do that. */}
-      <EllipseBowl at={[0, bowlY + basinH / 2, 0]} size={[w * 0.82, d * 0.8]} height={basinH} taper={0.58} />
-      <EllipseDisc at={[0, bowlY + 0.007, 0]} size={[w * 0.48, d * 0.46]} thickness={0.014} />
-      <EllipseRing at={[0, h - rimTube / 2, 0]} size={[w * 0.82, d * 0.8]} tube={rimTube} />
-      {/* The deck behind the bowl, which the tap stands on. Without it the tap
-          rose out of nothing. */}
-      <Glazed at={[0, h - 0.008, -d / 2 + 0.03]} size={[w * 0.6, 0.018, 0.06]} radius={0.007} />
-      <Water at={[0, bowlY + 0.016, 0]} size={[w * 0.5, 0.002, d * 0.48]} />
-      {/* Waste, sunk into the bowl's floor. */}
-      <Chrome at={[0, bowlY + 0.011, 0]} rTop={0.012} rBottom={0.012} height={0.008} />
-      {/* Tap, seated THROUGH the deck rather than hovering over the rim. */}
-      <Chrome at={[0, h + 0.014, -d / 2 + 0.03]} rTop={0.008} rBottom={0.01} height={0.05} />
+      <Revolved at={[0, 0, 0]} size={[w, d]} profile={BASIN} />
+      <WaterDisc at={[0, h - 0.044, 0]} size={[w * 0.45, d * 0.45]} />
+      <Chrome at={[0, h - 0.05, 0]} rTop={0.012} rBottom={0.012} height={0.008} />
+      {/* The tap stands on a boss raised out of the back of the rim, rather
+          than out of thin air over the bowl. */}
+      <Glazed at={[0, h - 0.003, -d / 2 + 0.024]} size={[w * 0.34, 0.024, 0.042]} radius={0.008} />
+      <Chrome at={[0, h + 0.026, -d / 2 + 0.024]} rTop={0.008} rBottom={0.01} height={0.05} />
       <Chrome
-        at={[0, h + 0.036, -d / 2 + 0.054]}
+        at={[0, h + 0.048, -d / 2 + 0.048]}
         rTop={0.005}
         rBottom={0.005}
         height={0.05}
